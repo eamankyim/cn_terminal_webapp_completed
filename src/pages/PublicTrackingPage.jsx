@@ -34,73 +34,8 @@ const PublicTrackingPage = () => {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
-  // Mock tracking data
-  const mockTrackingData = {
-    'TRK001': {
-      trackingId: 'TRK001',
-      status: 'In Transit',
-      customer: 'John Smith',
-      service: 'Express',
-      weight: '2.5 kg',
-      value: '£150',
-      origin: 'London, UK',
-      destination: 'Accra, Ghana',
-      collectionDate: '2024-01-20',
-      estimatedDelivery: '2024-01-25',
-      currentLocation: 'In Transit - Atlantic Ocean',
-      timeline: [
-        {
-          time: '2024-01-20 09:00',
-          event: 'Package collected from customer',
-          location: 'London, UK',
-          status: 'completed',
-          icon: <InboxOutlined style={{ color: '#52c41a' }} />
-        },
-        {
-          time: '2024-01-20 14:00',
-          event: 'Package processed and packed',
-          location: 'London Warehouse',
-          status: 'completed',
-          icon: <InboxOutlined style={{ color: '#52c41a' }} />
-        },
-        {
-          time: '2024-01-22 08:00',
-          event: 'Loaded onto vessel MS Sea Express',
-          location: 'London Port',
-          status: 'completed',
-          icon: <InboxOutlined style={{ color: '#52c41a' }} />
-        },
-        {
-          time: '2024-01-22 10:00',
-          event: 'Vessel departed from London',
-          location: 'London Port',
-          status: 'completed',
-          icon: <InboxOutlined style={{ color: '#52c41a' }} />
-        },
-        {
-          time: '2024-01-25 08:00',
-          event: 'Expected arrival at Accra Port',
-          location: 'Accra, Ghana',
-          status: 'pending',
-          icon: <EnvironmentOutlined style={{ color: '#1890ff' }} />
-        },
-        {
-          time: '2024-01-26 09:00',
-          event: 'Out for delivery',
-          location: 'Accra, Ghana',
-          status: 'pending',
-          icon: <EnvironmentOutlined style={{ color: '#1890ff' }} />
-        },
-        {
-          time: '2024-01-26 14:00',
-          event: 'Package delivered',
-          location: 'Accra, Ghana',
-          status: 'pending',
-          icon: <EnvironmentOutlined style={{ color: '#1890ff' }} />
-        }
-      ]
-    }
-  };
+  // Tracking data - will be replaced with API call
+  const mockTrackingData = {};
 
   const handleSearch = async () => {
     if (!trackingId.trim()) {

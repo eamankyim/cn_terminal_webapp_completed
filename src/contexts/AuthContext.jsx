@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import apiService from '../services/api';
+import emailService from '../services/emailService';
 
 const AuthContext = createContext();
 
@@ -25,6 +26,7 @@ export const AuthProvider = ({ children }) => {
       name: 'Admin User',
       role: 'admin',
       avatar: null, // No avatar to test initials
+      phone: '+233 24 123 4567',
       permissions: ['all'],
       status: 'active',
       invitedBy: null,
@@ -38,6 +40,7 @@ export const AuthProvider = ({ children }) => {
       name: 'John Staff',
       role: 'staff1',
       avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=staff1',
+      phone: '+233 24 234 5678',
       permissions: ['enquiry-management', 'document-upload', 'client-communication'],
       status: 'active',
       invitedBy: 'admin@cnterminal.com',
@@ -51,6 +54,7 @@ export const AuthProvider = ({ children }) => {
       name: 'Sarah Finance',
       role: 'staff2',
       avatar: null, // No avatar to test initials
+      phone: '+233 24 345 6789',
       permissions: ['validation', 'duty-calculation', 'invoicing', 'payment-tracking'],
       status: 'active',
       invitedBy: 'admin@cnterminal.com',
@@ -65,6 +69,7 @@ export const AuthProvider = ({ children }) => {
       name: 'Emma Finance',
       role: 'finance',
       avatar: null, // Single name to test initials
+      phone: '+233 24 456 7890',
       permissions: ['financial-reports', 'payment-reconciliation', 'cost-analysis'],
       status: 'active',
       invitedBy: 'admin@cnterminal.com',
@@ -165,7 +170,7 @@ export const AuthProvider = ({ children }) => {
         id: `invite_${Date.now()}`,
         email: inviteData.email,
         role: inviteData.role,
-        invitedBy: currentUser?.email || 'admin@shipease.com',
+        invitedBy: currentUser?.email || 'admin@cnterminal.com',
         invitedAt: new Date().toISOString().split('T')[0],
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days
         status: 'pending'
@@ -174,8 +179,18 @@ export const AuthProvider = ({ children }) => {
       // Add to pending invites
       setPendingInvites(prev => [...prev, newInvite]);
       
-      // In real app, this would send an email
-      console.log('Invite sent:', newInvite);
+      // Send invitation email
+      try {
+        const inviteLink = `${window.location.origin}/accept-invite/${newInvite.id}`;
+        await emailService.sendInvitationEmail({
+          ...newInvite,
+          inviteLink
+        });
+        console.log('Invitation email sent successfully');
+      } catch (emailError) {
+        console.error('Failed to send invitation email:', emailError);
+        // Don't throw error here - invite is still created, just email failed
+      }
       
       return { success: true, invite: newInvite };
     } catch (error) {
@@ -218,6 +233,15 @@ export const AuthProvider = ({ children }) => {
       // Remove invite from pending list
       setPendingInvites(prev => prev.filter(inv => inv.id !== inviteId));
       
+      // Send welcome email
+      try {
+        await emailService.sendWelcomeEmail(newUser);
+        console.log('Welcome email sent successfully');
+      } catch (emailError) {
+        console.error('Failed to send welcome email:', emailError);
+        // Don't throw error here - user is still created, just email failed
+      }
+      
       // In real app, this would add the user to the database
       console.log('User created from invite:', newUser);
       
@@ -249,9 +273,17 @@ export const AuthProvider = ({ children }) => {
       // Simulate API call delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      const updatedUser = { ...currentUser, ...updates };
+      // Combine first and last name if provided separately
+      const profileUpdates = { ...updates };
+      if (updates.firstName || updates.lastName) {
+        profileUpdates.name = `${updates.firstName || ''} ${updates.lastName || ''}`.trim();
+        delete profileUpdates.firstName;
+        delete profileUpdates.lastName;
+      }
+      
+      const updatedUser = { ...currentUser, ...profileUpdates };
       setCurrentUser(updatedUser);
-      localStorage.setItem('shipease_user', JSON.stringify(updatedUser));
+      localStorage.setItem('cn_terminal_user', JSON.stringify(updatedUser));
       
       return { success: true, user: updatedUser };
     } catch (error) {

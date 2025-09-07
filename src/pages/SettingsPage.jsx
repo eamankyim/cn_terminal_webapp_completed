@@ -23,6 +23,7 @@ import {
   InputNumber,
   Alert
 } from 'antd';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   SettingOutlined, 
   UserOutlined, 
@@ -43,55 +44,17 @@ const { TextArea } = Input;
 const { TabPane } = Tabs;
 
 const SettingsPage = () => {
+  const { currentUser, updateProfile } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [isUserModalVisible, setIsUserModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [form] = Form.useForm();
+  const [profileForm] = Form.useForm();
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
 
-  // Mock users data
-  const mockUsers = [
-    {
-      id: 1,
-      name: 'Admin User',
-      email: 'admin@cnterminal.com',
-      role: 'admin',
-      status: 'active',
-      lastLogin: '2024-01-20 14:30',
-      permissions: ['all'],
-      avatar: null
-    },
-    {
-      id: 2,
-      name: 'Staff Member 1',
-      email: 'staff1@cnterminal.com',
-      role: 'staff1',
-      status: 'active',
-      lastLogin: '2024-01-20 12:15',
-      permissions: ['jobs', 'shipments', 'clients', 'invoices'],
-      avatar: null
-    },
-    {
-      id: 3,
-      name: 'Staff Member 2',
-      email: 'staff2@cnterminal.com',
-      role: 'staff2',
-      status: 'active',
-      lastLogin: '2024-01-20 10:45',
-      permissions: ['jobs', 'shipments', 'clients'],
-      avatar: null
-    },
-
-    {
-      id: 5,
-      name: 'Finance Officer',
-      email: 'finance@cnterminal.com',
-      role: 'finance',
-      status: 'inactive',
-      lastLogin: '2024-01-15 16:00',
-      permissions: ['invoices', 'payments', 'reports'],
-      avatar: null
-    }
-  ];
+  // Users data - will be replaced with API call
+  const mockUsers = [];
 
   const [users, setUsers] = useState(mockUsers);
 
@@ -166,6 +129,36 @@ const SettingsPage = () => {
     });
   };
 
+  const handleProfileUpdate = async (values) => {
+    setProfileLoading(true);
+    try {
+      await updateProfile(values);
+      message.success('Profile updated successfully');
+      setIsEditingProfile(false);
+    } catch (error) {
+      message.error('Failed to update profile. Please try again.');
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const handleEditProfile = () => {
+    setIsEditingProfile(true);
+    // Populate form with current user data
+    const userData = {
+      firstName: currentUser?.name?.split(' ')[0] || '',
+      lastName: currentUser?.name?.split(' ').slice(1).join(' ') || '',
+      email: currentUser?.email || '',
+      phone: currentUser?.phone || '',
+    };
+    profileForm.setFieldsValue(userData);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingProfile(false);
+    profileForm.resetFields();
+  };
+
   const userColumns = [
     {
       title: 'User',
@@ -238,37 +231,133 @@ const SettingsPage = () => {
         <div>
           <Row gutter={24}>
             <Col xs={24} lg={12}>
-              <Card title="Personal Information" extra={<UserOutlined />}>
-                <Form layout="vertical">
+              <Card 
+                title="Personal Information" 
+                extra={
+                  <Space>
+                    {!isEditingProfile ? (
+                      <Button 
+                        type="primary" 
+                        icon={<EditOutlined />}
+                        onClick={handleEditProfile}
+                      >
+                        Edit Details
+                      </Button>
+                    ) : (
+                      <Space>
+                        <Button onClick={handleCancelEdit}>
+                          Cancel
+                        </Button>
+                        <Button 
+                          type="primary" 
+                          icon={<SaveOutlined />}
+                          loading={profileLoading}
+                          onClick={() => profileForm.submit()}
+                        >
+                          Save Changes
+                        </Button>
+                      </Space>
+                    )}
+                  </Space>
+                }
+              >
+                {!isEditingProfile ? (
+                  <div>
+                    <Row gutter={16} style={{ marginBottom: '16px' }}>
+                      <Col span={12}>
+                        <Text strong>First Name:</Text>
+                        <br />
+                        <Text>{currentUser?.name?.split(' ')[0] || 'Not set'}</Text>
+                      </Col>
+                      <Col span={12}>
+                        <Text strong>Last Name:</Text>
+                        <br />
+                        <Text>{currentUser?.name?.split(' ').slice(1).join(' ') || 'Not set'}</Text>
+                      </Col>
+                    </Row>
+                    <Row gutter={16} style={{ marginBottom: '16px' }}>
+                      <Col span={24}>
+                        <Text strong>Email:</Text>
+                        <br />
+                        <Text>{currentUser?.email || 'Not set'}</Text>
+                      </Col>
+                    </Row>
+                    <Row gutter={16} style={{ marginBottom: '16px' }}>
+                      <Col span={24}>
+                        <Text strong>Phone:</Text>
+                        <br />
+                        <Text>{currentUser?.phone || 'Not set'}</Text>
+                      </Col>
+                    </Row>
+                    <Row gutter={16} style={{ marginBottom: '16px' }}>
+                      <Col span={24}>
+                        <Text strong>Role:</Text>
+                        <br />
+                        <Tag color={getRoleColor(currentUser?.role)}>
+                          {getRoleLabel(currentUser?.role)}
+                        </Tag>
+                      </Col>
+                    </Row>
+                    <Row gutter={16}>
+                      <Col span={24}>
+                        <Text strong>Status:</Text>
+                        <br />
+                        <Tag color={getStatusColor(currentUser?.status)}>
+                          {currentUser?.status || 'Unknown'}
+                        </Tag>
+                      </Col>
+                    </Row>
+                  </div>
+                ) : (
+                  <Form 
+                    form={profileForm}
+                    layout="vertical"
+                    onFinish={handleProfileUpdate}
+                  >
                   <Row gutter={16}>
                     <Col span={12}>
-                      <Form.Item label="First Name">
-                        <Input placeholder="Enter first name" defaultValue="Admin" />
+                        <Form.Item 
+                          name="firstName"
+                          label="First Name"
+                          rules={[{ required: true, message: 'Please enter first name' }]}
+                        >
+                          <Input placeholder="Enter first name" />
                       </Form.Item>
                     </Col>
                     <Col span={12}>
-                      <Form.Item label="Last Name">
-                        <Input placeholder="Enter last name" defaultValue="User" />
+                        <Form.Item 
+                          name="lastName"
+                          label="Last Name"
+                          rules={[{ required: true, message: 'Please enter last name' }]}
+                        >
+                          <Input placeholder="Enter last name" />
                       </Form.Item>
                     </Col>
                   </Row>
-                  <Form.Item label="Email">
-                    <Input placeholder="Enter email" defaultValue="admin@cnterminal.com" />
+                    <Form.Item 
+                      name="email"
+                      label="Email"
+                      rules={[
+                        { required: true, message: 'Please enter email' },
+                        { type: 'email', message: 'Please enter valid email' }
+                      ]}
+                    >
+                      <Input placeholder="Enter email" />
                   </Form.Item>
-                  <Form.Item label="Phone">
-                    <Input placeholder="Enter phone number" defaultValue="+233 24 123 4567" />
+                    <Form.Item 
+                      name="phone"
+                      label="Phone"
+                      rules={[{ required: true, message: 'Please enter phone number' }]}
+                    >
+                      <Input placeholder="Enter phone number" />
                   </Form.Item>
                   <Form.Item label="Profile Picture">
                     <Upload>
                       <Button icon={<UploadOutlined />}>Upload Photo</Button>
                     </Upload>
                   </Form.Item>
-                  <Form.Item>
-                    <Button type="primary" icon={<SaveOutlined />}>
-                      Save Changes
-                    </Button>
-                  </Form.Item>
                 </Form>
+                )}
               </Card>
             </Col>
             <Col xs={24} lg={12}>

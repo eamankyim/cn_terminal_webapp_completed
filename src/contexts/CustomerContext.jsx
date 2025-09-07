@@ -15,49 +15,8 @@ export const CustomerProvider = ({ children }) => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Mock initial customers data
-  const initialCustomers = [
-    {
-      id: '1',
-      name: 'John Smith',
-      email: 'john.smith@example.com',
-      phone: '+233 24 123 4567',
-      address: '123 Main Street, Accra, Ghana',
-      customerType: 'Regular'
-    },
-    {
-      id: '2',
-      name: 'Sarah Johnson',
-      email: 'sarah.johnson@example.com',
-      phone: '+233 26 987 6543',
-      address: '456 Oak Avenue, Kumasi, Ghana',
-      customerType: 'Premium'
-    },
-    {
-      id: '3',
-      name: 'Mike Wilson',
-      email: 'mike.wilson@example.com',
-      phone: '+233 20 555 1234',
-      address: '789 Pine Road, Tema, Ghana',
-      customerType: 'VIP'
-    },
-    {
-      id: '4',
-      name: 'Lisa Brown',
-      email: 'lisa.brown@example.com',
-      phone: '+233 27 777 8888',
-      address: '321 Elm Street, Accra, Ghana',
-      customerType: 'Regular'
-    },
-    {
-      id: '5',
-      name: 'David Lee',
-      email: 'david.lee@example.com',
-      phone: '+233 28 111 2222',
-      address: '654 Maple Avenue, Kumasi, Ghana',
-      customerType: 'Premium'
-    }
-  ];
+  // Initial customers data - will be replaced with API call
+  const initialCustomers = [];
 
   // Load customers on component mount
   useEffect(() => {

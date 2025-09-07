@@ -44,164 +44,20 @@ const DriverDashboardPage = () => {
   const [selectedJob, setSelectedJob] = useState(null);
   const [form] = Form.useForm();
 
-  // Mock data for driver statistics
+  // Driver statistics - will be replaced with API call
   const stats = [
-    { title: 'Collections Today', value: 8, suffix: '', color: '#1890ff' },
-    { title: 'Completed', value: 6, suffix: '', color: '#52c41a' },
-    { title: 'Pending', value: 2, suffix: '', color: '#faad14' },
-    { title: 'Total Weight', value: 67, suffix: ' kg', color: '#722ed1' },
+    { title: 'Collections Today', value: 0, suffix: '', color: '#1890ff' },
+    { title: 'Completed', value: 0, suffix: '', color: '#52c41a' },
+    { title: 'Pending', value: 0, suffix: '', color: '#faad14' },
+    { title: 'Total Weight', value: 0, suffix: ' kg', color: '#722ed1' },
   ];
 
-  // Mock data for assigned collection jobs
-  const assignedJobs = [
-    {
-      key: '1',
-      trackingId: 'CN001234',
-      customer: 'John Smith',
-      customerEmail: 'john.smith@email.com',
-      customerPhone: '+44 7911 123456',
-      address: '123 High Street, London, UK',
-      scheduledTime: '09:00 - 11:00',
-      status: 'Pending',
-      priority: 'High',
-      instructions: 'Call customer 15 minutes before arrival',
-      packageType: 'Box',
-      weight: '2.5 kg',
-      value: 1500,
-      progress: 0,
-      timeline: [
-        {
-          time: '2024-01-20 08:00',
-          event: 'Job assigned to driver',
-          location: 'London, UK',
-          status: 'completed',
-          icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />
-        },
-        {
-          time: '2024-01-20 09:00',
-          event: 'Driver en route',
-          location: 'En route to pickup',
-          status: 'in-progress',
-          icon: <CarOutlined style={{ color: '#1890ff' }} />
-        }
-      ],
-      activities: [
-        {
-          time: '2024-01-20 08:00',
-          user: 'Dispatch Manager',
-          action: 'assigned job to driver',
-          details: 'Job CN001234 assigned to Driver A'
-        },
-        {
-          time: '2024-01-20 09:00',
-          user: 'Driver A',
-          action: 'started route',
-          details: 'Driver departed from warehouse'
-        }
-      ]
-    },
-    {
-      key: '2',
-      trackingId: 'CN001235',
-      customer: 'Sarah Johnson',
-      customerEmail: 'sarah.johnson@email.com',
-      customerPhone: '+44 7911 234567',
-      address: '456 Oxford Street, London, UK',
-      scheduledTime: '11:00 - 13:00',
-      status: 'In Progress',
-      priority: 'Medium',
-      instructions: 'Customer prefers afternoon collection',
-      packageType: 'Document',
-      weight: '0.5 kg',
-      value: 800,
-      progress: 50,
-      timeline: [
-        {
-          time: '2024-01-20 10:00',
-          event: 'Job assigned to driver',
-          location: 'London, UK',
-          status: 'completed',
-          icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />
-        },
-        {
-          time: '2024-01-20 11:00',
-          event: 'Driver arrived at location',
-          location: 'Oxford Street',
-          status: 'in-progress',
-          icon: <ClockIcon style={{ color: '#faad14' }} />
-        }
-      ],
-      activities: [
-        {
-          time: '2024-01-20 10:00',
-          user: 'Dispatch Manager',
-          action: 'assigned job to driver',
-          details: 'Job CN001235 assigned to Driver A'
-        },
-        {
-          time: '2024-01-20 11:00',
-          user: 'Driver A',
-          action: 'arrived at pickup location',
-          details: 'Driver arrived at Oxford Street location'
-        }
-      ]
-    },
-    {
-      key: '3',
-      trackingId: 'CN001236',
-      customer: 'Mike Wilson',
-      customerEmail: 'mike.wilson@email.com',
-      customerPhone: '+44 7911 345678',
-      address: '789 Regent Street, London, UK',
-      scheduledTime: '13:00 - 15:00',
-      status: 'Pending',
-      priority: 'Low',
-      instructions: 'No special instructions',
-      packageType: 'Parcel',
-      weight: '1.8 kg',
-      value: 1200,
-      progress: 0,
-      timeline: [
-        {
-          time: '2024-01-20 12:00',
-          event: 'Job assigned to driver',
-          location: 'London, UK',
-          status: 'completed',
-          icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />
-        }
-      ],
-      activities: [
-        {
-          time: '2024-01-20 12:00',
-          user: 'Dispatch Manager',
-          action: 'assigned job to driver',
-          details: 'Job CN001236 assigned to Driver A'
-        }
-      ]
-    },
-  ];
+  // Assigned collection jobs - will be replaced with API call
+  const assignedJobs = [];
 
-  // Mock data for recent collections
-  const recentCollections = [
-    {
-      time: '2 hours ago',
-      action: 'Collection completed for CN001230',
-      customer: 'Lisa Brown',
-      location: 'London Bridge',
-    },
-    {
-      time: '4 hours ago',
-      action: 'Collection completed for CN001231',
-      customer: 'David Lee',
-      location: 'Canary Wharf',
-    },
-    {
-      time: '6 hours ago',
-      action: 'Collection completed for CN001232',
-      customer: 'Emma Davis',
-      location: 'Greenwich',
-    },
-  ];
+  // Recent collections - will be replaced with API call
+  const recentCollections = [];
+ 
 
   // Helper functions for colors
   const getStatusColor = (status) => {

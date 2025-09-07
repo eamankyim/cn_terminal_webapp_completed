@@ -42,114 +42,53 @@ const { Title, Text } = Typography;
 const DashboardPage = () => {
   const navigate = useNavigate();
 
-  // Mock data for clearing agent statistics
+  // Clearing agent statistics - will be replaced with API call
   const stats = [
     {
       title: 'Total Jobs',
-      value: 156,
+      value: 0,
       prefix: <FileAddOutlined />,
       color: '#1890ff',
       suffix: ''
     },
     {
       title: 'Active Shipments',
-      value: 89,
+      value: 0,
       prefix: <ContainerOutlined />,
       color: '#faad14',
       suffix: ''
     },
     {
       title: 'Total Clients',
-      value: 234,
+      value: 0,
       prefix: <UserOutlined />,
       color: '#52c41a',
       suffix: ''
     },
     {
       title: 'Revenue This Month',
-      value: 124500,
+      value: 0,
       prefix: <DollarOutlined />,
       suffix: 'GHS'
     }
   ];
 
-  // Mock data for recent shipments with clearing agent statuses
-  const recentShipments = [
-    {
-      key: '1',
-      trackingId: 'CN001',
-      client: 'John Smith',
-      goods: 'Electronics',
-      status: 'Under Review',
-      eta: '2024-01-25',
-      port: 'Tema Port'
-    },
-    {
-      key: '2',
-      trackingId: 'CN002',
-      client: 'Sarah Johnson',
-      goods: 'Textiles',
-      status: 'Quoted',
-      eta: '2024-01-28',
-      port: 'Kotoka Airport'
-    },
-    {
-      key: '3',
-      trackingId: 'CN003',
-      client: 'Mike Wilson',
-      goods: 'Machinery',
-      status: 'Awaiting Payment',
-      eta: '2024-01-30',
-      port: 'Tema Port'
-    },
-    {
-      key: '4',
-      trackingId: 'CN004',
-      client: 'Lisa Brown',
-      goods: 'Pharmaceuticals',
-      status: 'Clearing',
-      eta: '2024-02-02',
-      port: 'Kotoka Airport'
-    }
-  ];
+  // Recent shipments - will be replaced with API call
+  const recentShipments = [];
 
-  // Mock data for workflow status counts
+  // Workflow status counts - will be replaced with API call
   const workflowStatuses = [
-    { status: 'Submitted', count: 25, color: '#1890ff', icon: <FileAddOutlined /> },
-    { status: 'Under Review', count: 18, color: '#00072D', icon: <ClockCircleOutlined /> },
-    { status: 'Quoted', count: 32, color: '#722ed1', icon: <CalculatorOutlined /> },
-    { status: 'Awaiting Payment', count: 15, color: '#eb2f96', icon: <CreditCardOutlined /> },
-    { status: 'Clearing', count: 12, color: '#52c41a', icon: <SyncOutlined /> },
-    { status: 'Delivered', count: 54, color: '#52c41a', icon: <CheckCircleOutlined /> }
+    { status: 'Submitted', count: 0, color: '#1890ff', icon: <FileAddOutlined /> },
+    { status: 'Under Review', count: 0, color: '#00072D', icon: <ClockCircleOutlined /> },
+    { status: 'Quoted', count: 0, color: '#722ed1', icon: <CalculatorOutlined /> },
+    { status: 'Awaiting Payment', count: 0, color: '#eb2f96', icon: <CreditCardOutlined /> },
+    { status: 'Clearing', count: 0, color: '#52c41a', icon: <SyncOutlined /> },
+    { status: 'Delivered', count: 0, color: '#52c41a', icon: <CheckCircleOutlined /> }
   ];
 
-  // Mock data for recent activities
-  const recentActivities = [
-    {
-      time: '2 hours ago',
-      action: 'Invoice generated for CN003',
-      user: 'Staff 2',
-      type: 'invoice'
-    },
-    {
-      time: '4 hours ago',
-      action: 'ETA updated for CN002',
-      user: 'Staff 2',
-      type: 'eta'
-    },
-    {
-      time: '6 hours ago',
-      action: 'New enquiry submitted by Lisa Brown',
-      user: 'Staff 1',
-      type: 'enquiry'
-    },
-    {
-      time: '8 hours ago',
-      action: 'Payment received for CN001',
-      user: 'System',
-      type: 'payment'
-    }
-  ];
+  // Recent activities - will be replaced with API call
+  const recentActivities = [];
+ 
 
   const getStatusColor = (status) => {
     const statusColors = {

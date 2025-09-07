@@ -24,67 +24,8 @@ const ShipmentTrackingPage = () => {
   const [shipment, setShipment] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Mock shipment data
-  const mockShipment = {
-    trackingId: 'CN001234',
-    status: 'In Transit',
-    progress: 75,
-    customer: 'John Smith',
-    customerPhone: '+44 7911 123456',
-    customerEmail: 'john.smith@email.com',
-    collectionAddress: '123 High Street, London, UK',
-    deliveryAddress: '456 Main Road, Accra, Ghana',
-    packageType: 'Box',
-    packageWeight: '2.5 kg',
-    packageValue: '£150',
-    serviceType: 'Standard',
-    collectionDate: '2024-01-20',
-    estimatedDelivery: '2024-01-25',
-    timeline: [
-      {
-        time: '2024-01-20 14:30',
-        event: 'Collection completed',
-        location: 'London, UK',
-        status: 'completed',
-        icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />
-      },
-      {
-        time: '2024-01-21 09:15',
-        event: 'Arrived at warehouse',
-        location: 'London Heathrow',
-        status: 'completed',
-        icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />
-      },
-      {
-        time: '2024-01-22 16:45',
-        event: 'Departed from London',
-        location: 'London Heathrow',
-        status: 'completed',
-        icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />
-      },
-      {
-        time: '2024-01-23 08:30',
-        event: 'In transit to Ghana',
-        location: 'En route',
-        status: 'in-progress',
-        icon: <CarOutlined style={{ color: '#1890ff' }} />
-      },
-      {
-        time: '2024-01-25 10:00',
-        event: 'Expected arrival',
-        location: 'Accra Airport',
-        status: 'pending',
-        icon: <ClockCircleOutlined style={{ color: '#faad14' }} />
-      },
-      {
-        time: '2024-01-26 14:00',
-        event: 'Out for delivery',
-        location: 'Accra, Ghana',
-        status: 'pending',
-        icon: <ClockCircleOutlined style={{ color: '#faad14' }} />
-      }
-    ]
-  };
+  // Shipment data - will be replaced with API call
+  const mockShipment = null;
 
   const handleSearch = async () => {
     if (!trackingId.trim()) {
@@ -94,12 +35,12 @@ const ShipmentTrackingPage = () => {
 
     setLoading(true);
     try {
-      // Mock API call
+      // TODO: Replace with actual API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // For demo purposes, show mock data for any tracking ID
-      setShipment(mockShipment);
-      message.success('Shipment found!');
+      // For now, no mock data is returned
+      setShipment(null);
+      message.error('Tracking ID not found. Please check your tracking number.');
     } catch (error) {
       message.error('Failed to find shipment. Please try again.');
     } finally {

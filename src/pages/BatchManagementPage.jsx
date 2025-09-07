@@ -48,117 +48,13 @@ const BatchManagementPage = () => {
   const [batchForm] = Form.useForm();
   const [activeTab, setActiveTab] = useState('batches');
 
-  // Mock data for available parcels
-  const availableParcels = [
-    {
-      key: '1',
-      trackingId: 'CN001234',
-      customer: 'John Smith',
-      weight: '2.5 kg',
-      value: 1500,
-      packageType: 'Box',
-      status: 'At UK Warehouse',
-      priority: 'High',
-      arrivalDate: '2024-01-20',
-      destination: 'Accra, Ghana'
-    },
-    {
-      key: '2',
-      trackingId: 'CN001235',
-      customer: 'Sarah Johnson',
-      weight: '0.5 kg',
-      value: 800,
-      packageType: 'Document',
-      status: 'At UK Warehouse',
-      priority: 'Medium',
-      arrivalDate: '2024-01-20',
-      destination: 'Kumasi, Ghana'
-    },
-    {
-      key: '3',
-      trackingId: 'CN001236',
-      customer: 'Mike Wilson',
-      weight: '1.8 kg',
-      value: 1200,
-      packageType: 'Parcel',
-      status: 'At UK Warehouse',
-      priority: 'Low',
-      arrivalDate: '2024-01-19',
-      destination: 'Accra, Ghana'
-    },
-    {
-      key: '4',
-      trackingId: 'CN001237',
-      customer: 'Lisa Brown',
-      weight: '3.2 kg',
-      value: 2000,
-      packageType: 'Box',
-      status: 'At UK Warehouse',
-      priority: 'High',
-      arrivalDate: '2024-01-19',
-      destination: 'Tamale, Ghana'
-    },
-    {
-      key: '5',
-      trackingId: 'CN001238',
-      customer: 'David Lee',
-      weight: '0.8 kg',
-      value: 600,
-      packageType: 'Envelope',
-      status: 'At UK Warehouse',
-      priority: 'Medium',
-      arrivalDate: '2024-01-18',
-      destination: 'Accra, Ghana'
-    }
-  ];
+  // Available parcels - will be replaced with API call
+  const availableParcels = [];
 
-  // Mock data for existing batches
-  const existingBatches = [
-    {
-      key: '1',
-      batchId: 'BATCH001',
-      name: 'Accra Express Batch',
-      status: 'Ready for Departure',
-      totalParcels: 15,
-      totalWeight: '45.2 kg',
-      totalValue: 28500,
-      vessel: 'MS Sea Express',
-      departureDate: '2024-01-25',
-      eta: '2024-02-10',
-      route: 'London → Accra',
-      progress: 75
-    },
-    {
-      key: '2',
-      batchId: 'BATCH002',
-      name: 'Kumasi Standard Batch',
-      status: 'In Preparation',
-      totalParcels: 8,
-      totalWeight: '22.1 kg',
-      totalValue: 15600,
-      vessel: 'MS Sea Express',
-      departureDate: '2024-01-28',
-      eta: '2024-02-13',
-      route: 'London → Accra → Kumasi',
-      progress: 45
-    },
-    {
-      key: '3',
-      batchId: 'BATCH003',
-      name: 'Premium Air Batch',
-      status: 'At Airport',
-      totalParcels: 5,
-      totalWeight: '8.5 kg',
-      totalValue: 12000,
-      vessel: 'BA Flight 123',
-      departureDate: '2024-01-22',
-      eta: '2024-01-23',
-      route: 'London → Accra',
-      progress: 90
-    }
-  ];
+  // Existing batches - will be replaced with API call
+  const existingBatches = [];
 
-  // Mock data for vessel/flight options
+  // Vessel/flight options - will be replaced with API call
   const vesselOptions = [
     { value: 'MS Sea Express', label: 'MS Sea Express (Sea)', type: 'Sea' },
     { value: 'MS Atlantic Star', label: 'MS Atlantic Star (Sea)', type: 'Sea' },

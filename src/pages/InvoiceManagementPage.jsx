@@ -48,142 +48,19 @@ const InvoiceManagementPage = () => {
   const [invoiceForm] = Form.useForm();
   const [activeTab, setActiveTab] = useState('invoices');
 
-  // Mock customers data - in real implementation, this would come from API/state management
-  const customers = [
-    {
-      id: '1',
-      name: 'John Smith',
-      email: 'john.smith@email.com',
-      phone: '+233 24 123 4567',
-      address: '123 Main Street, Accra, Ghana',
-      customerType: 'Regular'
-    },
-    {
-      id: '2',
-      name: 'Sarah Johnson',
-      email: 'sarah.johnson@email.com',
-      phone: '+233 26 987 6543',
-      address: '456 Oak Avenue, Kumasi, Ghana',
-      customerType: 'Premium'
-    },
-    {
-      id: '3',
-      name: 'Mike Wilson',
-      email: 'mike.wilson@email.com',
-      phone: '+233 20 555 1234',
-      address: '789 Pine Road, Tema, Ghana',
-      customerType: 'VIP'
-    }
-  ];
+  // Customers data - will be replaced with API call
+  const customers = [];
 
-  // Mock data for pricing structure
+  // Pricing structure - will be replaced with API call
   const pricingStructure = {
     standard: { base: 50, perKg: 2, days: '7-10' },
     express: { base: 75, perKg: 3, days: '3-5' },
     premium: { base: 100, perKg: 4, days: '1-2' }
   };
 
-  // Mock data for available shipments
-  const availableShipments = [
-    {
-      key: '1',
-      trackingId: 'CN001234',
-      customer: 'John Smith',
-      customerEmail: 'john.smith@email.com',
-      weight: '2.5 kg',
-      value: 1500,
-      service: 'Standard',
-      status: 'At UK Warehouse',
-      destination: 'Accra, Ghana',
-      collectionDate: '2024-01-20',
-      invoiceGenerated: false
-    },
-    {
-      key: '2',
-      trackingId: 'CN001235',
-      customer: 'Sarah Johnson',
-      customerEmail: 'sarah.johnson@email.com',
-      weight: '0.5 kg',
-      value: 800,
-      service: 'Express',
-      status: 'At UK Warehouse',
-      destination: 'Kumasi, Ghana',
-      collectionDate: '2024-01-20',
-      invoiceGenerated: false
-    },
-    {
-      key: '3',
-      trackingId: 'CN001236',
-      customer: 'Mike Wilson',
-      customerEmail: 'mike.wilson@email.com',
-      weight: '1.8 kg',
-      value: 1200,
-      service: 'Standard',
-      status: 'At UK Warehouse',
-      destination: 'Accra, Ghana',
-      collectionDate: '2024-01-19',
-      invoiceGenerated: false
-    },
-    {
-      key: '4',
-      trackingId: 'CN001237',
-      customer: 'Lisa Brown',
-      customerEmail: 'lisa.brown@email.com',
-      weight: '3.2 kg',
-      value: 2000,
-      service: 'Premium',
-      status: 'At UK Warehouse',
-      destination: 'Tamale, Ghana',
-      collectionDate: '2024-01-19',
-      invoiceGenerated: false
-    }
-  ];
-
-  // Mock data for existing invoices
-  const existingInvoices = [
-    {
-      key: '1',
-      invoiceNumber: 'INV001234',
-      trackingId: 'CN001230',
-      customer: 'Emma Davis',
-      customerEmail: 'emma.davis@email.com',
-      amount: 58.50,
-      service: 'Standard',
-      status: 'Paid',
-      issueDate: '2024-01-18',
-      dueDate: '2024-01-25',
-      paymentDate: '2024-01-20',
-      paymentMethod: 'Bank Transfer'
-    },
-    {
-      key: '2',
-      invoiceNumber: 'INV001235',
-      trackingId: 'CN001231',
-      customer: 'David Lee',
-      customerEmail: 'david.lee@email.com',
-      amount: 81.00,
-      service: 'Express',
-      status: 'Pending',
-      issueDate: '2024-01-19',
-      dueDate: '2024-01-26',
-      paymentDate: null,
-      paymentMethod: null
-    },
-    {
-      key: '3',
-      invoiceNumber: 'INV001236',
-      trackingId: 'CN001232',
-      customer: 'Anna Wilson',
-      customerEmail: 'anna.wilson@email.com',
-      amount: 112.00,
-      service: 'Premium',
-      status: 'Overdue',
-      issueDate: '2024-01-17',
-      dueDate: '2024-01-24',
-      paymentDate: null,
-      paymentMethod: null
-    }
-  ];
+  // Available shipments - will be replaced with API call
+  const availableShipments = [];
+  const existingInvoices = [];
 
   const invoiceColumns = [
     {

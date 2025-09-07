@@ -52,73 +52,8 @@ const PaymentsPage = () => {
   const [editingPayment, setEditingPayment] = useState(null);
   const [form] = Form.useForm();
 
-  // Mock payment data
-  const mockPayments = [
-    {
-      id: 'PAY-2024-001',
-      invoiceId: 'INV-2024-001',
-      clientName: 'Ghana Import Export Ltd',
-      amount: 51750,
-      paymentDate: '2024-01-20',
-      paymentMethod: 'bank_transfer',
-      reference: 'TXN-2024-001',
-      status: 'completed',
-      notes: 'Payment received via bank transfer',
-      bankDetails: {
-        bank: 'Ghana Commercial Bank',
-        account: '1234567890',
-        branch: 'Accra Main Branch'
-      }
-    },
-    {
-      id: 'PAY-2024-002',
-      invoiceId: 'INV-2024-005',
-      clientName: 'Kumasi Retail Group',
-      amount: 17250,
-      paymentDate: '2024-01-28',
-      paymentMethod: 'cash',
-      reference: 'CASH-2024-001',
-      status: 'completed',
-      notes: 'Cash payment received at office',
-      bankDetails: null
-    },
-    {
-      id: 'PAY-2024-003',
-      invoiceId: 'INV-2024-002',
-      clientName: 'West Africa Trading Co',
-      amount: 36800,
-      paymentDate: null,
-      paymentMethod: 'pending',
-      reference: null,
-      status: 'pending',
-      notes: 'Payment expected by due date',
-      bankDetails: null
-    },
-    {
-      id: 'PAY-2024-004',
-      invoiceId: 'INV-2024-003',
-      clientName: 'Tema Port Services',
-      amount: 89700,
-      paymentDate: null,
-      paymentMethod: 'pending',
-      reference: null,
-      status: 'overdue',
-      notes: 'Payment overdue - follow up required',
-      bankDetails: null
-    },
-    {
-      id: 'PAY-2024-005',
-      invoiceId: 'INV-2024-004',
-      clientName: 'Accra Manufacturing Ltd',
-      amount: 32200,
-      paymentDate: null,
-      paymentMethod: 'pending',
-      reference: null,
-      status: 'pending',
-      notes: 'Draft invoice - not yet sent',
-      bankDetails: null
-    }
-  ];
+  // Payment data - will be replaced with API call
+  const mockPayments = [];
 
   const [payments, setPayments] = useState(mockPayments);
 

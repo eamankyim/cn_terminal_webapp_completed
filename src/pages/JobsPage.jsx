@@ -65,138 +65,17 @@ const JobsPage = () => {
   const [isDocumentViewerVisible, setIsDocumentViewerVisible] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [selectedCustomerConsignments, setSelectedCustomerConsignments] = useState([]);
-
-
-
-  // Mock data for jobs
-  const [jobs, setJobs] = useState([
-    {
-      key: '1',
-      trackingId: 'CN001',
-      clientName: 'John Smith',
-      clientEmail: 'john@example.com',
-      clientPhone: '+233 24 123 4567',
-      commercialInvoice: 'INV-2024-001',
-      goodsType: 'Electronics',
-      
-      ghanaCard: 'GHA-123456789-0',
-      tin: '123456789',
-            status: 'Submitted',
-      submittedDate: '2024-01-20',
-      createdBy: 'Staff 1',
-      documents: [
-        'packing-list.pdf',
-        'commercial-invoice.pdf',
-        'bill-of-lading.pdf',
-        'certificate-of-origin.pdf'
-      ],
-      estimatedValue: 5000,
-      port: 'Tema Port',
-      assignedTo: 'Unassigned',
-      statusHistory: [
-        {
-          date: '2024-01-20',
-          status: 'Submitted',
-          comment: 'Job created',
-          updatedBy: 'Staff 1'
-         }
-       ]
-     },
-     {
-       key: '2',
-      trackingId: 'CN002',
-      clientName: 'Sarah Johnson',
-      clientEmail: 'sarah@example.com',
-      clientPhone: '+233 26 987 6543',
-      commercialInvoice: 'INV-2024-002',
-      goodsType: 'Textiles',
-      
-      ghanaCard: 'GHA-987654321-0',
-      tin: '987654321',
-      status: 'Under Review',
-      submittedDate: '2024-01-19',
-      createdBy: 'Staff 1',
-      documents: [
-        'packing-list.pdf',
-        'commercial-invoice.pdf',
-        'technical-specifications.pdf',
-        'quality-certificate.pdf',
-        'shipping-manifest.pdf'
-      ],
-      estimatedValue: 3000,
-      port: 'Kotoka Airport',
-      assignedTo: 'Staff 1',
-      statusHistory: [
-        {
-          date: '2024-01-19',
-          status: 'Submitted',
-          comment: 'Job created',
-          updatedBy: 'Staff 1'
-        },
-        {
-          date: '2024-01-20',
-          status: 'Under Review',
-          comment: 'Documents reviewed and approved',
-          updatedBy: 'Staff 2'
-         }
-       ]
-     },
-     {
-       key: '3',
-      trackingId: 'CN003',
-      clientName: 'Mike Wilson',
-      clientEmail: 'mike@example.com',
-      clientPhone: '+233 20 555 1234',
-      commercialInvoice: 'INV-2024-003',
-      goodsType: 'Machinery',
-      
-      ghanaCard: 'GHA-555123456-0',
-      tin: '555123456',
-      status: 'Quoted',
-      submittedDate: '2024-01-18',
-      createdBy: 'Staff 1',
-      documents: [
-        'packing-list.pdf',
-        'commercial-invoice.pdf',
-        'technical-specifications.pdf',
-        'safety-certificate.pdf',
-        'inspection-report.pdf',
-        'warranty-document.pdf'
-      ],
-      estimatedValue: 15000,
-      port: 'Tema Port',
-      assignedTo: 'Staff 2',
-      statusHistory: [
-        {
-          date: '2024-01-18',
-          status: 'Submitted',
-          comment: 'Job created',
-          updatedBy: 'Staff 1'
-        },
-        {
-          date: '2024-01-19',
-          status: 'Under Review',
-          comment: 'Initial review completed',
-          updatedBy: 'Staff 2'
-        },
-        {
-          date: '2024-01-20',
-          status: 'Quoted',
-          comment: 'Duty calculation completed and quote prepared',
-          updatedBy: 'Staff 2'
-        }
-      ]
-    }
+  const [jobs, setJobs] = useState([]);
+  const [staffMembers] = useState([
+    'John Staff',
+    'Sarah Finance', 
+    'Mike Wilson',
+    'Emma Finance'
   ]);
 
-  // Available staff members for assignment
-  const staffMembers = [
-    'Unassigned',
-    'Staff 1',
-    'Staff 2',
-    'Admin',
-    'Delivery Team'
-  ];
+
+
+
 
   const getStatusColor = (status) => {
     const statusColors = {
@@ -497,62 +376,10 @@ const JobsPage = () => {
 
 
 
-  // Mock function to get consignments for a customer
+  // Function to get consignments for a customer - will be replaced with API call
   const getMockConsignmentsForCustomer = (customerName) => {
-    const mockConsignmentsData = {
-      'John Smith': [
-        {
-          id: 'CON-001',
-          trackingId: 'TRK-2024-001',
-          consigneeName: 'John Smith',
-          goodsType: 'Electronics',
-          status: 'In Transit',
-          value: 25000,
-          date: '2024-01-20',
-          tin: '123456789',
-          ghanaCard: 'GHA-123456789-0'
-        },
-        {
-          id: 'CON-002',
-          trackingId: 'TRK-2024-002',
-          consigneeName: 'John Smith',
-          goodsType: 'Textiles',
-          status: 'Pending',
-          value: 15000,
-          date: '2024-01-25',
-          tin: '123456789',
-          ghanaCard: 'GHA-123456789-0'
-        }
-      ],
-      'Sarah Johnson': [
-        {
-          id: 'CON-003',
-          trackingId: 'TRK-2024-003',
-          consigneeName: 'Sarah Johnson',
-          goodsType: 'Textiles',
-          status: 'Delivered',
-          value: 18000,
-          date: '2024-01-15',
-          tin: '987654321',
-          ghanaCard: 'GHA-987654321-0'
-        }
-      ],
-      'Mike Wilson': [
-        {
-          id: 'CON-004',
-          trackingId: 'TRK-2024-004',
-          consigneeName: 'Mike Wilson',
-          goodsType: 'Machinery',
-          status: 'Pending',
-          value: 85000,
-          date: '2024-01-25',
-          tin: '555123456',
-          ghanaCard: 'GHA-555123456-0'
-        }
-      ]
-    };
-    
-    return mockConsignmentsData[customerName] || [];
+    // TODO: Replace with actual API call
+    return [];
   };
 
   const uploadProps = {

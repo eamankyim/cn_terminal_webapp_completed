@@ -59,48 +59,8 @@ const DutyCalculatorPage = () => {
     'Pharmaceuticals': { duty: 12, vat: 15, nhil: 2.5, covid: 1 }
   };
 
-  // Mock calculation history
-  const mockHistory = [
-    {
-      id: 1,
-      date: '2024-01-20',
-      clientName: 'Ghana Import Export Ltd',
-      goodsType: 'Electronics',
-      declaredValue: 50000,
-      duty: 10000,
-      vat: 9000,
-      nhil: 1500,
-      covid: 600,
-      total: 20100,
-      notes: 'Laptop and accessories import'
-    },
-    {
-      id: 2,
-      date: '2024-01-18',
-      clientName: 'West Africa Trading Co',
-      goodsType: 'Textiles',
-      declaredValue: 25000,
-      duty: 6250,
-      vat: 4687.5,
-      nhil: 781.25,
-      covid: 312.5,
-      total: 12031.25,
-      notes: 'Fabric and clothing materials'
-    },
-    {
-      id: 3,
-      date: '2024-01-15',
-      clientName: 'Tema Port Services',
-      goodsType: 'Machinery',
-      declaredValue: 150000,
-      duty: 22500,
-      vat: 25875,
-      nhil: 4312.5,
-      covid: 1725,
-      total: 54412.5,
-      notes: 'Industrial machinery parts'
-    }
-  ];
+  // Calculation history - will be replaced with API call
+  const mockHistory = [];
 
   const [history, setHistory] = useState(mockHistory);
 

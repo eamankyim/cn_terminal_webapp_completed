@@ -122,29 +122,7 @@ const ReportsPage = () => {
                 ),
               },
             ]}
-            dataSource={[
-              {
-                key: '1',
-                name: 'Monthly Performance Report',
-                type: 'Performance',
-                date: '2024-01-20',
-                status: 'Ready',
-              },
-              {
-                key: '2',
-                name: 'Revenue Analysis Q4 2023',
-                type: 'Financial',
-                date: '2024-01-15',
-                status: 'Ready',
-              },
-              {
-                key: '3',
-                name: 'Customer Satisfaction Survey',
-                type: 'Customer',
-                date: '2024-01-18',
-                status: 'Processing',
-              },
-            ]}
+            dataSource={[]}
             pagination={false}
             size="small"
             locale={{
@@ -184,13 +162,13 @@ const ReportsPage = () => {
         Reports & Analytics
       </Title>
 
-      {/* Reports Statistics */}
+      {/* Reports Statistics - will be replaced with API call */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Total Reports"
-              value={24}
+              value={0}
               suffix=""
               valueStyle={{ color: '#1890ff' }}
             />
@@ -200,7 +178,7 @@ const ReportsPage = () => {
           <Card>
             <Statistic
               title="This Month"
-              value={8}
+              value={0}
               suffix=""
               valueStyle={{ color: '#52c41a' }}
             />
@@ -210,7 +188,7 @@ const ReportsPage = () => {
           <Card>
             <Statistic
               title="Ready for Download"
-              value={18}
+              value={0}
               suffix=""
               valueStyle={{ color: '#722ed1' }}
             />
@@ -220,7 +198,7 @@ const ReportsPage = () => {
           <Card>
             <Statistic
               title="Processing"
-              value={6}
+              value={0}
               suffix=""
               valueStyle={{ color: '#faad14' }}
             />

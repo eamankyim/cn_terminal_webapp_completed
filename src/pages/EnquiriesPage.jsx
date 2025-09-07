@@ -48,62 +48,10 @@ const EnquiriesPage = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
-  // Mock data for enquiries
-  const [enquiries, setEnquiries] = useState([
-    {
-      key: '1',
-      trackingId: 'CN001',
-      clientName: 'John Smith',
-      clientEmail: 'john@example.com',
-      clientPhone: '+233 24 123 4567',
-      commercialInvoice: 'INV-2024-001',
-      goodsType: 'Electronics',
-      goodsDescription: 'Mobile phones and accessories',
-      ghanaCard: 'GHA-123456789-0',
-      tin: '123456789',
-      status: 'Submitted',
-      submittedDate: '2024-01-20',
-      documents: ['packing-list.pdf'],
-      estimatedValue: 5000,
-      port: 'Tema Port'
-    },
-    {
-      key: '2',
-      trackingId: 'CN002',
-      clientName: 'Sarah Johnson',
-      clientEmail: 'sarah@example.com',
-      clientPhone: '+233 26 987 6543',
-      commercialInvoice: 'INV-2024-002',
-      goodsType: 'Textiles',
-      goodsDescription: 'Cotton fabrics and garments',
-      ghanaCard: 'GHA-987654321-0',
-      tin: '987654321',
-      status: 'Under Review',
-      submittedDate: '2024-01-19',
-      documents: ['packing-list.pdf', 'invoice.pdf'],
-      estimatedValue: 3000,
-      port: 'Kotoka Airport'
-    },
-    {
-      key: '3',
-      trackingId: 'CN003',
-      clientName: 'Mike Wilson',
-      clientEmail: 'mike@example.com',
-      clientPhone: '+233 20 555 1234',
-      commercialInvoice: 'INV-2024-003',
-      goodsType: 'Machinery',
-      goodsDescription: 'Industrial equipment parts',
-      ghanaCard: 'GHA-555123456-0',
-      tin: '555123456',
-      status: 'Quoted',
-      submittedDate: '2024-01-18',
-      documents: ['packing-list.pdf', 'invoice.pdf', 'specs.pdf'],
-      estimatedValue: 15000,
-      port: 'Tema Port'
-    }
-  ]);
+
 
   const { customers } = useCustomers();
+  const [enquiries, setEnquiries] = useState([]);
 
   const getStatusColor = (status) => {
     const statusColors = {

@@ -62,64 +62,11 @@ const WarehouseDashboardPage = () => {
     { title: 'Total Weight', value: 67, suffix: ' kg', color: '#722ed1' },
   ];
 
-  // Mock data for pending shipments
-  const pendingShipments = [
-    {
-      key: '1',
-      trackingId: 'CN001234',
-      customer: 'John Smith',
-      destination: 'Accra, Ghana',
-      weight: '2.5 kg',
-      dimensions: '30x20x15 cm',
-      receivedTime: '09:15',
-      priority: 'High',
-      status: 'Pending Batching',
-    },
-    {
-      key: '2',
-      trackingId: 'CN001235',
-      customer: 'Sarah Johnson',
-      destination: 'Kumasi, Ghana',
-      weight: '1.8 kg',
-      dimensions: '25x18x12 cm',
-      receivedTime: '10:30',
-      priority: 'Medium',
-      status: 'Pending Batching',
-    },
-    {
-      key: '3',
-      trackingId: 'CN001236',
-      customer: 'Mike Wilson',
-      destination: 'Tamale, Ghana',
-      weight: '3.2 kg',
-      dimensions: '35x25x20 cm',
-      receivedTime: '11:45',
-      priority: 'Low',
-      status: 'Pending Batching',
-    },
-  ];
+  // Pending shipments - will be replaced with API call
+  const pendingShipments = [];
 
-  // Mock data for recent intake activities
-  const recentIntakeActivities = [
-    {
-      time: '2 hours ago',
-      action: 'Parcel received for CN001240',
-      customer: 'Lisa Brown',
-      weight: '1.5 kg',
-    },
-    {
-      time: '4 hours ago',
-      action: 'Parcel received for CN001241',
-      customer: 'David Lee',
-      weight: '2.8 kg',
-    },
-    {
-      time: '6 hours ago',
-      action: 'Batch W001 created with 12 parcels',
-      destination: 'Accra, Ghana',
-      vessel: 'Flight BA123',
-    },
-  ];
+  // Recent intake activities - will be replaced with API call
+  const recentIntakeActivities = [];
 
   const columns = [
     {
