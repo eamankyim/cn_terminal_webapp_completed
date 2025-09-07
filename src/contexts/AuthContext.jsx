@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import apiService from '../services/api';
 
 const AuthContext = createContext();
 
@@ -96,15 +97,19 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     // Check if user is already logged in (from localStorage)
-    const savedUser = localStorage.getItem('shipease_user');
-    if (savedUser) {
+    const savedUser = localStorage.getItem('cn_terminal_user');
+    const savedToken = localStorage.getItem('cn_terminal_token');
+    
+    if (savedUser && savedToken) {
       try {
         const user = JSON.parse(savedUser);
         setCurrentUser(user);
         setIsAuthenticated(true);
+        apiService.setToken(savedToken);
       } catch (error) {
         console.error('Error parsing saved user:', error);
-        localStorage.removeItem('shipease_user');
+        localStorage.removeItem('cn_terminal_user');
+        localStorage.removeItem('cn_terminal_token');
       }
     }
     setLoading(false);
@@ -112,24 +117,17 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await apiService.login(email, password);
       
-      // Find user in mock data
-      const user = mockUsers.find(u => u.email === email && u.password === password);
-      
-      if (user) {
-        // Remove password from user object before storing
-        const { password: _, ...userWithoutPassword } = user;
-        
+      if (response.user && response.token) {
         // Set user in state and localStorage
-        setCurrentUser(userWithoutPassword);
+        setCurrentUser(response.user);
         setIsAuthenticated(true);
-        localStorage.setItem('shipease_user', JSON.stringify(userWithoutPassword));
+        localStorage.setItem('cn_terminal_user', JSON.stringify(response.user));
         
-        return { success: true, user: userWithoutPassword };
+        return { success: true, user: response.user };
       } else {
-        throw new Error('Invalid email or password');
+        throw new Error('Invalid response from server');
       }
     } catch (error) {
       throw error;
@@ -139,7 +137,9 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
-    localStorage.removeItem('shipease_user');
+    localStorage.removeItem('cn_terminal_user');
+    localStorage.removeItem('cn_terminal_token');
+    apiService.setToken(null);
   };
 
   // Admin function to send invites

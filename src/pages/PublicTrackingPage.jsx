@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import apiService from '../services/api';
 import { 
   Input, 
   Button, 
@@ -13,7 +14,8 @@ import {
   Spin,
   Empty,
   Result,
-  Divider
+  Divider,
+  message
 } from 'antd';
 import { 
   SearchOutlined, 
@@ -100,18 +102,25 @@ const PublicTrackingPage = () => {
     }
   };
 
-  const handleSearch = () => {
-    if (!trackingId.trim()) return;
+  const handleSearch = async () => {
+    if (!trackingId.trim()) {
+      message.warning('Please enter a tracking ID');
+      return;
+    }
     
     setLoading(true);
     setSearched(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      const result = mockTrackingData[trackingId.toUpperCase()];
+    try {
+      const result = await apiService.trackPackage(trackingId.trim());
       setTrackingResult(result);
+    } catch (error) {
+      console.error('Tracking error:', error);
+      setTrackingResult(null);
+      message.error(error.message || 'Tracking ID not found');
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   const getStatusColor = (status) => {

@@ -35,6 +35,7 @@ import {
   SendOutlined,
   PrinterOutlined
 } from '@ant-design/icons';
+import CustomerSelector from '../components/common/CustomerSelector';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -46,6 +47,34 @@ const InvoiceManagementPage = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [invoiceForm] = Form.useForm();
   const [activeTab, setActiveTab] = useState('invoices');
+
+  // Mock customers data - in real implementation, this would come from API/state management
+  const customers = [
+    {
+      id: '1',
+      name: 'John Smith',
+      email: 'john.smith@email.com',
+      phone: '+233 24 123 4567',
+      address: '123 Main Street, Accra, Ghana',
+      customerType: 'Regular'
+    },
+    {
+      id: '2',
+      name: 'Sarah Johnson',
+      email: 'sarah.johnson@email.com',
+      phone: '+233 26 987 6543',
+      address: '456 Oak Avenue, Kumasi, Ghana',
+      customerType: 'Premium'
+    },
+    {
+      id: '3',
+      name: 'Mike Wilson',
+      email: 'mike.wilson@email.com',
+      phone: '+233 20 555 1234',
+      address: '789 Pine Road, Tema, Ghana',
+      customerType: 'VIP'
+    }
+  ];
 
   // Mock data for pricing structure
   const pricingStructure = {

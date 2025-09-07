@@ -44,6 +44,8 @@ import {
   ExclamationCircleOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import CustomerSelector from '../components/common/CustomerSelector';
+import { useCustomers } from '../contexts/CustomerContext';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -62,6 +64,9 @@ const JobsPage = () => {
   const [statusUpdateForm] = Form.useForm();
   const [isDocumentViewerVisible, setIsDocumentViewerVisible] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
+  const [selectedCustomerConsignments, setSelectedCustomerConsignments] = useState([]);
+
+
 
   // Mock data for jobs
   const [jobs, setJobs] = useState([
@@ -427,6 +432,34 @@ const JobsPage = () => {
     }
   };
 
+  const handleCustomerSelect = (customerId, customer) => {
+    // Auto-fill client details when customer is selected
+    form.setFieldsValue({
+      clientName: customer.name,
+      clientEmail: customer.email,
+      clientPhone: customer.phone
+    });
+    
+    // Get consignments for the selected customer
+    // In a real implementation, this would be fetched from API
+    // For now, using mock data based on customer name
+    const mockConsignments = getMockConsignmentsForCustomer(customer.name);
+    setSelectedCustomerConsignments(mockConsignments);
+    
+    // Clear previously selected consignment
+    form.setFieldsValue({ consignmentId: undefined });
+  };
+
+  const handleConsignmentSelect = (consignmentId) => {
+    const selectedConsignment = selectedCustomerConsignments.find(c => c.id === consignmentId);
+    if (selectedConsignment) {
+      // Auto-fill only the estimated value from consignment
+      form.setFieldsValue({
+        estimatedValue: selectedConsignment.value
+      });
+    }
+  };
+
   const handleStatusUpdate = async (values) => {
     setLoading(true);
     try {
@@ -463,6 +496,64 @@ const JobsPage = () => {
   };
 
 
+
+  // Mock function to get consignments for a customer
+  const getMockConsignmentsForCustomer = (customerName) => {
+    const mockConsignmentsData = {
+      'John Smith': [
+        {
+          id: 'CON-001',
+          trackingId: 'TRK-2024-001',
+          consigneeName: 'John Smith',
+          goodsType: 'Electronics',
+          status: 'In Transit',
+          value: 25000,
+          date: '2024-01-20',
+          tin: '123456789',
+          ghanaCard: 'GHA-123456789-0'
+        },
+        {
+          id: 'CON-002',
+          trackingId: 'TRK-2024-002',
+          consigneeName: 'John Smith',
+          goodsType: 'Textiles',
+          status: 'Pending',
+          value: 15000,
+          date: '2024-01-25',
+          tin: '123456789',
+          ghanaCard: 'GHA-123456789-0'
+        }
+      ],
+      'Sarah Johnson': [
+        {
+          id: 'CON-003',
+          trackingId: 'TRK-2024-003',
+          consigneeName: 'Sarah Johnson',
+          goodsType: 'Textiles',
+          status: 'Delivered',
+          value: 18000,
+          date: '2024-01-15',
+          tin: '987654321',
+          ghanaCard: 'GHA-987654321-0'
+        }
+      ],
+      'Mike Wilson': [
+        {
+          id: 'CON-004',
+          trackingId: 'TRK-2024-004',
+          consigneeName: 'Mike Wilson',
+          goodsType: 'Machinery',
+          status: 'Pending',
+          value: 85000,
+          date: '2024-01-25',
+          tin: '555123456',
+          ghanaCard: 'GHA-555123456-0'
+        }
+      ]
+    };
+    
+    return mockConsignmentsData[customerName] || [];
+  };
 
   const uploadProps = {
     name: 'file',
@@ -595,79 +686,66 @@ const JobsPage = () => {
           }}
         >
           <Row gutter={16}>
-            <Col span={12}>
+            <Col span={24}>
               <Form.Item
-                name="clientName"
-                label="Client Name"
-                rules={[{ required: true, message: 'Please enter client name' }]}
+                name="customerId"
+                label="Select Client"
+                rules={[{ required: true, message: 'Please select a client' }]}
               >
-                <Input prefix={<UserOutlined />} placeholder="Enter client name" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="clientEmail"
-                label="Client Email"
-                rules={[
-                  { required: true, message: 'Please enter client email' },
-                  { type: 'email', message: 'Please enter a valid email' }
-                ]}
-              >
-                <Input prefix={<UserOutlined />} placeholder="Enter client email" />
+                <CustomerSelector
+                  onChange={handleCustomerSelect}
+                  placeholder="Search and select client..."
+                />
               </Form.Item>
             </Col>
           </Row>
 
           <Row gutter={16}>
-            <Col span={12}>
+            <Col span={24}>
               <Form.Item
-                name="clientPhone"
-                label="Client Phone"
-                rules={[{ required: true, message: 'Please enter client phone' }]}
+                name="consignmentId"
+                label="Select Consignment"
+                rules={[{ required: true, message: 'Please select a consignment' }]}
               >
-                <Input placeholder="+233 XX XXX XXXX" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="commercialInvoice"
-                label="Commercial Invoice Number"
-                rules={[{ required: true, message: 'Please enter invoice number' }]}
-              >
-                <Input placeholder="Enter invoice number" />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="ghanaCard"
-                label="Ghana Card Number"
-                rules={[{ required: true, message: 'Please enter Ghana Card number' }]}
-              >
-                <Input placeholder="GHA-XXXXXXXXX-X" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="tin"
-                label="TIN"
-                rules={[{ required: true, message: 'Please enter TIN' }]}
-              >
-                <Input placeholder="Enter TIN" />
+                <Select 
+                  placeholder="Select a consignment for this client"
+                  onChange={handleConsignmentSelect}
+                  disabled={selectedCustomerConsignments.length === 0}
+                >
+                  {selectedCustomerConsignments.map(consignment => (
+                    <Option key={consignment.id} value={consignment.id}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{consignment.trackingId} - {consignment.goodsType}</span>
+                        <span style={{ fontSize: '12px', color: '#999' }}>
+                          GHS {consignment.value.toLocaleString()}
+                        </span>
+                      </div>
+                    </Option>
+                  ))}
+                </Select>
               </Form.Item>
             </Col>
           </Row>
 
+
+
           <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="trackingId"
+                label="Tracking ID"
+                rules={[{ required: true, message: 'Please enter tracking ID' }]}
+              >
+                <Input placeholder="Enter tracking ID for this job" />
+              </Form.Item>
+            </Col>
             <Col span={12}>
               <Form.Item
                 name="goodsType"
                 label="Type of Goods"
                 rules={[{ required: true, message: 'Please select goods type' }]}
               >
-                <Select placeholder="Select goods type">
+                <Select placeholder="Select goods type for this job">
                   <Option value="Electronics">Electronics</Option>
                   <Option value="Textiles">Textiles</Option>
                   <Option value="Machinery">Machinery</Option>
@@ -741,7 +819,11 @@ const JobsPage = () => {
                 label="Estimated Value (GHS)"
                 rules={[{ required: true, message: 'Please enter estimated value' }]}
               >
-                <Input type="number" placeholder="Enter value in GHS" />
+                <Input 
+                type="number" 
+                placeholder="Auto-filled when consignment is selected"
+                min={0}
+              />
               </Form.Item>
             </Col>
             <Col span={12}>

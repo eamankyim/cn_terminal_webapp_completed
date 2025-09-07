@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import IntegrationTest from '../components/IntegrationTest';
 import { 
   Card, 
   Row, 
@@ -354,6 +355,13 @@ const DashboardPage = () => {
               ))}
             </Timeline>
           </Card>
+        </Col>
+      </Row>
+
+      {/* API Integration Test Section */}
+      <Row gutter={[16, 16]} style={{ marginTop: '24px' }}>
+        <Col span={24}>
+          <IntegrationTest />
         </Col>
       </Row>
     </div>

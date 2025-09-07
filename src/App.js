@@ -22,6 +22,7 @@ import PublicTrackingPage from './pages/PublicTrackingPage';
 
 // Auth Components
 import { AuthProvider } from './contexts/AuthContext';
+import { CustomerProvider } from './contexts/CustomerContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 const { defaultAlgorithm } = theme;
@@ -42,38 +43,40 @@ function App() {
       }}
     >
       <AuthProvider>
-        <Router>
-          <div className="App">
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/track" element={<PublicTrackingPage />} />
-              
-              {/* Protected Routes */}
-              <Route path="/" element={
-                <ProtectedRoute>
-                  <MainLayout />
-                </ProtectedRoute>
-              }>
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<DashboardPage />} />
-                <Route path="enquiries" element={<JobsPage />} />
-                <Route path="shipments" element={<ShipmentsPage />} />
-                <Route path="clients" element={<ClientsPage />} />
-                <Route path="invoices" element={<InvoicesPage />} />
-                <Route path="payments" element={<PaymentsPage />} />
-                <Route path="duty-calculator" element={<DutyCalculatorPage />} />
-                <Route path="tracking" element={<ShipmentTrackingPage />} />
+        <CustomerProvider>
+          <Router>
+            <div className="App">
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/track" element={<PublicTrackingPage />} />
+                
+                {/* Protected Routes */}
+                <Route path="/" element={
+                  <ProtectedRoute>
+                    <MainLayout />
+                  </ProtectedRoute>
+                }>
+                  <Route index element={<Navigate to="/dashboard" replace />} />
+                  <Route path="dashboard" element={<DashboardPage />} />
+                  <Route path="enquiries" element={<JobsPage />} />
+                  <Route path="shipments" element={<ShipmentsPage />} />
+                  <Route path="clients" element={<ClientsPage />} />
+                  <Route path="invoices" element={<InvoicesPage />} />
+                  <Route path="payments" element={<PaymentsPage />} />
+                  <Route path="duty-calculator" element={<DutyCalculatorPage />} />
+                  <Route path="tracking" element={<ShipmentTrackingPage />} />
 
-                <Route path="reports" element={<ReportsPage />} />
-                <Route path="admin" element={<AdminDashboardPage />} />
-              </Route>
-              
-              {/* Catch all route - redirect to dashboard */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </div>
-        </Router>
+                  <Route path="reports" element={<ReportsPage />} />
+                  <Route path="admin" element={<AdminDashboardPage />} />
+                </Route>
+                
+                {/* Catch all route - redirect to dashboard */}
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </div>
+          </Router>
+        </CustomerProvider>
       </AuthProvider>
     </ConfigProvider>
   );

@@ -78,7 +78,9 @@ const ClientsPage = () => {
           goodsType: 'Electronics',
           status: 'In Transit',
           value: 25000,
-          date: '2024-01-20'
+          date: '2024-01-20',
+          tin: '123456789',
+          ghanaCard: 'GHA-123456789-0'
         },
         {
           id: 'CON-002',
@@ -89,7 +91,9 @@ const ClientsPage = () => {
           goodsType: 'Textiles',
           status: 'Delivered',
           value: 15000,
-          date: '2024-01-15'
+          date: '2024-01-15',
+          tin: '123456789',
+          ghanaCard: 'GHA-123456789-0'
         },
         {
           id: 'CON-003',
@@ -100,7 +104,9 @@ const ClientsPage = () => {
           goodsType: 'Machinery',
           status: 'Pending',
           value: 85000,
-          date: '2024-01-25'
+          date: '2024-01-25',
+          tin: '123456789',
+          ghanaCard: 'GHA-123456789-0'
         }
       ]
     },
@@ -130,7 +136,9 @@ const ClientsPage = () => {
           goodsType: 'Trading Goods',
           status: 'Delivered',
           value: 18000,
-          date: '2024-01-12'
+          date: '2024-01-12',
+          tin: '987654321',
+          ghanaCard: 'GHA-987654321-0'
         }
       ]
     },
@@ -160,7 +168,9 @@ const ClientsPage = () => {
           goodsType: 'Industrial Equipment',
           status: 'Pending',
           value: 120000,
-          date: '2024-01-10'
+          date: '2024-01-10',
+          tin: '555123456',
+          ghanaCard: 'GHA-555123456-0'
         }
       ]
     },
@@ -829,6 +839,12 @@ const ClientsPage = () => {
                                      <div style={{ marginBottom: '8px' }}>
                                        <Text strong>Consignee Address:</Text> {consignment.consigneeAddress}
                                      </div>
+                                     <div style={{ marginBottom: '8px' }}>
+                                       <Text strong>Ghana Card:</Text> {consignment.ghanaCard || 'Not specified'}
+                                     </div>
+                                     <div style={{ marginBottom: '8px' }}>
+                                       <Text strong>TIN:</Text> {consignment.tin || 'Not specified'}
+                                     </div>
                                    </Col>
                                                                       <Col span={12}>
                                      <div style={{ marginBottom: '8px' }}>
@@ -1066,6 +1082,27 @@ const ClientsPage = () => {
                 rules={[{ required: true, message: 'Please enter consignee phone' }]}
               >
                 <Input placeholder="Enter consignee phone" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="ghanaCard"
+                label="Ghana Card Number"
+                rules={[{ required: true, message: 'Please enter Ghana Card number' }]}
+              >
+                <Input placeholder="GHA-XXXXXXXXX-X" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="tin"
+                label="TIN"
+                rules={[{ required: true, message: 'Please enter TIN' }]}
+              >
+                <Input placeholder="Enter TIN" />
               </Form.Item>
             </Col>
           </Row>

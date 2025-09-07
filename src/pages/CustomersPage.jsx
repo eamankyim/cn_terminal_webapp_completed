@@ -33,6 +33,7 @@ import {
   EnvironmentOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { useCustomers } from '../contexts/CustomerContext';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -44,74 +45,26 @@ const CustomersPage = () => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [form] = Form.useForm();
   const navigate = useNavigate();
+  const { customers: contextCustomers, addCustomer, updateCustomer } = useCustomers();
 
-  // Mock data for customers
-  const customers = [
-    {
-      key: '1',
-      customerId: 'CUST001',
-      name: 'John Smith',
-      email: 'john.smith@email.com',
-      phone: '+44 7911 123456',
-      address: '123 Oxford Street, London, W1D 1BS',
-      city: 'London',
-      country: 'United Kingdom',
-      status: 'Active',
-      totalJobs: 15,
-      totalSpent: 2500,
-      lastJob: '2024-01-20',
-      registrationDate: '2023-03-15',
-      customerType: 'Regular',
-    },
-    {
-      key: '2',
-      customerId: 'CUST002',
-      name: 'Sarah Johnson',
-      email: 'sarah.johnson@email.com',
-      phone: '+44 7911 234567',
-      address: '789 Park Road, Manchester, M1 1AA',
-      city: 'Manchester',
-      country: 'United Kingdom',
-      status: 'Active',
-      totalJobs: 8,
-      totalSpent: 1200,
-      lastJob: '2024-01-18',
-      registrationDate: '2023-06-20',
-      customerType: 'Premium',
-    },
-    {
-      key: '3',
-      customerId: 'CUST003',
-      name: 'Mike Wilson',
-      email: 'mike.wilson@email.com',
-      phone: '+44 7911 345678',
-      address: '456 High Street, Birmingham, B1 1AA',
-      city: 'Birmingham',
-      country: 'United Kingdom',
-      status: 'Inactive',
-      totalJobs: 3,
-      totalSpent: 450,
-      lastJob: '2023-11-15',
-      registrationDate: '2023-09-10',
-      customerType: 'Regular',
-    },
-    {
-      key: '4',
-      customerId: 'CUST004',
-      name: 'Lisa Brown',
-      email: 'lisa.brown@email.com',
-      phone: '+44 7911 456789',
-      address: '987 Queen Street, Liverpool, L1 1AA',
-      city: 'Liverpool',
-      country: 'United Kingdom',
-      status: 'Active',
-      totalJobs: 22,
-      totalSpent: 3800,
-      lastJob: '2024-01-22',
-      registrationDate: '2023-01-05',
-      customerType: 'Premium',
-    },
-  ];
+  // Transform context customers to match the table structure
+  const customers = contextCustomers.map((customer, index) => ({
+    key: customer.id,
+    customerId: `CUST${String(index + 1).padStart(3, '0')}`,
+    name: customer.name,
+    email: customer.email,
+    phone: customer.phone,
+    address: customer.address,
+    city: customer.address.split(',').slice(-2, -1)[0]?.trim() || 'Unknown',
+    country: customer.address.split(',').slice(-1)[0]?.trim() || 'Unknown',
+    status: 'Active',
+    totalJobs: Math.floor(Math.random() * 20) + 1,
+    totalSpent: Math.floor(Math.random() * 3000) + 100,
+    lastJob: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    registrationDate: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    customerType: customer.customerType,
+  }));
+
 
   // Customer statistics
   const stats = [
@@ -200,12 +153,13 @@ const CustomersPage = () => {
   const handleModalOk = async () => {
     try {
       const values = await form.validateFields();
-      console.log('New customer values:', values);
+      await addCustomer(values);
       message.success('Customer created successfully!');
       setIsModalVisible(false);
       form.resetFields();
     } catch (error) {
-      console.error('Validation failed:', error);
+      console.error('Failed to create customer:', error);
+      message.error(error.message || 'Failed to create customer');
     }
   };
 

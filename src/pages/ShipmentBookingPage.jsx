@@ -23,6 +23,8 @@ import {
   SaveOutlined,
   CalculatorOutlined
 } from '@ant-design/icons';
+import CustomerSelector from '../components/common/CustomerSelector';
+import { useCustomers } from '../contexts/CustomerContext';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -32,6 +34,7 @@ const ShipmentBookingPage = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [costEstimate, setCostEstimate] = useState(null);
+  const { customers } = useCustomers();
 
   const onFinish = async (values) => {
     setLoading(true);
@@ -76,6 +79,16 @@ const ShipmentBookingPage = () => {
     });
   };
 
+  const handleCustomerSelect = (customerId, customer) => {
+    // Auto-fill customer details when customer is selected
+    form.setFieldsValue({
+      customerName: customer.name,
+      customerEmail: customer.email,
+      customerPhone: customer.phone,
+      customerAddress: customer.address
+    });
+  };
+
   return (
     <div>
       <Title level={2} style={{ marginBottom: '24px' }}>
@@ -94,48 +107,20 @@ const ShipmentBookingPage = () => {
         {/* Customer Information */}
         <Card title="Customer Information" style={{ marginBottom: '24px' }}>
           <Row gutter={16}>
-            <Col xs={24} md={12}>
+            <Col xs={24} md={24}>
               <Form.Item
-                name="customerName"
-                label="Full Name"
-                rules={[{ required: true, message: 'Please enter customer name' }]}
+                name="customerId"
+                label="Select Customer"
+                rules={[{ required: true, message: 'Please select a customer' }]}
               >
-                <Input placeholder="Enter full name" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item
-                name="customerPhone"
-                label="Phone Number"
-                rules={[{ required: true, message: 'Please enter phone number' }]}
-              >
-                <Input placeholder="Enter phone number" />
+                <CustomerSelector
+                  onChange={handleCustomerSelect}
+                  placeholder="Search and select customer..."
+                />
               </Form.Item>
             </Col>
           </Row>
-          <Row gutter={16}>
-            <Col xs={24} md={12}>
-              <Form.Item
-                name="customerEmail"
-                label="Email Address"
-                rules={[
-                  { required: true, message: 'Please enter email address' },
-                  { type: 'email', message: 'Please enter valid email' }
-                ]}
-              >
-                <Input placeholder="Enter email address" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item
-                name="customerAddress"
-                label="Address"
-                rules={[{ required: true, message: 'Please enter address' }]}
-              >
-                <TextArea rows={2} placeholder="Enter full address" />
-              </Form.Item>
-            </Col>
-          </Row>
+
         </Card>
 
         {/* Collection Details */}

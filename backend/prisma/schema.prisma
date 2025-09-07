@@ -1,0 +1,312 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(STAFF)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  createdJobs      Job[]     @relation("CreatedJobs")
+  updatedJobs      Job[]     @relation("UpdatedJobs")
+  createdInvoices  Invoice[]
+  createdPayments  Payment[]
+
+  @@map("users")
+}
+
+model Customer {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  phone        String
+  address      String
+  city         String?
+  country      String   @default("Ghana")
+  customerType CustomerType @default(REGULAR)
+  status       CustomerStatus @default(ACTIVE)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  consignments Consignment[]
+  enquiries    Enquiry[]
+  jobs         Job[]
+  invoices     Invoice[]
+
+  @@map("customers")
+}
+
+model Consignment {
+  id              String   @id @default(cuid())
+  trackingId      String   @unique
+  customerId      String
+  consigneeName   String
+  consigneePhone  String
+  consigneeAddress String
+  ghanaCard       String
+  tin             String
+  goodsType       String
+  status          ConsignmentStatus @default(PENDING)
+  value           Float
+  date            DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  jobs     Job[]
+
+  @@map("consignments")
+}
+
+model Job {
+  id            String    @id @default(cuid())
+  trackingId    String    @unique
+  customerId    String
+  consignmentId String?
+  createdById   String
+  updatedById   String?
+  
+  goodsType     String
+  port          String
+  assignedTo    String
+  status        JobStatus @default(SUBMITTED)
+  estimatedValue Float
+  submittedDate DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  consignment Consignment? @relation(fields: [consignmentId], references: [id])
+  createdBy   User        @relation("CreatedJobs", fields: [createdById], references: [id])
+  updatedBy   User?       @relation("UpdatedJobs", fields: [updatedById], references: [id])
+  statusHistory JobStatusHistory[]
+  documents   JobDocument[]
+  invoices    Invoice[]
+
+  @@map("jobs")
+}
+
+model JobStatusHistory {
+  id        String   @id @default(cuid())
+  jobId     String
+  status    JobStatus
+  comment   String?
+  updatedBy String
+  date      DateTime @default(now())
+
+  // Relations
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@map("job_status_history")
+}
+
+model JobDocument {
+  id       String   @id @default(cuid())
+  jobId    String
+  filename String
+  fileUrl  String
+  fileType String
+  uploadedAt DateTime @default(now())
+
+  // Relations
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@map("job_documents")
+}
+
+model Enquiry {
+  id                String    @id @default(cuid())
+  customerId        String
+  commercialInvoice String?
+  goodsType         String
+  port              String
+  goodsDescription  String
+  estimatedValue    Float
+  ghanaCard         String?
+  tin               String?
+  status            EnquiryStatus @default(SUBMITTED)
+  submittedDate     DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("enquiries")
+}
+
+model Shipment {
+  id                String         @id @default(cuid())
+  trackingId        String         @unique
+  customerName      String
+  customerEmail     String
+  customerPhone     String
+  customerAddress   String
+  packageType       String
+  packageWeight     Float
+  packageValue      Float
+  packageDescription String
+  collectionAddress String
+  deliveryAddress   String
+  deliveryCity      String
+  recipientName     String
+  recipientPhone    String
+  serviceType       ShipmentServiceType
+  status            ShipmentStatus @default(BOOKED)
+  collectionDate    DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  // Relations
+  invoices Invoice[]
+
+  @@map("shipments")
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique
+  jobId           String?
+  shipmentId      String?
+  customerId      String
+  createdById     String
+  amount          Float
+  status          InvoiceStatus @default(PENDING)
+  issueDate       DateTime
+  dueDate         DateTime
+  paymentDate     DateTime?
+  paymentMethod   PaymentMethod?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  job       Job?      @relation(fields: [jobId], references: [id])
+  shipment  Shipment? @relation(fields: [shipmentId], references: [id])
+  customer  Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdBy User      @relation(fields: [createdById], references: [id])
+  payments  Payment[]
+
+  @@map("invoices")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  invoiceId     String?
+  gatewayRef    String?       @unique
+  amount        Float
+  currency      String        @default("GHS")
+  payer         String
+  paymentMethod PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  receiptUrl    String?
+  date          DateTime      @default(now())
+  createdById   String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
+  createdBy User     @relation(fields: [createdById], references: [id])
+
+  @@map("payments")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  STAFF
+  DRIVER
+  WAREHOUSE
+}
+
+enum CustomerType {
+  REGULAR
+  PREMIUM
+  VIP
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ConsignmentStatus {
+  PENDING
+  IN_TRANSIT
+  DELIVERED
+}
+
+enum JobStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  QUOTED
+  AWAITING_PAYMENT
+  PAID
+  CLEARING
+  CLEARED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CLOSED
+  ON_HOLD
+  REJECTED
+}
+
+enum EnquiryStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  QUOTED
+  CLOSED
+}
+
+enum ShipmentServiceType {
+  STANDARD
+  EXPRESS
+  PREMIUM
+}
+
+enum ShipmentStatus {
+  BOOKED
+  COLLECTED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  MOBILE_MONEY
+  CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}

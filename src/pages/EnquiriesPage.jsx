@@ -33,6 +33,9 @@ import {
   DollarOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import CustomerSelector from '../components/common/CustomerSelector';
+import { useCustomers } from '../contexts/CustomerContext';
+import apiService from '../services/api';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -99,6 +102,8 @@ const EnquiriesPage = () => {
       port: 'Tema Port'
     }
   ]);
+
+  const { customers } = useCustomers();
 
   const getStatusColor = (status) => {
     const statusColors = {
@@ -275,19 +280,21 @@ const EnquiriesPage = () => {
     try {
       if (editingEnquiry) {
         // Update existing enquiry
+        const response = await apiService.updateEnquiry(editingEnquiry.id, values);
         const updatedEnquiries = enquiries.map(e => 
           e.key === editingEnquiry.key 
-            ? { ...e, ...values }
+            ? { ...e, ...response.enquiry }
             : e
         );
         setEnquiries(updatedEnquiries);
         message.success('Enquiry updated successfully');
       } else {
         // Create new enquiry
+        const response = await apiService.createEnquiry(values);
         const newEnquiry = {
-          key: Date.now().toString(),
+          key: response.enquiry.id,
           trackingId: `CN${String(enquiries.length + 1).padStart(3, '0')}`,
-          ...values,
+          ...response.enquiry,
           status: 'Submitted',
           submittedDate: new Date().toISOString().split('T')[0],
           documents: []
@@ -298,10 +305,20 @@ const EnquiriesPage = () => {
       setIsModalVisible(false);
       form.resetFields();
     } catch (error) {
-      message.error('Failed to save enquiry');
+      console.error('Failed to save enquiry:', error);
+      message.error(error.message || 'Failed to save enquiry');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCustomerSelect = (customerId, customer) => {
+    // Auto-fill client details when customer is selected
+    form.setFieldsValue({
+      clientName: customer.name,
+      clientEmail: customer.email,
+      clientPhone: customer.phone
+    });
   };
 
   const uploadProps = {
@@ -409,48 +426,19 @@ const EnquiriesPage = () => {
           }}
         >
           <Row gutter={16}>
-            <Col span={12}>
+            <Col span={24}>
               <Form.Item
-                name="clientName"
-                label="Client Name"
-                rules={[{ required: true, message: 'Please enter client name' }]}
+                name="customerId"
+                label="Select Client"
+                rules={[{ required: true, message: 'Please select a client' }]}
               >
-                <Input prefix={<UserOutlined />} placeholder="Enter client name" />
+                <CustomerSelector
+                  onChange={handleCustomerSelect}
+                  placeholder="Search and select client..."
+                />
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item
-                name="clientEmail"
-                label="Client Email"
-                rules={[
-                  { required: true, message: 'Please enter client email' },
-                  { type: 'email', message: 'Please enter a valid email' }
-                ]}
-              >
-                <Input prefix={<UserOutlined />} placeholder="Enter client email" />
-              </Form.Item>
-            </Col>
-          </Row>
 
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="clientPhone"
-                label="Client Phone"
-                rules={[{ required: true, message: 'Please enter client phone' }]}
-              >
-                <Input placeholder="+233 XX XXX XXXX" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="commercialInvoice"
-                label="Commercial Invoice Number"
-                rules={[{ required: true, message: 'Please enter invoice number' }]}
-              >
-                <Input placeholder="Enter invoice number" />
-              </Form.Item>
-            </Col>
           </Row>
 
           <Row gutter={16}>
@@ -463,15 +451,7 @@ const EnquiriesPage = () => {
                 <Input placeholder="GHA-XXXXXXXXX-X" />
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item
-                name="tin"
-                label="TIN"
-                rules={[{ required: true, message: 'Please enter TIN' }]}
-              >
-                <Input placeholder="Enter TIN" />
-              </Form.Item>
-            </Col>
+
           </Row>
 
           <Row gutter={16}>

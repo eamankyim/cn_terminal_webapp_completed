@@ -37,6 +37,8 @@ import {
   BoxOutlined,
   InfoCircleOutlined
 } from '@ant-design/icons';
+import CustomerSelector from '../components/common/CustomerSelector';
+import { useCustomers } from '../contexts/CustomerContext';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -49,6 +51,8 @@ const WarehouseDashboardPage = () => {
   const [selectedParcel, setSelectedParcel] = useState(null);
   const [intakeForm] = Form.useForm();
   const [batchForm] = Form.useForm();
+
+  const { customers } = useCustomers();
 
   // Mock data for warehouse statistics
   const stats = [
@@ -206,6 +210,13 @@ const WarehouseDashboardPage = () => {
     } catch (error) {
       message.error('Failed to record parcel intake. Please try again.');
     }
+  };
+
+  const handleCustomerSelect = (customerId, customer) => {
+    // Auto-fill customer name when customer is selected
+    intakeForm.setFieldsValue({
+      customerName: customer.name
+    });
   };
 
   const handleViewParcel = (parcel) => {
@@ -375,12 +386,17 @@ const WarehouseDashboardPage = () => {
           </Form.Item>
 
           <Form.Item
-            name="customerName"
-            label="Customer Name"
-            rules={[{ required: true, message: 'Please enter customer name' }]}
+            name="customerId"
+            label="Select Customer"
+            rules={[{ required: true, message: 'Please select a customer' }]}
           >
-            <Input placeholder="Enter customer name" />
+            <CustomerSelector
+              onChange={handleCustomerSelect}
+              placeholder="Search and select customer..."
+            />
           </Form.Item>
+
+
 
           <Form.Item
             name="weight"

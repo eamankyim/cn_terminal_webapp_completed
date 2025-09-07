@@ -23,6 +23,8 @@ import {
   Tooltip,
   Drawer
 } from 'antd';
+import CustomerSelector from '../components/common/CustomerSelector';
+import { useCustomers } from '../contexts/CustomerContext';
 import { 
   CalculatorOutlined, 
   PlusOutlined, 
@@ -102,6 +104,8 @@ const DutyCalculatorPage = () => {
 
   const [history, setHistory] = useState(mockHistory);
 
+
+
   const calculateDuty = (values) => {
     const { goodsType, declaredValue, portOfEntry } = values;
     
@@ -139,6 +143,13 @@ const DutyCalculatorPage = () => {
 
     setCurrentCalculation(calculation);
     message.success('Duty calculation completed successfully!');
+  };
+
+  const handleCustomerSelect = (customerId, customer) => {
+    // Auto-fill client name when customer is selected
+    form.setFieldsValue({
+      clientName: customer.name
+    });
   };
 
   const saveCalculation = () => {
@@ -232,14 +243,20 @@ const DutyCalculatorPage = () => {
               onFinish={calculateDuty}
             >
               <Row gutter={16}>
-                <Col span={12}>
+                <Col span={24}>
                   <Form.Item
-                    name="clientName"
-                    label="Client Name"
+                    name="customerId"
+                    label="Select Client"
                   >
-                    <Input placeholder="Enter client name" />
+                    <CustomerSelector
+                      onChange={handleCustomerSelect}
+                      placeholder="Search and select client..."
+                    />
                   </Form.Item>
                 </Col>
+              </Row>
+
+              <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item
                     name="goodsType"
