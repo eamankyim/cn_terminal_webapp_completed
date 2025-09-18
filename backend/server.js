@@ -24,6 +24,11 @@ const enquiryRoutes = require('./routes/enquiries');
 const shipmentRoutes = require('./routes/shipments');
 const invoiceRoutes = require('./routes/invoices');
 const paymentRoutes = require('./routes/payments');
+const invitationRoutes = require('./routes/invitations');
+const initRoutes = require('./routes/init');
+const dashboardRoutes = require('./routes/dashboard');
+const reportsRoutes = require('./routes/reports');
+const fileRoutes = require('./routes/files');
 
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
@@ -41,9 +46,91 @@ app.use('/api/enquiries', enquiryRoutes);
 app.use('/api/shipments', shipmentRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/invitations', invitationRoutes);
+app.use('/api/init', initRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/reports', reportsRoutes);
+app.use('/api/files', fileRoutes);
 
 /**
  * @swagger
+ * /api/init/check:
+ *   get:
+ *     summary: Check if system is initialized (super admin exists)
+ *     tags: [Initialization]
+ *     responses:
+ *       200:
+ *         description: System initialization status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 initialized:
+ *                   type: boolean
+ *                   description: Whether the system has been initialized
+ *                 hasAdmin:
+ *                   type: boolean
+ *                   description: Whether an admin user exists
+ *                 adminCount:
+ *                   type: number
+ *                   description: Number of admin users
+ *       500:
+ *         description: Internal server error
+ * /api/init/super-admin:
+ *   post:
+ *     summary: Create the first super admin user (one-time setup)
+ *     tags: [Initialization]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - password
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Admin's full name
+ *                 example: "Super Administrator"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Admin's email address
+ *                 example: "admin@cnterminal.com"
+ *               password:
+ *                 type: string
+ *                 minLength: 6
+ *                 description: Admin's password
+ *                 example: "admin123"
+ *     responses:
+ *       201:
+ *         description: Super admin created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Super admin created successfully"
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       400:
+ *         description: Bad request - Super admin already exists or validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "Super admin already exists. Only one super admin can be created."
+ *       500:
+ *         description: Internal server error
  * /api/health:
  *   get:
  *     summary: Health check endpoint

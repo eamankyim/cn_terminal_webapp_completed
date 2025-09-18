@@ -132,8 +132,20 @@ const router = express.Router();
 // Get all invoices
 router.get('/', authenticateToken, requireStaff, async (req, res) => {
   try {
+    console.log('\n' + '='.repeat(60));
+    console.log('🧾 GET INVOICES REQUEST');
+    console.log('='.repeat(60));
+    console.log(`👤 User: ${req.user.name} (${req.user.email})`);
+    console.log(`📝 Query params:`, req.query);
+    console.log(`⏰ Request time: ${new Date().toISOString()}`);
+
     const { page = 1, limit = 10, search = '', status, customerId } = req.query;
     const skip = (page - 1) * limit;
+
+    console.log(`📊 Pagination: page=${page}, limit=${limit}, skip=${skip}`);
+    console.log(`🔍 Search: "${search}"`);
+    console.log(`📋 Status filter: ${status || 'none'}`);
+    console.log(`👤 Customer filter: ${customerId || 'none'}`);
 
     // Build where condition
     const where = {};
@@ -153,6 +165,9 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
       where.customerId = customerId;
     }
 
+    console.log(`🔍 Where condition:`, JSON.stringify(where, null, 2));
+
+    console.log('🔍 Executing Prisma queries...');
     const [invoices, totalCount] = await Promise.all([
       prisma.invoice.findMany({
         where,
@@ -169,7 +184,9 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
             select: {
               id: true,
               trackingId: true,
-              goodsType: true
+              goodsType: true,
+              port: true,
+              status: true
             }
           },
           shipment: {
@@ -198,7 +215,11 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
       prisma.invoice.count({ where })
     ]);
 
-    res.json({
+    console.log(`✅ Prisma queries completed successfully`);
+    console.log(`📊 Found ${invoices.length} invoices out of ${totalCount} total`);
+    console.log(`📄 Pagination: page ${page}/${Math.ceil(totalCount / limit)}`);
+
+    const response = {
       invoices,
       pagination: {
         currentPage: parseInt(page),
@@ -206,9 +227,21 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
         totalCount,
         limit: parseInt(limit)
       }
-    });
+    };
+
+    console.log('✅ Sending successful response');
+    console.log('='.repeat(60) + '\n');
+
+    res.json(response);
   } catch (error) {
-    console.error('Get invoices error:', error);
+    console.log('\n' + '='.repeat(60));
+    console.log('💥 GET INVOICES ERROR');
+    console.log('='.repeat(60));
+    console.error('Error details:', error);
+    console.log('Error message:', error.message);
+    console.log('Error stack:', error.stack);
+    console.log('='.repeat(60) + '\n');
+    
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -231,13 +264,13 @@ router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
           }
         },
         job: {
-          select: {
-            id: true,
-            trackingId: true,
-            goodsType: true,
-            port: true,
-            estimatedValue: true
-          }
+        select: {
+          id: true,
+          trackingId: true,
+          goodsType: true,
+          port: true,
+          status: true
+        }
         },
         shipment: {
           select: {
@@ -284,31 +317,26 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!customerId || !amount || !issueDate || !dueDate) {
+    if (!jobId || !amount || !issueDate || !dueDate) {
       return res.status(400).json({ 
-        error: 'Customer, amount, issue date, and due date are required' 
+        error: 'Job, amount, issue date, and due date are required' 
       });
     }
 
-    // Check if customer exists
-    const customer = await prisma.customer.findUnique({
-      where: { id: customerId }
+    // Check if job exists and get customer from job
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      include: {
+        customer: true
+      }
     });
 
-    if (!customer) {
-      return res.status(400).json({ error: 'Customer not found' });
+    if (!job) {
+      return res.status(400).json({ error: 'Job not found' });
     }
 
-    // Check if job exists (if provided)
-    if (jobId) {
-      const job = await prisma.job.findUnique({
-        where: { id: jobId }
-      });
-
-      if (!job) {
-        return res.status(400).json({ error: 'Job not found' });
-      }
-    }
+    // Use customer from job
+    const customer = job.customer;
 
     // Check if shipment exists (if provided)
     if (shipmentId) {
@@ -330,7 +358,7 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
         invoiceNumber,
         jobId,
         shipmentId,
-        customerId,
+        customerId: customer.id,
         amount: parseFloat(amount),
         issueDate: new Date(issueDate),
         dueDate: new Date(dueDate),
@@ -349,7 +377,9 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
           select: {
             id: true,
             trackingId: true,
-            goodsType: true
+            goodsType: true,
+            port: true,
+            status: true
           }
         },
         shipment: {
@@ -424,7 +454,9 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
           select: {
             id: true,
             trackingId: true,
-            goodsType: true
+            goodsType: true,
+            port: true,
+            status: true
           }
         },
         shipment: {
@@ -528,6 +560,42 @@ router.delete('/:id', authenticateToken, requireStaff, async (req, res) => {
     res.json({ message: 'Invoice deleted successfully' });
   } catch (error) {
     console.error('Delete invoice error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get jobs for invoice creation dropdown
+router.get('/jobs', authenticateToken, requireStaff, async (req, res) => {
+  try {
+    const { search = '' } = req.query;
+
+    const jobs = await prisma.job.findMany({
+      where: {
+        OR: [
+          { trackingId: { contains: search, mode: 'insensitive' } },
+          { customer: { name: { contains: search, mode: 'insensitive' } } }
+        ]
+      },
+      select: {
+        id: true,
+        trackingId: true,
+        status: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+
+    res.json({ jobs });
+  } catch (error) {
+    console.error('Get jobs for invoice error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

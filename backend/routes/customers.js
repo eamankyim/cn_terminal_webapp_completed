@@ -282,39 +282,74 @@ router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
 // Create new customer
 router.post('/', authenticateToken, requireStaff, async (req, res) => {
   try {
+    console.log('\n' + '='.repeat(60));
+    console.log('👥 CREATE CUSTOMER REQUEST');
+    console.log('='.repeat(60));
+    console.log(`👤 User: ${req.user.name} (${req.user.email})`);
+    console.log(`📝 Request body:`, JSON.stringify(req.body, null, 2));
+    console.log(`⏰ Request time: ${new Date().toISOString()}`);
+
     const {
       name,
+      contactPerson,
       email,
       phone,
       address,
       city,
       country = 'Ghana',
-      customerType = 'Regular'
+      businessType,
+      registrationNumber,
+      tin,
+      ghanaCard,
+      customerType = 'REGULAR'
     } = req.body;
+
+    console.log(`🔍 Extracted data:`);
+    console.log(`  - name: ${name}`);
+    console.log(`  - email: ${email}`);
+    console.log(`  - phone: ${phone}`);
+    console.log(`  - address: ${address}`);
+    console.log(`  - customerType: ${customerType}`);
 
     // Validate required fields
     if (!name || !email || !phone || !address) {
-      return res.status(400).json({ error: 'Name, email, phone, and address are required' });
+      console.log('❌ Validation failed: Missing required fields');
+      console.log(`  - name: ${!!name}`);
+      console.log(`  - email: ${!!email}`);
+      console.log(`  - phone: ${!!phone}`);
+      console.log(`  - address: ${!!address}`);
+      return res.status(400).json({ error: 'Company name, email, phone, and address are required' });
     }
 
+    console.log('✅ Validation passed');
+
     // Check if customer with email already exists
+    console.log('🔍 Checking if customer with email already exists...');
     const existingCustomer = await prisma.customer.findUnique({
       where: { email }
     });
 
     if (existingCustomer) {
+      console.log('❌ Customer with email already exists:', email);
       return res.status(400).json({ error: 'Customer with this email already exists' });
     }
+    console.log('✅ Email is unique');
 
     // Create customer
+    console.log('💾 Backend: Creating customer in database...');
     const customer = await prisma.customer.create({
       data: {
         name,
+        contactPerson,
         email,
         phone,
         address,
         city,
         country,
+        businessType,
+        registrationNumber,
+        tin,
+        ghanaCard,
         customerType: customerType.toUpperCase()
       },
       include: {
@@ -327,14 +362,29 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
         }
       }
     });
+    console.log('✅ Customer created successfully:', customer.id);
+    console.log('🎉 Customer creation completed successfully');
+    console.log('='.repeat(60) + '\n');
 
     res.status(201).json({
       message: 'Customer created successfully',
       customer
     });
   } catch (error) {
-    console.error('Create customer error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.log('\n' + '='.repeat(60));
+    console.log('💥 CREATE CUSTOMER ERROR');
+    console.log('='.repeat(60));
+    console.error('Error details:', error);
+    console.log('Error message:', error.message);
+    console.log('Error stack:', error.stack);
+    console.log('Error code:', error.code);
+    console.log('Error meta:', error.meta);
+    console.log('='.repeat(60) + '\n');
+    
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: error.message 
+    });
   }
 });
 
@@ -434,11 +484,16 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
     const { id } = req.params;
     const {
       name,
+      contactPerson,
       email,
       phone,
       address,
       city,
       country,
+      businessType,
+      registrationNumber,
+      tin,
+      ghanaCard,
       customerType,
       status
     } = req.body;
@@ -468,11 +523,16 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
       where: { id },
       data: {
         name,
+        contactPerson,
         email,
         phone,
         address,
         city,
         country,
+        businessType,
+        registrationNumber,
+        tin,
+        ghanaCard,
         customerType,
         status
       },
