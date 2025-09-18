@@ -12,7 +12,6 @@ import JobsPage from './pages/JobsPage';
 import ClientsPage from './pages/ClientsPage';
 import ReportsPage from './pages/ReportsPage';
 import InvoicesPage from './pages/InvoicesPage';
-import PaymentsPage from './pages/PaymentsPage';
 import DutyCalculatorPage from './pages/DutyCalculatorPage';
 import FileManagementPage from './pages/FileManagementPage';
 
@@ -67,7 +66,6 @@ function App() {
                   <Route path="enquiries" element={<JobsPage />} />
                   <Route path="clients" element={<ClientsPage />} />
                   <Route path="invoices" element={<InvoicesPage />} />
-                  <Route path="payments" element={<PaymentsPage />} />
                   <Route path="duty-calculator" element={<DutyCalculatorPage />} />
                   <Route path="files" element={<FileManagementPage />} />
 

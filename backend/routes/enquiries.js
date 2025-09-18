@@ -220,15 +220,14 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
       goodsType,
       port,
       goodsDescription,
-      estimatedValue,
       ghanaCard,
       tin
     } = req.body;
 
     // Validate required fields
-    if (!customerId || !goodsType || !port || !goodsDescription || !estimatedValue) {
+    if (!customerId || !goodsType || !port || !goodsDescription) {
       return res.status(400).json({ 
-        error: 'Customer, goods type, port, goods description, and estimated value are required' 
+        error: 'Customer, goods type, port, and goods description are required' 
       });
     }
 
@@ -249,7 +248,6 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
         goodsType,
         port,
         goodsDescription,
-        estimatedValue: parseFloat(estimatedValue),
         ghanaCard,
         tin
       },
@@ -284,7 +282,6 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
       goodsType,
       port,
       goodsDescription,
-      estimatedValue,
       status
     } = req.body;
 
@@ -305,7 +302,6 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
         goodsType,
         port,
         goodsDescription,
-        estimatedValue: estimatedValue ? parseFloat(estimatedValue) : undefined,
         status
       },
       include: {

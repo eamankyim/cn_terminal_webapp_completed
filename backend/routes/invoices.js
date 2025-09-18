@@ -132,10 +132,12 @@ const router = express.Router();
 // Get all invoices
 router.get('/', authenticateToken, requireStaff, async (req, res) => {
   try {
-    console.log('\n' + '='.repeat(60));
-    console.log('🧾 GET INVOICES REQUEST');
-    console.log('='.repeat(60));
+    console.log('\n' + '='.repeat(80));
+    console.log('🧾 GET INVOICES REQUEST - START');
+    console.log('='.repeat(80));
     console.log(`👤 User: ${req.user.name} (${req.user.email})`);
+    console.log(`👤 User ID: ${req.user.id}`);
+    console.log(`👤 User Role: ${req.user.role}`);
     console.log(`📝 Query params:`, req.query);
     console.log(`⏰ Request time: ${new Date().toISOString()}`);
 
@@ -149,74 +151,87 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
 
     // Build where condition
     const where = {};
+    console.log('🔧 Building where condition...');
     
     if (search) {
       where.OR = [
         { invoiceNumber: { contains: search, mode: 'insensitive' } },
         { customer: { name: { contains: search, mode: 'insensitive' } } }
       ];
+      console.log('🔍 Added search condition');
     }
 
     if (status) {
       where.status = status;
+      console.log('📋 Added status filter');
     }
 
     if (customerId) {
       where.customerId = customerId;
+      console.log('👤 Added customer filter');
     }
 
-    console.log(`🔍 Where condition:`, JSON.stringify(where, null, 2));
+    console.log(`🔍 Final where condition:`, JSON.stringify(where, null, 2));
 
-    console.log('🔍 Executing Prisma queries...');
-    const [invoices, totalCount] = await Promise.all([
-      prisma.invoice.findMany({
-        where,
-        include: {
-          customer: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true
-            }
-          },
-          job: {
-            select: {
-              id: true,
-              trackingId: true,
-              goodsType: true,
-              port: true,
-              status: true
-            }
-          },
-          shipment: {
-            select: {
-              id: true,
-              trackingId: true,
-              customerName: true
-            }
-          },
-          createdBy: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
-          _count: {
-            select: {
-              payments: true
-            }
+    console.log('🔍 Testing Prisma connection...');
+    await prisma.$connect();
+    console.log('✅ Prisma connected successfully');
+
+    console.log('🔍 Executing Prisma invoice query...');
+    const startTime = Date.now();
+    
+    const invoices = await prisma.invoice.findMany({
+      where,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true
           }
         },
-        orderBy: { createdAt: 'desc' },
-        skip: parseInt(skip),
-        take: parseInt(limit)
-      }),
-      prisma.invoice.count({ where })
-    ]);
+        job: {
+          select: {
+            id: true,
+            trackingId: true,
+            goodsTypes: true,
+            status: true
+          }
+        },
+        shipment: {
+          select: {
+            id: true,
+            trackingId: true,
+            customerName: true
+          }
+        },
+        createdBy: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        _count: {
+          select: {
+            payments: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: parseInt(skip),
+      take: parseInt(limit)
+    });
 
-    console.log(`✅ Prisma queries completed successfully`);
-    console.log(`📊 Found ${invoices.length} invoices out of ${totalCount} total`);
+    console.log(`✅ Invoice query completed in ${Date.now() - startTime}ms`);
+    console.log(`📊 Found ${invoices.length} invoices`);
+
+    console.log('🔍 Executing Prisma count query...');
+    const countStartTime = Date.now();
+    const totalCount = await prisma.invoice.count({ where });
+    console.log(`✅ Count query completed in ${Date.now() - countStartTime}ms`);
+    console.log(`📊 Total invoices in database: ${totalCount}`);
+
     console.log(`📄 Pagination: page ${page}/${Math.ceil(totalCount / limit)}`);
 
     const response = {
@@ -229,20 +244,40 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
       }
     };
 
+    console.log('✅ Response prepared successfully');
+    console.log(`📊 Response contains ${response.invoices.length} invoices`);
+    console.log('📄 Sample invoice data:', response.invoices[0] || 'No invoices found');
     console.log('✅ Sending successful response');
-    console.log('='.repeat(60) + '\n');
+    console.log('='.repeat(80) + '\n');
 
     res.json(response);
   } catch (error) {
-    console.log('\n' + '='.repeat(60));
-    console.log('💥 GET INVOICES ERROR');
-    console.log('='.repeat(60));
-    console.error('Error details:', error);
-    console.log('Error message:', error.message);
-    console.log('Error stack:', error.stack);
-    console.log('='.repeat(60) + '\n');
+    console.log('\n' + '='.repeat(80));
+    console.log('💥 GET INVOICES ERROR - DETAILED');
+    console.log('='.repeat(80));
+    console.error('❌ Error name:', error.name);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Error stack:', error.stack);
     
-    res.status(500).json({ error: 'Internal server error' });
+    if (error.meta) {
+      console.error('❌ Error meta:', error.meta);
+    }
+    
+    if (error.cause) {
+      console.error('❌ Error cause:', error.cause);
+    }
+    
+    console.log('🔍 Request details:');
+    console.log('  - User:', req.user?.name, req.user?.email);
+    console.log('  - Query params:', req.query);
+    console.log('  - Headers:', req.headers);
+    console.log('='.repeat(80) + '\n');
+    
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+    });
   }
 });
 
@@ -267,8 +302,7 @@ router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
         select: {
           id: true,
           trackingId: true,
-          goodsType: true,
-          port: true,
+          goodsTypes: true,
           status: true
         }
         },
@@ -377,8 +411,7 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
           select: {
             id: true,
             trackingId: true,
-            goodsType: true,
-            port: true,
+            goodsTypes: true,
             status: true
           }
         },
@@ -454,8 +487,7 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
           select: {
             id: true,
             trackingId: true,
-            goodsType: true,
-            port: true,
+            goodsTypes: true,
             status: true
           }
         },

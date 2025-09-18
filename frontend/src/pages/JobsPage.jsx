@@ -18,6 +18,7 @@ import {
   Tooltip,
   Statistic,
   Drawer,
+  Spin,
   Tabs,
   Timeline,
   Descriptions,
@@ -25,7 +26,6 @@ import {
   Divider,
   Dropdown,
   Empty,
-  Spin,
   Alert
 } from 'antd';
 import { 
@@ -46,7 +46,8 @@ import {
   CheckCircleOutlined,
   ExclamationCircleOutlined,
   CarOutlined,
-  EnvironmentOutlined
+  EnvironmentOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import CustomerSelector from '../components/common/CustomerSelector';
@@ -67,6 +68,8 @@ const JobsPage = () => {
   const [editingJob, setEditingJob] = useState(null);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
   const [selectedJobDocuments, setSelectedJobDocuments] = useState([]);
@@ -78,7 +81,27 @@ const JobsPage = () => {
   const [jobs, setJobs] = useState([]);
   const [staffMembers, setStaffMembers] = useState([]);
   const [jobsLoading, setJobsLoading] = useState(true);
+  
+  // Dynamic dropdown states
+  const [goodsTypes, setGoodsTypes] = useState([
+    'Electronics', 'Textiles', 'Machinery', 'Pharmaceuticals', 'Food & Beverages',
+    'Automotive', 'Furniture', 'Clothing & Accessories', 'Books & Media',
+    'Sports & Recreation', 'Health & Beauty', 'Tools & Hardware'
+  ]);
+  const [vesselNames, setVesselNames] = useState([
+    'RHL Concordia', 'MAERSK TEMA', 'Seaspan Dalian', 'MAERSK KARUN', 
+    'MAESK Cunene', 'Hammonia Toscan'
+  ]);
+  const [lineOptions, setLineOptions] = useState([
+    'PIL', 'SAF', 'COSCO', 'CMA', 'OOCL', 'MSK', 'ONE'
+  ]);
   const [error, setError] = useState(null);
+  
+  // Custom option modal state
+  const [isCustomOptionModalVisible, setIsCustomOptionModalVisible] = useState(false);
+  const [customOptionType, setCustomOptionType] = useState('');
+  const [customOptionValue, setCustomOptionValue] = useState('');
+  const [customOptionField, setCustomOptionField] = useState('');
 
   useEffect(() => {
     loadJobs();
@@ -90,6 +113,18 @@ const JobsPage = () => {
       setJobsLoading(true);
       setError(null);
       const response = await jobService.getJobs({ limit: 100 });
+      console.log('🔍 Jobs API response:', response);
+      console.log('🔍 First job details:', response.jobs?.[0]);
+      if (response.jobs?.[0]) {
+        console.log('🔍 First job fields check:');
+        console.log('  - mediumOfEnquiry:', response.jobs[0].mediumOfEnquiry);
+        console.log('  - documentsBrought:', response.jobs[0].documentsBrought);
+        console.log('  - containerNumber:', response.jobs[0].containerNumber);
+        console.log('  - blNumber:', response.jobs[0].blNumber);
+        console.log('  - vesselName:', response.jobs[0].vesselName);
+        console.log('  - line:', response.jobs[0].line);
+        console.log('  - jobDescription:', response.jobs[0].jobDescription);
+      }
       setJobs(response.jobs || []);
     } catch (error) {
       console.error('Error loading jobs:', error);
@@ -131,6 +166,8 @@ const JobsPage = () => {
 
   const getStatusColor = (status) => {
     const statusColors = {
+      'NEW': 'green',
+      'DRAFT': 'default',
       'SUBMITTED': 'blue',
       'UNDER_REVIEW': 'orange',
       'QUOTED': 'purple',
@@ -152,6 +189,8 @@ const JobsPage = () => {
 
   const getStatusIcon = (status) => {
     const statusIcons = {
+      'NEW': <PlusOutlined />,
+      'DRAFT': <FileTextOutlined />,
       'SUBMITTED': <FileTextOutlined />,
       'UNDER_REVIEW': <CalendarOutlined />,
       'QUOTED': <DollarOutlined />,
@@ -304,6 +343,8 @@ const JobsPage = () => {
   const handleNewJob = () => {
     setEditingJob(null);
     form.resetFields();
+    // Set default status to NEW for new jobs
+    form.setFieldsValue({ status: 'NEW' });
     setIsModalVisible(true);
   };
 
@@ -353,8 +394,16 @@ const JobsPage = () => {
       consignmentId: job.consignmentId,
       trackingId: job.trackingId,
       goodsTypes: job.goodsTypes || [],
-      assignedTo: job.assignedTo,
-      estimatedValue: job.estimatedValue,
+      assignedToId: job.assignedToId,
+      eta: job.eta,
+      mediumOfEnquiry: job.mediumOfEnquiry,
+      documentsBrought: job.documentsBrought || [],
+      containerNumber: job.containerNumber,
+      blNumber: job.blNumber,
+      vesselName: job.vesselName,
+      line: job.line,
+      jobDescription: job.jobDescription,
+      status: job.status,
       documents: existingDocuments
     };
     
@@ -368,6 +417,18 @@ const JobsPage = () => {
   };
 
   const handleViewJob = async (job) => {
+    // Debug: Log the job data to see what we're getting
+    console.log('🔍 Job data received in handleViewJob:', job);
+    console.log('🔍 Job fields check:');
+    console.log('  - mediumOfEnquiry:', job.mediumOfEnquiry);
+    console.log('  - documentsBrought:', job.documentsBrought);
+    console.log('  - containerNumber:', job.containerNumber);
+    console.log('  - blNumber:', job.blNumber);
+    console.log('  - vesselName:', job.vesselName);
+    console.log('  - line:', job.line);
+    console.log('  - jobDescription:', job.jobDescription);
+    
+    // Show drawer immediately with complete job data (already loaded)
     setSelectedJob(job);
     setIsDetailsDrawerVisible(true);
     
@@ -406,20 +467,29 @@ const JobsPage = () => {
   };
 
   const handleSubmit = async (values) => {
-    setLoading(true);
+    setSubmitLoading(true);
     try {
       // Extract documents from form values (but don't process them here)
       const { documents, trackingId, ...jobData } = values;
+      
+      // Debug: Log the form values
+      console.log('🔍 Form values received:', values);
+      console.log('🔍 Job data to send:', jobData);
+      
+      // Use status from form (defaults to NEW if not specified)
+      const jobStatus = jobData.status || 'NEW';
       
       if (editingJob) {
         // Update existing job - remove trackingId as it's system-generated
         await jobService.updateJob(editingJob.id, jobData);
         message.success('Job updated successfully');
         loadJobs(); // Reload jobs
+        
       } else {
         // Create new job - remove trackingId as it's system-generated
         await jobService.createJob(jobData);
-        message.success('Job created successfully');
+        const statusMessage = jobStatus === 'DRAFT' ? 'Job saved as draft' : 'Job created successfully';
+        message.success(statusMessage);
         loadJobs(); // Reload jobs
       }
       setIsModalVisible(false);
@@ -427,7 +497,45 @@ const JobsPage = () => {
     } catch (error) {
       message.error(error.message || 'Failed to save job');
     } finally {
-      setLoading(false);
+      setSubmitLoading(false);
+    }
+  };
+
+  const handleSaveAsDraft = async () => {
+    setDraftLoading(true);
+    try {
+      // Validate form first
+      const formValues = await form.validateFields();
+      const { documents, trackingId, ...jobData } = formValues;
+      
+      // Debug: Log the form values
+      console.log('🔍 Draft form values received:', formValues);
+      console.log('🔍 Draft job data to send:', jobData);
+      
+      // Set status to DRAFT
+      const draftJobData = { ...jobData, status: 'DRAFT' };
+      
+      if (editingJob) {
+        // Update existing job
+        await jobService.updateJob(editingJob.id, draftJobData);
+        message.success('Job saved as draft');
+        loadJobs(); // Reload jobs
+      } else {
+        // Create new job
+        await jobService.createJob(draftJobData);
+        message.success('Job saved as draft');
+        loadJobs(); // Reload jobs
+      }
+      setIsModalVisible(false);
+      form.resetFields();
+    } catch (error) {
+      if (error.errorFields) {
+        message.error('Please fill in all required fields');
+      } else {
+        message.error(error.message || 'Failed to save job as draft');
+      }
+    } finally {
+      setDraftLoading(false);
     }
   };
 
@@ -462,6 +570,73 @@ const JobsPage = () => {
         consignmentId: consignmentId
       });
     }
+  };
+
+  // Helper functions for dynamic dropdowns
+  const handleCustomGoodsType = (value) => {
+    // For multi-select, value is an array
+    if (Array.isArray(value) && value.includes('Other')) {
+      setCustomOptionType('Goods Type');
+      setCustomOptionField('goodsTypes');
+      setCustomOptionValue('');
+      setIsCustomOptionModalVisible(true);
+    }
+  };
+
+  const handleCustomVessel = (value) => {
+    if (value === 'Other') {
+      setCustomOptionType('Vessel Name');
+      setCustomOptionField('vesselName');
+      setCustomOptionValue('');
+      setIsCustomOptionModalVisible(true);
+    }
+  };
+
+  const handleCustomLine = (value) => {
+    if (value === 'Other') {
+      setCustomOptionType('Line');
+      setCustomOptionField('line');
+      setCustomOptionValue('');
+      setIsCustomOptionModalVisible(true);
+    }
+  };
+
+  const handleCustomOptionSubmit = () => {
+    if (!customOptionValue.trim()) {
+      message.error('Please enter a value');
+      return;
+    }
+
+    const trimmedValue = customOptionValue.trim();
+    
+    if (customOptionField === 'goodsTypes') {
+      setGoodsTypes(prev => [...prev, trimmedValue]);
+      // For multi-select, remove 'Other' and add the new value
+      const currentValues = form.getFieldValue('goodsTypes') || [];
+      const filteredValues = currentValues.filter(val => val !== 'Other');
+      form.setFieldsValue({
+        goodsTypes: [...filteredValues, trimmedValue]
+      });
+    } else if (customOptionField === 'vesselName') {
+      setVesselNames(prev => [...prev, trimmedValue]);
+      form.setFieldsValue({
+        vesselName: trimmedValue
+      });
+    } else if (customOptionField === 'line') {
+      setLineOptions(prev => [...prev, trimmedValue]);
+      form.setFieldsValue({
+        line: trimmedValue
+      });
+    }
+
+    message.success(`${customOptionType} added successfully!`);
+    setIsCustomOptionModalVisible(false);
+    setCustomOptionValue('');
+  };
+
+  const handleCustomOptionCancel = () => {
+    setIsCustomOptionModalVisible(false);
+    setCustomOptionValue('');
   };
 
   const handleStatusUpdate = async (values) => {
@@ -725,15 +900,29 @@ const JobsPage = () => {
         onCancel={() => setIsModalVisible(false)}
         footer={null}
         width={800}
+        style={{ top: 20 }}
+        bodyStyle={{ 
+          maxHeight: 'calc(100vh - 200px)', 
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          padding: '24px'
+        }}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-          initialValues={{
-            documents: []
-          }}
-        >
+        <div style={{ 
+          maxHeight: 'calc(100vh - 300px)', 
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          width: '100%'
+        }}>
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={handleSubmit}
+            initialValues={{
+              documents: []
+            }}
+            style={{ width: '100%', maxWidth: '100%' }}
+          >
           <Row gutter={16}>
             <Col span={24}>
               <Form.Item
@@ -804,20 +993,12 @@ const JobsPage = () => {
                   placeholder="Select goods types for this job"
                   style={{ width: '100%' }}
                   maxTagCount="responsive"
+                  onChange={handleCustomGoodsType}
                 >
-                  <Option value="Electronics">Electronics</Option>
-                  <Option value="Textiles">Textiles</Option>
-                  <Option value="Machinery">Machinery</Option>
-                  <Option value="Pharmaceuticals">Pharmaceuticals</Option>
-                  <Option value="Food & Beverages">Food & Beverages</Option>
-                  <Option value="Automotive">Automotive</Option>
-                  <Option value="Furniture">Furniture</Option>
-                  <Option value="Clothing & Accessories">Clothing & Accessories</Option>
-                  <Option value="Books & Media">Books & Media</Option>
-                  <Option value="Sports & Recreation">Sports & Recreation</Option>
-                  <Option value="Health & Beauty">Health & Beauty</Option>
-                  <Option value="Tools & Hardware">Tools & Hardware</Option>
-                  <Option value="Other">Other</Option>
+                  {goodsTypes.map(type => (
+                    <Option key={type} value={type}>{type}</Option>
+                  ))}
+                  <Option value="Other">Other (Add Custom)</Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -826,7 +1007,7 @@ const JobsPage = () => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
-                name="assignedTo"
+                name="assignedToId"
                 label="Assign To"
                 rules={[{ required: true, message: 'Please assign the job' }]}
               >
@@ -850,8 +1031,11 @@ const JobsPage = () => {
                 name="status"
                 label="Status"
                 rules={[{ required: true, message: 'Please select status' }]}
+                initialValue="NEW"
               >
                 <Select placeholder="Select status">
+                  <Option value="NEW">New</Option>
+                  <Option value="DRAFT">Draft</Option>
                   <Option value="SUBMITTED">Submitted</Option>
                   <Option value="UNDER_REVIEW">Under Review</Option>
                   <Option value="QUOTED">Quoted</Option>
@@ -875,22 +1059,10 @@ const JobsPage = () => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
-                name="estimatedValue"
-                label="Estimated Value (GHS)"
-                rules={[{ required: true, message: 'Please enter estimated value' }]}
-              >
-                <Input 
-                type="number" 
-                placeholder="Auto-filled when consignment is selected"
-                min={0}
-              />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
                 name="eta"
-                label="ETA (Optional)"
-                help="ETA can be set later when status changes to Ready for Shipment"
+                label="ETA"
+                rules={[{ required: true, message: 'Please select ETA' }]}
+                help="Expected delivery time"
               >
                 <DatePicker 
                   showTime 
@@ -900,7 +1072,115 @@ const JobsPage = () => {
                 />
               </Form.Item>
             </Col>
+            <Col span={12}>
+              <Form.Item
+                name="mediumOfEnquiry"
+                label="Medium of Enquiry Documents"
+                rules={[{ required: false, message: 'Please select medium of enquiry' }]}
+              >
+                <Select placeholder="How were documents received?">
+                  <Option value="Email">Email</Option>
+                  <Option value="Dispatch">Dispatch</Option>
+                  <Option value="VVIP">VVIP</Option>
+                  <Option value="WhatsApp">WhatsApp</Option>
+                </Select>
+              </Form.Item>
+            </Col>
           </Row>
+
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item
+                name="documentsBrought"
+                label="Documents Brought"
+                rules={[{ required: false, message: 'Please select documents brought' }]}
+              >
+                <Select 
+                  mode="multiple"
+                  placeholder="Select documents brought by client"
+                  style={{ width: '100%' }}
+                >
+                  <Option value="Parking list copy">Parking list copy</Option>
+                  <Option value="Parking list original">Parking list original</Option>
+                  <Option value="Container No">Container No</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="containerNumber"
+                label="Container Number"
+                rules={[{ required: false, message: 'Please enter container number' }]}
+              >
+                <Input placeholder="Enter container number" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="blNumber"
+                label="B/L Number"
+                rules={[{ required: false, message: 'Please enter B/L number' }]}
+              >
+                <Input placeholder="Enter B/L number" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="vesselName"
+                label="Vessel Name"
+                rules={[{ required: false, message: 'Please select vessel name' }]}
+              >
+                <Select 
+                  placeholder="Select vessel name"
+                  onChange={handleCustomVessel}
+                >
+                  {vesselNames.map(vessel => (
+                    <Option key={vessel} value={vessel}>{vessel}</Option>
+                  ))}
+                  <Option value="Other">Other (Add Custom)</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="line"
+                label="LINE"
+                rules={[{ required: false, message: 'Please select line' }]}
+              >
+                <Select 
+                  placeholder="Select line"
+                  onChange={handleCustomLine}
+                >
+                  {lineOptions.map(line => (
+                    <Option key={line} value={line}>{line}</Option>
+                  ))}
+                  <Option value="Other">Other (Add Custom)</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item
+                name="jobDescription"
+                label="Job Description"
+                rules={[{ required: false, message: 'Please enter job description' }]}
+              >
+                <Input.TextArea 
+                  placeholder="Enter detailed job description"
+                  rows={4}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
 
           <Row gutter={16}>
             <Col span={24}>
@@ -922,15 +1202,25 @@ const JobsPage = () => {
 
           <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>
             <Space>
-              <Button onClick={() => setIsModalVisible(false)}>
-                Cancel
+              <Button 
+                type="default" 
+                htmlType="button" 
+                loading={draftLoading}
+                onClick={handleSaveAsDraft}
+              >
+                Save as Draft
               </Button>
-              <Button type="primary" htmlType="submit" loading={loading}>
-                {editingJob ? 'Update Job' : 'Create Job'}
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                loading={submitLoading}
+              >
+                {editingJob ? 'Update Job' : 'Submit Job'}
               </Button>
             </Space>
           </Form.Item>
-                                   </Form>
+          </Form>
+        </div>
         </Modal>
 
         {/* Status Update Modal */}
@@ -1146,7 +1436,9 @@ const JobsPage = () => {
        <Drawer
         title={
           <div>
-            <Title level={4} style={{ margin: 0 }}>Job Details</Title>
+            <Title level={4} style={{ margin: 0 }}>
+              Job Details
+            </Title>
             <Text type="secondary">Job ID: {selectedJob?.trackingId}</Text>
           </div>
         }
@@ -1329,8 +1621,6 @@ const JobsPage = () => {
                   <div>{selectedJob.submittedDate}</div>
                 </div>
                 <div style={{ marginBottom: '16px', display: 'flex' }}>
-                  <div style={{ width: '140px', fontWeight: 'bold' }}>Estimated Value:</div>
-                  <div>{selectedJob.estimatedValue ? `GHS ${selectedJob.estimatedValue.toLocaleString()}` : 'Not specified'}</div>
                 </div>
                 <div style={{ marginBottom: '16px', display: 'flex' }}>
                   <div style={{ width: '140px', fontWeight: 'bold' }}>ETA:</div>
@@ -1416,6 +1706,46 @@ const JobsPage = () => {
                     )}
                   </div>
                 </div>
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>Medium of Enquiry:</div>
+                  <div>{selectedJob.mediumOfEnquiry || 'Not specified'}</div>
+                </div>
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>Documents Brought:</div>
+                  <div>
+                    {selectedJob.documentsBrought && selectedJob.documentsBrought.length > 0 ? (
+                      selectedJob.documentsBrought.map((doc, index) => (
+                        <Tag key={index} color="green" style={{ marginBottom: '2px', marginRight: '4px' }}>
+                          {doc}
+                        </Tag>
+                      ))
+                    ) : (
+                      <Tag color="default">No documents specified</Tag>
+                    )}
+                  </div>
+                </div>
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>Container Number:</div>
+                  <div>{selectedJob.containerNumber || 'Not specified'}</div>
+                </div>
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>B/L Number:</div>
+                  <div>{selectedJob.blNumber || 'Not specified'}</div>
+                </div>
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>Vessel Name:</div>
+                  <div>{selectedJob.vesselName || 'Not specified'}</div>
+                </div>
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>LINE:</div>
+                  <div>{selectedJob.line || 'Not specified'}</div>
+                </div>
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>Job Description:</div>
+                  <div style={{ flex: 1, whiteSpace: 'pre-wrap' }}>
+                    {selectedJob.jobDescription || 'No description provided'}
+                  </div>
+                </div>
               </div>
 
               {/* Documents */}
@@ -1475,6 +1805,57 @@ const JobsPage = () => {
           </Tabs>
          )}
        </Drawer>
+
+       {/* Custom Option Modal */}
+       <Modal
+         title={
+           <div style={{ display: 'flex', alignItems: 'center' }}>
+             <PlusOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+             Add Custom {customOptionType}
+           </div>
+         }
+         open={isCustomOptionModalVisible}
+         onOk={handleCustomOptionSubmit}
+         onCancel={handleCustomOptionCancel}
+         okText="Add"
+         cancelText="Cancel"
+         okButtonProps={{ 
+           type: 'primary',
+           icon: <PlusOutlined />
+         }}
+         width={500}
+       >
+         <div style={{ padding: '20px 0' }}>
+           <Form layout="vertical">
+             <Form.Item
+               label={`Enter custom ${customOptionType.toLowerCase()}:`}
+               required
+               style={{ marginBottom: '24px' }}
+             >
+               <Input
+                 placeholder={`Enter ${customOptionType.toLowerCase()}...`}
+                 value={customOptionValue}
+                 onChange={(e) => setCustomOptionValue(e.target.value)}
+                 onPressEnter={handleCustomOptionSubmit}
+                 autoFocus
+                 size="large"
+               />
+             </Form.Item>
+             
+             <div style={{ 
+               background: '#f6f8fa', 
+               padding: '16px', 
+               borderRadius: '6px',
+               border: '1px solid #e1e4e8'
+             }}>
+               <Text type="secondary" style={{ fontSize: '14px' }}>
+                 <InfoCircleOutlined style={{ marginRight: '6px' }} />
+                 This {customOptionType.toLowerCase()} will be saved and available for future selections.
+               </Text>
+             </div>
+           </Form>
+         </div>
+       </Modal>
      </div>
    );
  };

@@ -210,7 +210,6 @@ Get all jobs with pagination and filters.
       "consignmentId": "uuid",
       "trackingId": "JOB-2025-001",
       "goodsType": "Electronics",
-      "estimatedValue": 5000,
       "status": "PENDING",
       "createdAt": "2025-08-28T17:00:00.000Z",
       "updatedAt": "2025-08-28T17:00:00.000Z"
@@ -235,7 +234,6 @@ Create a new job.
   "consignmentId": "uuid",
   "trackingId": "JOB-2025-001",
   "goodsType": "Electronics",
-  "estimatedValue": 5000
 }
 ```
 
@@ -417,7 +415,6 @@ Create a new payment.
   "consignmentId": "uuid",
   "trackingId": "string",
   "goodsType": "string",
-  "estimatedValue": "number",
   "status": "PENDING | IN_PROGRESS | COMPLETED | CANCELLED",
   "createdAt": "date-time",
   "updatedAt": "date-time"

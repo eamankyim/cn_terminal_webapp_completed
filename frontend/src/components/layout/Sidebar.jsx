@@ -15,7 +15,6 @@ import {
   CheckCircleOutlined,
   FolderOutlined,
   CalculatorOutlined,
-  CreditCardOutlined,
   GlobalOutlined,
 } from '@ant-design/icons';
 import './Sidebar.css';
@@ -50,11 +49,6 @@ const Sidebar = ({ collapsed }) => {
       key: '/invoices',
       icon: <FileTextOutlined />,
       label: 'Invoices',
-    },
-    {
-      key: '/payments',
-      icon: <CreditCardOutlined />,
-      label: 'Payments',
     },
     {
       key: '/duty-calculator',

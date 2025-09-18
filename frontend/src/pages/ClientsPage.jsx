@@ -316,8 +316,8 @@ const ClientsPage = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Regular Clients"
-              value={clients.filter(c => c.customerType === 'REGULAR').length}
+              title="Company Clients"
+              value={clients.filter(c => c.customerType === 'COMPANY').length}
               valueStyle={{ color: '#fa8c16' }}
               prefix={<UserOutlined />}
             />
@@ -326,8 +326,8 @@ const ClientsPage = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Premium Clients"
-              value={clients.filter(c => c.customerType === 'PREMIUM').length}
+              title="Individual Clients"
+              value={clients.filter(c => c.customerType === 'INDIVIDUAL').length}
               valueStyle={{ color: '#722ed1' }}
               prefix={<CrownOutlined />}
             />
@@ -363,23 +363,6 @@ const ClientsPage = () => {
               <Option value="active">Active</Option>
               <Option value="pending">Pending</Option>
               <Option value="inactive">Inactive</Option>
-            </Select>
-          </Col>
-          <Col xs={24} md={4}>
-            <Select
-              placeholder="Business Type"
-              style={{ width: '100%' }}
-              allowClear
-              onChange={(value) => {
-                // TODO: Implement API-based filtering
-                message.info('Business type filtering will be implemented with API integration');
-              }}
-            >
-              <Option value="Import/Export">Import/Export</Option>
-              <Option value="Trading">Trading</Option>
-              <Option value="Manufacturing">Manufacturing</Option>
-              <Option value="Logistics">Logistics</Option>
-              <Option value="Retail">Retail</Option>
             </Select>
           </Col>
         </Row>
@@ -516,21 +499,13 @@ const ClientsPage = () => {
                            Business Information
                          </Title>
                          <div style={{ marginBottom: '16px', display: 'flex' }}>
-                          <div style={{ width: '140px', fontWeight: 'bold' }}>Business Type:</div>
-                          <div>{selectedClient.businessType || 'N/A'}</div>
-                         </div>
-                         <div style={{ marginBottom: '16px', display: 'flex' }}>
-                           <div style={{ width: '140px', fontWeight: 'bold' }}>Registration Number:</div>
-                           <div>{selectedClient.registrationNumber || 'N/A'}</div>
-                         </div>
-                         <div style={{ marginBottom: '16px', display: 'flex' }}>
                            <div style={{ width: '140px', fontWeight: 'bold' }}>TIN:</div>
                            <div>{selectedClient.tin || 'N/A'}</div>
                          </div>
                          <div style={{ marginBottom: '16px', display: 'flex' }}>
                            <div style={{ width: '140px', fontWeight: 'bold' }}>Client Type:</div>
                            <div>
-                             <Tag color={selectedClient.customerType === 'PREMIUM' ? 'gold' : selectedClient.customerType === 'VIP' ? 'purple' : 'default'}>
+                             <Tag color={selectedClient.customerType === 'COMPANY' ? 'blue' : selectedClient.customerType === 'INDIVIDUAL' ? 'green' : 'default'}>
                                {selectedClient.customerType || 'N/A'}
                              </Tag>
                            </div>
@@ -755,39 +730,13 @@ const ClientsPage = () => {
             <Input.TextArea placeholder="Enter full address" rows={2} />
           </Form.Item>
 
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="businessType"
-                label="Business Type"
-                rules={[{ required: true, message: 'Please select business type' }]}
-              >
-                <Select placeholder="Select business type">
-                  <Option value="Import/Export">Import/Export</Option>
-                  <Option value="Trading">Trading</Option>
-                  <Option value="Manufacturing">Manufacturing</Option>
-                  <Option value="Logistics">Logistics</Option>
-                  <Option value="Retail">Retail</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="registrationNumber"
-                label="Registration Number"
-                rules={[{ required: true, message: 'Please enter registration number' }]}
-              >
-                <Input placeholder="Enter registration number" />
-              </Form.Item>
-            </Col>
-          </Row>
 
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
                 name="tin"
                 label="TIN"
-                rules={[{ required: true, message: 'Please enter TIN' }]}
+                rules={[{ required: false, message: 'Please enter TIN' }]}
               >
                 <Input placeholder="Enter TIN" />
               </Form.Item>
@@ -796,7 +745,7 @@ const ClientsPage = () => {
               <Form.Item
                 name="ghanaCard"
                 label="Ghana Card"
-                rules={[{ required: true, message: 'Please enter Ghana Card number' }]}
+                rules={[{ required: false, message: 'Please enter Ghana Card number' }]}
               >
                 <Input placeholder="Enter Ghana Card number" />
               </Form.Item>
@@ -811,9 +760,8 @@ const ClientsPage = () => {
                 rules={[{ required: true, message: 'Please select client type' }]}
               >
                 <Select placeholder="Select client type">
-                  <Option value="REGULAR">Regular</Option>
-                  <Option value="PREMIUM">Premium</Option>
-                  <Option value="VIP">VIP</Option>
+                  <Option value="COMPANY">Company</Option>
+                  <Option value="INDIVIDUAL">Individual</Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -888,7 +836,7 @@ const ClientsPage = () => {
               <Form.Item
                 name="ghanaCard"
                 label="Ghana Card Number"
-                rules={[{ required: true, message: 'Please enter Ghana Card number' }]}
+                rules={[{ required: false, message: 'Please enter Ghana Card number' }]}
               >
                 <Input placeholder="GHA-XXXXXXXXX-X" />
               </Form.Item>
@@ -897,7 +845,7 @@ const ClientsPage = () => {
               <Form.Item
                 name="tin"
                 label="TIN"
-                rules={[{ required: true, message: 'Please enter TIN' }]}
+                rules={[{ required: false, message: 'Please enter TIN' }]}
               >
                 <Input placeholder="Enter TIN" />
               </Form.Item>

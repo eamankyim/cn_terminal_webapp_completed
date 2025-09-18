@@ -316,30 +316,6 @@ class ApiService {
     return this.get('/invoices/jobs', { search });
   }
 
-  // Payment endpoints
-  async getPayments(params = {}) {
-    return this.get('/payments', params);
-  }
-
-  async getPayment(id) {
-    return this.get(`/payments/${id}`);
-  }
-
-  async createPayment(data) {
-    return this.post('/payments', data);
-  }
-
-  async updatePayment(id, data) {
-    return this.put(`/payments/${id}`, data);
-  }
-
-  async updatePaymentStatus(id, status) {
-    return this.put(`/payments/${id}/status`, { status });
-  }
-
-  async deletePayment(id) {
-    return this.delete(`/payments/${id}`);
-  }
 
   // Public tracking endpoint (no authentication required)
   async trackPackage(trackingId) {

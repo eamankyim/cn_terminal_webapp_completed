@@ -158,7 +158,6 @@ async function main() {
         port: 'Tema Port',
         assignedTo: 'Clearing Agent A',
         status: 'UNDER_REVIEW',
-        estimatedValue: 25000,
         createdById: adminUser.id
       }
     }),
@@ -173,7 +172,6 @@ async function main() {
         port: 'Accra Port',
         assignedTo: 'Clearing Agent B',
         status: 'CLEARED',
-        estimatedValue: 18000,
         createdById: adminUser.id
       }
     })
@@ -196,7 +194,6 @@ async function main() {
         goodsType: 'Machinery',
         port: 'Tema Port',
         goodsDescription: 'Industrial equipment for manufacturing',
-        estimatedValue: 50000,
         status: 'SUBMITTED'
       }
     }),
@@ -213,7 +210,6 @@ async function main() {
         goodsType: 'Pharmaceuticals',
         port: 'Accra Port',
         goodsDescription: 'Medical supplies and equipment',
-        estimatedValue: 75000,
         status: 'QUOTED'
       }
     })

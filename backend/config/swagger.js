@@ -95,7 +95,6 @@ const options = {
             consignmentId: { type: 'string', format: 'uuid' },
             trackingId: { type: 'string' },
             goodsType: { type: 'string' },
-            estimatedValue: { type: 'number' },
             status: { 
               type: 'string', 
               enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] 

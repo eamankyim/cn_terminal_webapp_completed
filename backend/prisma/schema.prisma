@@ -36,14 +36,12 @@ model Customer {
   address            String
   city               String?
   country            String         @default("Ghana")
-  customerType       CustomerType   @default(REGULAR)
+  customerType       CustomerType   @default(COMPANY)
   status             CustomerStatus @default(ACTIVE)
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
-  businessType       String?
   contactPerson      String?
   ghanaCard          String?
-  registrationNumber String?
   tin                String?
   consignments       Consignment[]
   enquiries          Enquiry[]
@@ -60,8 +58,8 @@ model Consignment {
   consigneeName    String
   consigneePhone   String
   consigneeAddress String
-  ghanaCard        String
-  tin              String
+  ghanaCard        String?
+  tin              String?
   status           ConsignmentStatus @default(PENDING)
   date             DateTime
   createdAt        DateTime          @default(now())
@@ -81,13 +79,19 @@ model Job {
   updatedById    String?
   assignedToId   String
   assignedTo     User             @relation("AssignedJobs", fields: [assignedToId], references: [id])
-  status         JobStatus          @default(SUBMITTED)
+  status         JobStatus          @default(NEW)
   submittedDate  DateTime           @default(now())
   eta            DateTime?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
-  estimatedValue Float?
   goodsTypes     String[]           @default([])
+  mediumOfEnquiry String?
+  documentsBrought String[]         @default([])
+  containerNumber String?
+  blNumber       String?
+  vesselName     String?
+  line           String?
+  jobDescription String?
   invoices       Invoice[]
   documents      JobDocument[]
   statusHistory  JobStatusHistory[]
@@ -255,9 +259,8 @@ enum UserRole {
 }
 
 enum CustomerType {
-  REGULAR
-  PREMIUM
-  VIP
+  COMPANY
+  INDIVIDUAL
 }
 
 enum CustomerStatus {
@@ -272,6 +275,8 @@ enum ConsignmentStatus {
 }
 
 enum JobStatus {
+  NEW
+  DRAFT
   SUBMITTED
   UNDER_REVIEW
   QUOTED

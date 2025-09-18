@@ -718,7 +718,6 @@ router.get('/:id/statistics', authenticateToken, requireStaff, async (req, res) 
         jobs: {
           select: {
             status: true,
-            estimatedValue: true
           }
         }
       }
@@ -730,7 +729,7 @@ router.get('/:id/statistics', authenticateToken, requireStaff, async (req, res) 
 
     // Calculate statistics
     const totalConsignmentValue = customer.consignments.reduce((sum, c) => sum + c.value, 0);
-    const totalJobValue = customer.jobs.reduce((sum, j) => sum + j.estimatedValue, 0);
+    const totalJobValue = 0; // estimatedValue field removed
 
     const consignmentStatusCount = customer.consignments.reduce((acc, c) => {
       acc[c.status] = (acc[c.status] || 0) + 1;

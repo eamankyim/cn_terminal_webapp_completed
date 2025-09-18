@@ -105,9 +105,6 @@ const router = express.Router();
  *                   type: string
  *                 description: Array of goods types
  *                 example: ["Electronics", "Machinery"]
- *               estimatedValue:
- *                 type: number
- *                 description: Estimated value in GHS (optional)
  *                 example: 5000
  *     responses:
  *       201:
@@ -151,12 +148,46 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
     // Build where condition
     const where = {};
     
+    // Special visibility rules for DRAFT jobs
+    // Draft jobs are only visible to:
+    // 1. The person who created it (createdById)
+    // 2. The person assigned to it (assignedToId) - but only if they created it themselves
+    const visibilityConditions = [
+      // Non-draft jobs are visible to everyone
+      { status: { not: 'DRAFT' } },
+      // Draft jobs are only visible to creator or assigned person (if they created it)
+      {
+        AND: [
+          { status: 'DRAFT' },
+          {
+            OR: [
+              { createdById: req.user.id }, // Creator can see their drafts
+              { 
+                AND: [
+                  { assignedToId: req.user.id }, // Assigned person
+                  { createdById: req.user.id }   // But only if they created it
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ];
+
+    // Add search conditions if provided
     if (search) {
-      where.OR = [
+      const searchConditions = [
         { trackingId: { contains: search, mode: 'insensitive' } },
         { assignedTo: { contains: search, mode: 'insensitive' } },
         { customer: { name: { contains: search, mode: 'insensitive' } } }
       ];
+      
+      where.AND = [
+        { OR: visibilityConditions },
+        { OR: searchConditions }
+      ];
+    } else {
+      where.OR = visibilityConditions;
     }
 
     if (status) {
@@ -170,6 +201,23 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
     console.log(`🔍 Where condition:`, JSON.stringify(where, null, 2));
 
     console.log('🔍 Executing Prisma queries...');
+    
+    // Test query to check if fields exist in database
+    const testJob = await prisma.job.findFirst({
+      select: {
+        id: true,
+        trackingId: true,
+        mediumOfEnquiry: true,
+        documentsBrought: true,
+        containerNumber: true,
+        blNumber: true,
+        vesselName: true,
+        line: true,
+        jobDescription: true
+      }
+    });
+    console.log('🔍 Test job query result:', testJob);
+    
     const [jobs, totalCount] = await Promise.all([
       prisma.job.findMany({
         where,
@@ -186,8 +234,14 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
           eta: true,
           createdAt: true,
           updatedAt: true,
-          estimatedValue: true,
           goodsTypes: true,
+          mediumOfEnquiry: true,
+          documentsBrought: true,
+          containerNumber: true,
+          blNumber: true,
+          vesselName: true,
+          line: true,
+          jobDescription: true,
           customer: {
             select: {
               id: true,
@@ -263,6 +317,17 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
     };
 
     console.log('✅ Sending successful response');
+    console.log('🔍 First job data being sent:', jobs[0]);
+    if (jobs[0]) {
+      console.log('🔍 First job fields check:');
+      console.log('  - mediumOfEnquiry:', jobs[0].mediumOfEnquiry);
+      console.log('  - documentsBrought:', jobs[0].documentsBrought);
+      console.log('  - containerNumber:', jobs[0].containerNumber);
+      console.log('  - blNumber:', jobs[0].blNumber);
+      console.log('  - vesselName:', jobs[0].vesselName);
+      console.log('  - line:', jobs[0].line);
+      console.log('  - jobDescription:', jobs[0].jobDescription);
+    }
     console.log('='.repeat(60) + '\n');
 
     res.json(response);
@@ -299,8 +364,14 @@ router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
         eta: true,
         createdAt: true,
         updatedAt: true,
-        estimatedValue: true,
         goodsTypes: true,
+        mediumOfEnquiry: true,
+        documentsBrought: true,
+        containerNumber: true,
+        blNumber: true,
+        vesselName: true,
+        line: true,
+        jobDescription: true,
         customer: {
           select: {
             id: true,
@@ -418,18 +489,32 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
       customerId,
       consignmentId,
       assignedToId,
+      status,
       goodsTypes = [],
-      estimatedValue,
-      eta
+      eta,
+      mediumOfEnquiry,
+      documentsBrought = [],
+      containerNumber,
+      blNumber,
+      vesselName,
+      line,
+      jobDescription
     } = req.body;
 
     console.log(`🔍 Extracted data:`);
     console.log(`  - customerId: ${customerId}`);
     console.log(`  - consignmentId: ${consignmentId}`);
     console.log(`  - assignedToId: ${assignedToId}`);
+    console.log(`  - status: ${status}`);
     console.log(`  - goodsTypes:`, goodsTypes);
-    console.log(`  - estimatedValue: ${estimatedValue}`);
     console.log(`  - eta: ${eta}`);
+    console.log(`  - mediumOfEnquiry: ${mediumOfEnquiry}`);
+    console.log(`  - documentsBrought:`, documentsBrought);
+    console.log(`  - containerNumber: ${containerNumber}`);
+    console.log(`  - blNumber: ${blNumber}`);
+    console.log(`  - vesselName: ${vesselName}`);
+    console.log(`  - line: ${line}`);
+    console.log(`  - jobDescription: ${jobDescription}`);
 
     // Validate required fields
     if (!customerId || !assignedToId) {
@@ -490,12 +575,27 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
       consignmentId,
       trackingId,
       assignedToId,
+      status: status || 'NEW',
       goodsTypes,
-      estimatedValue: estimatedValue ? parseFloat(estimatedValue) : null,
       eta: eta ? new Date(eta) : null,
+      mediumOfEnquiry,
+      documentsBrought,
+      containerNumber,
+      blNumber,
+      vesselName,
+      line,
+      jobDescription,
       createdById: req.user.id
     };
     console.log('📝 Job data to create:', JSON.stringify(jobData, null, 2));
+    console.log('🔍 Individual field values:');
+    console.log('  - mediumOfEnquiry:', mediumOfEnquiry);
+    console.log('  - documentsBrought:', documentsBrought);
+    console.log('  - containerNumber:', containerNumber);
+    console.log('  - blNumber:', blNumber);
+    console.log('  - vesselName:', vesselName);
+    console.log('  - line:', line);
+    console.log('  - jobDescription:', jobDescription);
 
     const job = await prisma.job.create({
       data: jobData,
@@ -522,19 +622,27 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
             id: true,
             name: true
           }
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
         }
       }
     });
 
     console.log('✅ Job created successfully:', job.id);
+    console.log('🔍 Created job data:', JSON.stringify(job, null, 2));
 
     // Create initial status history
     console.log('📝 Creating initial status history...');
     await prisma.jobStatusHistory.create({
       data: {
         jobId: job.id,
-        status: 'SUBMITTED',
-        updatedBy: req.user.id
+        status: jobData.status,
+        updatedById: req.user.id
       }
     });
     console.log('✅ Status history created');
@@ -573,8 +681,14 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
       assignedToId,
       status,
       goodsTypes,
-      estimatedValue,
-      eta
+      eta,
+      mediumOfEnquiry,
+      documentsBrought,
+      containerNumber,
+      blNumber,
+      vesselName,
+      line,
+      jobDescription
     } = req.body;
 
     // Check if job exists
@@ -627,14 +741,44 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
       updateData.goodsTypes = goodsTypes;
     }
 
-    // Add estimated value if provided
-    if (estimatedValue !== undefined) {
-      updateData.estimatedValue = estimatedValue ? parseFloat(estimatedValue) : null;
-    }
-
     // Add ETA if provided
     if (eta !== undefined) {
       updateData.eta = eta ? new Date(eta) : null;
+    }
+
+    // Add medium of enquiry if provided
+    if (mediumOfEnquiry !== undefined) {
+      updateData.mediumOfEnquiry = mediumOfEnquiry;
+    }
+
+    // Add documents brought if provided
+    if (documentsBrought !== undefined) {
+      updateData.documentsBrought = documentsBrought;
+    }
+
+    // Add container number if provided
+    if (containerNumber !== undefined) {
+      updateData.containerNumber = containerNumber;
+    }
+
+    // Add B/L number if provided
+    if (blNumber !== undefined) {
+      updateData.blNumber = blNumber;
+    }
+
+    // Add vessel name if provided
+    if (vesselName !== undefined) {
+      updateData.vesselName = vesselName;
+    }
+
+    // Add line if provided
+    if (line !== undefined) {
+      updateData.line = line;
+    }
+
+    // Add job description if provided
+    if (jobDescription !== undefined) {
+      updateData.jobDescription = jobDescription;
     }
 
     // Update job
@@ -679,7 +823,7 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
         data: {
           jobId: id,
           status,
-          updatedBy: req.user.id
+          updatedById: req.user.id
         }
       });
     }
@@ -782,7 +926,6 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
         eta: true,
         createdAt: true,
         updatedAt: true,
-        estimatedValue: true,
         goodsTypes: true,
         customer: {
           select: {
