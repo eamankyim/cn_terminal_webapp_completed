@@ -64,11 +64,31 @@ const InvoicesPage = () => {
     try {
       setLoading(true);
       setError(null);
+      console.log('🔄 Loading invoices...');
+      console.log('🔑 Token present:', !!localStorage.getItem('cn_terminal_token'));
+      console.log('🔑 Token preview:', localStorage.getItem('cn_terminal_token') ? `${localStorage.getItem('cn_terminal_token').substring(0, 20)}...` : 'None');
+      
       const response = await invoiceService.getInvoices({ limit: 100 });
+      console.log('✅ Invoices loaded successfully:', response);
       setInvoices(response.invoices || []);
     } catch (error) {
-      console.error('Error loading invoices:', error);
-      setError('Failed to load invoices');
+      console.error('❌ Error loading invoices:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      
+      // Check if it's an authentication error
+      if (error.message.includes('Access token required') || error.message.includes('401')) {
+        setError('Authentication required. Please log in again.');
+      } else if (error.message.includes('403')) {
+        setError('Access denied. You do not have permission to view invoices.');
+      } else if (error.message.includes('500')) {
+        setError('Server error. Please try again later.');
+      } else {
+        setError(`Failed to load invoices: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }

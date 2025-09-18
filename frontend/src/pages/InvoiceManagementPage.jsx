@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Row, 
   Col, 
@@ -21,7 +21,9 @@ import {
   Tabs,
   Statistic,
   InputNumber,
-  Switch
+  Switch,
+  Alert,
+  Spin
 } from 'antd';
 import { 
   PlusOutlined,
@@ -36,17 +38,23 @@ import {
   PrinterOutlined
 } from '@ant-design/icons';
 import CustomerSelector from '../components/common/CustomerSelector';
+import invoiceService from '../services/invoiceService';
+import { useAuth } from '../contexts/AuthContext';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 
 const InvoiceManagementPage = () => {
+  const { isAuthenticated, currentUser } = useAuth();
   const [invoiceModalVisible, setInvoiceModalVisible] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [invoiceForm] = Form.useForm();
   const [activeTab, setActiveTab] = useState('invoices');
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Customers data - will be replaced with API call
   const customers = [];
@@ -60,7 +68,47 @@ const InvoiceManagementPage = () => {
 
   // Available shipments - will be replaced with API call
   const availableShipments = [];
-  const existingInvoices = [];
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadInvoices();
+    }
+  }, [isAuthenticated]);
+
+  const loadInvoices = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('🔄 Loading invoices for Invoice Management...');
+      console.log('🔑 User authenticated:', isAuthenticated);
+      console.log('🔑 Current user:', currentUser);
+      console.log('🔑 Token present:', !!localStorage.getItem('cn_terminal_token'));
+      
+      const response = await invoiceService.getInvoices({ limit: 100 });
+      console.log('✅ Invoices loaded successfully:', response);
+      setInvoices(response.invoices || []);
+    } catch (error) {
+      console.error('❌ Error loading invoices:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      
+      // Check if it's an authentication error
+      if (error.message.includes('Access token required') || error.message.includes('401')) {
+        setError('Authentication required. Please log in again.');
+      } else if (error.message.includes('403')) {
+        setError('Access denied. You do not have permission to view invoices.');
+      } else if (error.message.includes('500')) {
+        setError('Server error. Please try again later.');
+      } else {
+        setError(`Failed to load invoices: ${error.message}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const invoiceColumns = [
     {
@@ -71,41 +119,21 @@ const InvoiceManagementPage = () => {
     },
     {
       title: 'Tracking ID',
-      dataIndex: 'trackingId',
+      dataIndex: 'job',
       key: 'trackingId',
+      render: (job) => job?.trackingId || 'N/A',
     },
     {
       title: 'Customer',
       dataIndex: 'customer',
       key: 'customer',
+      render: (customer) => customer?.name || 'N/A',
     },
     {
       title: 'Amount',
       dataIndex: 'amount',
       key: 'amount',
-      render: (amount) => <Text strong>£{amount.toFixed(2)}</Text>,
-    },
-    {
-      title: 'Service',
-      dataIndex: 'service',
-      key: 'service',
-      render: (service) => {
-        let color = 'default';
-        switch (service) {
-          case 'Premium':
-            color = 'purple';
-            break;
-          case 'Express':
-            color = 'orange';
-            break;
-          case 'Standard':
-            color = 'blue';
-            break;
-          default:
-            color = 'default';
-        }
-        return <Tag color={color}>{service}</Tag>;
-      },
+      render: (amount) => <Text strong>GHS {amount?.toFixed(2) || '0.00'}</Text>,
     },
     {
       title: 'Status',
@@ -116,15 +144,15 @@ const InvoiceManagementPage = () => {
         let icon = null;
         
         switch (status) {
-          case 'Paid':
+          case 'PAID':
             color = 'success';
             icon = <CheckCircleOutlined />;
             break;
-          case 'Pending':
+          case 'PENDING':
             color = 'processing';
             icon = <ClockCircleOutlined />;
             break;
-          case 'Overdue':
+          case 'OVERDUE':
             color = 'error';
             icon = <ClockCircleOutlined />;
             break;
@@ -143,11 +171,13 @@ const InvoiceManagementPage = () => {
       title: 'Issue Date',
       dataIndex: 'issueDate',
       key: 'issueDate',
+      render: (date) => date ? new Date(date).toLocaleDateString() : 'N/A',
     },
     {
       title: 'Due Date',
       dataIndex: 'dueDate',
       key: 'dueDate',
+      render: (date) => date ? new Date(date).toLocaleDateString() : 'N/A',
     },
     {
       title: 'Actions',
@@ -294,7 +324,7 @@ const InvoiceManagementPage = () => {
               <Col xs={24} sm={12} lg={6}>
                 <Statistic
                   title="Total Invoices"
-                  value={existingInvoices.length}
+                  value={invoices.length}
                   suffix=""
                   valueStyle={{ color: '#1890ff' }}
                 />
@@ -302,7 +332,7 @@ const InvoiceManagementPage = () => {
               <Col xs={24} sm={12} lg={6}>
                 <Statistic
                   title="Paid"
-                  value={existingInvoices.filter(inv => inv.status === 'Paid').length}
+                  value={invoices.filter(inv => inv.status === 'PAID').length}
                   suffix=""
                   valueStyle={{ color: '#52c41a' }}
                 />
@@ -310,7 +340,7 @@ const InvoiceManagementPage = () => {
               <Col xs={24} sm={12} lg={6}>
                 <Statistic
                   title="Pending"
-                  value={existingInvoices.filter(inv => inv.status === 'Pending').length}
+                  value={invoices.filter(inv => inv.status === 'PENDING').length}
                   suffix=""
                   valueStyle={{ color: '#faad14' }}
                 />
@@ -318,18 +348,34 @@ const InvoiceManagementPage = () => {
               <Col xs={24} sm={12} lg={6}>
                 <Statistic
                   title="Overdue"
-                  value={existingInvoices.filter(inv => inv.status === 'Overdue').length}
+                  value={invoices.filter(inv => inv.status === 'OVERDUE').length}
                   suffix=""
                   valueStyle={{ color: '#f5222d' }}
                 />
               </Col>
             </Row>
           </Card>
+          {error && (
+            <Alert
+              message="Error Loading Invoices"
+              description={error}
+              type="error"
+              showIcon
+              style={{ marginBottom: '16px' }}
+              action={
+                <Button size="small" onClick={loadInvoices}>
+                  Retry
+                </Button>
+              }
+            />
+          )}
           <Table
             columns={invoiceColumns}
-            dataSource={existingInvoices}
+            dataSource={invoices}
+            loading={loading}
             pagination={false}
             size="small"
+            rowKey="id"
           />
         </div>
       ),
@@ -385,6 +431,18 @@ const InvoiceManagementPage = () => {
       ),
     },
   ];
+
+  // Show loading spinner while checking authentication
+  if (!isAuthenticated) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" />
+        <div style={{ marginTop: '16px' }}>
+          <Text>Please log in to access invoice management</Text>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
