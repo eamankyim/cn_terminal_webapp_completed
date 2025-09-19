@@ -164,48 +164,34 @@ const JobsPage = () => {
 
 
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status, isDraft) => {
+    if (isDraft) {
+      return 'default';
+    }
     const statusColors = {
       'NEW': 'green',
-      'DRAFT': 'default',
-      'SUBMITTED': 'blue',
-      'UNDER_REVIEW': 'orange',
-      'QUOTED': 'purple',
-      'AWAITING_PAYMENT': 'magenta',
-      'PAID': 'green',
-      'CLEARING': 'green',
+      'PREINVOICED': 'blue',
+      'INVOICED': 'purple',
+      'ENTRY': 'orange',
+      'RELEASE': 'cyan',
       'CLEARED': 'green',
-      'READY_FOR_SHIPMENT': 'cyan',
-      'IN_TRANSIT': 'blue',
-      'ARRIVED_AT_PORT': 'purple',
-      'OUT_FOR_DELIVERY': 'cyan',
-      'DELIVERED': 'green',
-      'CLOSED': 'default',
-      'ON_HOLD': 'orange',
-      'REJECTED': 'red'
+      'DELIVERED': 'green'
     };
     return statusColors[status] || 'default';
   };
 
-  const getStatusIcon = (status) => {
+  const getStatusIcon = (status, isDraft) => {
+    if (isDraft) {
+      return <FileTextOutlined />;
+    }
     const statusIcons = {
       'NEW': <PlusOutlined />,
-      'DRAFT': <FileTextOutlined />,
-      'SUBMITTED': <FileTextOutlined />,
-      'UNDER_REVIEW': <CalendarOutlined />,
-      'QUOTED': <DollarOutlined />,
-      'AWAITING_PAYMENT': <DollarOutlined />,
-      'PAID': <DollarOutlined />,
-      'CLEARING': <ContainerOutlined />,
+      'PREINVOICED': <FileTextOutlined />,
+      'INVOICED': <DollarOutlined />,
+      'ENTRY': <ContainerOutlined />,
+      'RELEASE': <CheckCircleOutlined />,
       'CLEARED': <ContainerOutlined />,
-      'READY_FOR_SHIPMENT': <CheckCircleOutlined />,
-      'IN_TRANSIT': <CarOutlined />,
-      'ARRIVED_AT_PORT': <EnvironmentOutlined />,
-      'OUT_FOR_DELIVERY': <ContainerOutlined />,
-      'DELIVERED': <ContainerOutlined />,
-      'CLOSED': <ContainerOutlined />,
-      'ON_HOLD': <ExclamationCircleOutlined />,
-      'REJECTED': <ExclamationCircleOutlined />
+      'DELIVERED': <CheckCircleOutlined />
     };
     return statusIcons[status] || <FileTextOutlined />;
   };
@@ -299,11 +285,14 @@ const JobsPage = () => {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (status) => (
-        <Tag color={getStatusColor(status)} icon={getStatusIcon(status)}>
-          {status}
-        </Tag>
-      )
+      render: (status, record) => {
+        const displayStatus = record.isDraft ? 'DRAFT' : status;
+        return (
+          <Tag color={getStatusColor(status, record.isDraft)} icon={getStatusIcon(status, record.isDraft)}>
+            {displayStatus}
+          </Tag>
+        );
+      }
     },
     {
       title: 'Created',
@@ -479,17 +468,19 @@ const JobsPage = () => {
       // Use status from form (defaults to NEW if not specified)
       const jobStatus = jobData.status || 'NEW';
       
+      // Set isDraft to false when submitting
+      const submittedJobData = { ...jobData, isDraft: false };
+      
       if (editingJob) {
         // Update existing job - remove trackingId as it's system-generated
-        await jobService.updateJob(editingJob.id, jobData);
+        await jobService.updateJob(editingJob.id, submittedJobData);
         message.success('Job updated successfully');
         loadJobs(); // Reload jobs
         
       } else {
         // Create new job - remove trackingId as it's system-generated
-        await jobService.createJob(jobData);
-        const statusMessage = jobStatus === 'DRAFT' ? 'Job saved as draft' : 'Job created successfully';
-        message.success(statusMessage);
+        await jobService.createJob(submittedJobData);
+        message.success('Job created successfully');
         loadJobs(); // Reload jobs
       }
       setIsModalVisible(false);
@@ -512,8 +503,8 @@ const JobsPage = () => {
       console.log('🔍 Draft form values received:', formValues);
       console.log('🔍 Draft job data to send:', jobData);
       
-      // Set status to DRAFT
-      const draftJobData = { ...jobData, status: 'DRAFT' };
+      // Set isDraft to true
+      const draftJobData = { ...jobData, isDraft: true };
       
       if (editingJob) {
         // Update existing job
@@ -808,19 +799,19 @@ const JobsPage = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Pending Review"
-              value={jobs.filter(j => j.status === 'SUBMITTED').length}
-              prefix={<CalendarOutlined />}
-              valueStyle={{ color: '#00072D' }}
+              title="Pre-invoiced"
+              value={jobs.filter(j => j.status === 'PREINVOICED').length}
+              prefix={<FileTextOutlined />}
+              valueStyle={{ color: '#1890ff' }}
             />
           </Card>
           </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Under Review"
-              value={jobs.filter(j => j.status === 'UNDER_REVIEW').length}
-              prefix={<CalendarOutlined />}
+              title="Invoiced"
+              value={jobs.filter(j => j.status === 'INVOICED').length}
+              prefix={<DollarOutlined />}
               valueStyle={{ color: '#722ed1' }}
             />
           </Card>
@@ -828,9 +819,9 @@ const JobsPage = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Quoted"
-              value={jobs.filter(j => j.status === 'QUOTED').length}
-              prefix={<DollarOutlined />}
+              title="Cleared"
+              value={jobs.filter(j => j.status === 'CLEARED').length}
+              prefix={<CheckCircleOutlined />}
               valueStyle={{ color: '#52c41a' }}
             />
       </Card>
@@ -907,6 +898,7 @@ const JobsPage = () => {
           overflowX: 'hidden',
           padding: '24px'
         }}
+        className="job-form-modal"
       >
         <div style={{ 
           maxHeight: 'calc(100vh - 300px)', 
@@ -1035,22 +1027,12 @@ const JobsPage = () => {
               >
                 <Select placeholder="Select status">
                   <Option value="NEW">New</Option>
-                  <Option value="DRAFT">Draft</Option>
-                  <Option value="SUBMITTED">Submitted</Option>
-                  <Option value="UNDER_REVIEW">Under Review</Option>
-                  <Option value="QUOTED">Quoted</Option>
-                  <Option value="AWAITING_PAYMENT">Awaiting Payment</Option>
-                  <Option value="PAID">Paid</Option>
-                  <Option value="CLEARING">Clearing</Option>
+                  <Option value="PREINVOICED">Pre-invoiced</Option>
+                  <Option value="INVOICED">Invoiced</Option>
+                  <Option value="ENTRY">Entry</Option>
+                  <Option value="RELEASE">Release</Option>
                   <Option value="CLEARED">Cleared</Option>
-                  <Option value="READY_FOR_SHIPMENT">Ready for Shipment</Option>
-                  <Option value="IN_TRANSIT">In Transit</Option>
-                  <Option value="ARRIVED_AT_PORT">Arrived at Port</Option>
-                  <Option value="OUT_FOR_DELIVERY">Out for Delivery</Option>
                   <Option value="DELIVERED">Delivered</Option>
-                  <Option value="CLOSED">Closed</Option>
-                  <Option value="ON_HOLD">On Hold</Option>
-                  <Option value="REJECTED">Rejected</Option>
                 </Select>
           </Form.Item>
             </Col>
@@ -1241,21 +1223,13 @@ const JobsPage = () => {
             rules={[{ required: true, message: 'Please select new status' }]}
           >
             <Select placeholder="Select new status">
-              <Option value="SUBMITTED">Submitted</Option>
-              <Option value="UNDER_REVIEW">Under Review</Option>
-              <Option value="QUOTED">Quoted</Option>
-              <Option value="AWAITING_PAYMENT">Awaiting Payment</Option>
-              <Option value="PAID">Paid</Option>
-              <Option value="CLEARING">Clearing</Option>
+              <Option value="NEW">New</Option>
+              <Option value="PREINVOICED">Pre-invoiced</Option>
+              <Option value="INVOICED">Invoiced</Option>
+              <Option value="ENTRY">Entry</Option>
+              <Option value="RELEASE">Release</Option>
               <Option value="CLEARED">Cleared</Option>
-              <Option value="READY_FOR_SHIPMENT">Ready for Shipment</Option>
-              <Option value="IN_TRANSIT">In Transit</Option>
-              <Option value="ARRIVED_AT_PORT">Arrived at Port</Option>
-              <Option value="OUT_FOR_DELIVERY">Out for Delivery</Option>
               <Option value="DELIVERED">Delivered</Option>
-              <Option value="CLOSED">Closed</Option>
-              <Option value="ON_HOLD">On Hold</Option>
-              <Option value="REJECTED">Rejected</Option>
               </Select>
             </Form.Item>
 
@@ -1275,11 +1249,11 @@ const JobsPage = () => {
           >
             {({ getFieldValue }) => {
               const status = getFieldValue('status');
-              return status === 'READY_FOR_SHIPMENT' ? (
+              return status === 'RELEASE' ? (
                 <Form.Item
                   name="eta"
                   label="ETA"
-                  rules={[{ required: true, message: 'ETA is required for Ready for Shipment status' }]}
+                  rules={[{ required: true, message: 'ETA is required for Release status' }]}
                   help="Select the expected delivery time"
                 >
                   <DatePicker 

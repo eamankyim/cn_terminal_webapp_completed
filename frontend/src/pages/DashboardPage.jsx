@@ -105,8 +105,8 @@ const DashboardPage = () => {
       suffix: ''
     },
     {
-      title: 'Jobs in Transit',
-      value: dashboardData.stats.jobsInTransit,
+      title: 'Jobs in Progress',
+      value: dashboardData.stats.jobsInProgress,
       prefix: <ContainerOutlined />,
       color: '#faad14',
       suffix: ''
@@ -132,39 +132,34 @@ const DashboardPage = () => {
   const recentActivities = dashboardData.recentActivities;
  
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status, isDraft) => {
+    if (isDraft) {
+      return 'default';
+    }
     const statusColors = {
-      'SUBMITTED': 'blue',
-      'UNDER_REVIEW': 'orange',
-      'QUOTED': 'purple',
-      'AWAITING_PAYMENT': 'magenta',
-      'PAID': 'green',
-      'CLEARING': 'green',
+      'NEW': 'green',
+      'PREINVOICED': 'blue',
+      'INVOICED': 'purple',
+      'ENTRY': 'orange',
+      'RELEASE': 'cyan',
       'CLEARED': 'green',
-      'READY_FOR_SHIPMENT': 'cyan',
-      'IN_TRANSIT': 'blue',
-      'ARRIVED_AT_PORT': 'purple',
-      'OUT_FOR_DELIVERY': 'cyan',
-      'DELIVERED': 'green',
-      'CLOSED': 'default',
-      'ON_HOLD': 'orange',
-      'REJECTED': 'red'
+      'DELIVERED': 'green'
     };
     return statusColors[status] || 'default';
   };
 
-  const getStatusIcon = (status) => {
+  const getStatusIcon = (status, isDraft) => {
+    if (isDraft) {
+      return <FileTextOutlined />;
+    }
     const statusIcons = {
-      'Submitted': <FileAddOutlined />,
-      'Under Review': <ClockCircleOutlined />,
-      'Quoted': <CalculatorOutlined />,
-      'Awaiting Payment': <CreditCardOutlined />,
-      'Paid': <CheckCircleOutlined />,
-      'Clearing': <SyncOutlined />,
-      'Cleared': <CheckCircleOutlined />,
-
-      'Delivered': <CheckCircleFilled />,
-      'Closed': <CheckCircleFilled />
+      'NEW': <FileAddOutlined />,
+      'PREINVOICED': <FileTextOutlined />,
+      'INVOICED': <CalculatorOutlined />,
+      'ENTRY': <ContainerOutlined />,
+      'RELEASE': <CheckCircleOutlined />,
+      'CLEARED': <ContainerOutlined />,
+      'DELIVERED': <CheckCircleFilled />
     };
     return statusIcons[status] || <FileAddOutlined />;
   };
@@ -268,11 +263,14 @@ const DashboardPage = () => {
                   title: 'Status',
                   dataIndex: 'status',
                   key: 'status',
-                  render: (status) => (
-                    <Tag color={getStatusColor(status)}>
-                      {status.replace(/_/g, ' ')}
-                    </Tag>
-                  )
+                  render: (status, record) => {
+                    const displayStatus = record.isDraft ? 'DRAFT' : status.replace(/_/g, ' ');
+                    return (
+                      <Tag color={getStatusColor(status, record.isDraft)} icon={getStatusIcon(status, record.isDraft)}>
+                        {displayStatus}
+                      </Tag>
+                    );
+                  }
                 },
                 {
                   title: 'Assigned To',
@@ -340,11 +338,14 @@ const DashboardPage = () => {
                   title: 'Status',
                   dataIndex: 'status',
                   key: 'status',
-                  render: (status) => (
-                    <Tag color={getStatusColor(status)}>
-                      {status.replace(/_/g, ' ')}
-                    </Tag>
-                  )
+                  render: (status, record) => {
+                    const displayStatus = record.isDraft ? 'DRAFT' : status.replace(/_/g, ' ');
+                    return (
+                      <Tag color={getStatusColor(status, record.isDraft)} icon={getStatusIcon(status, record.isDraft)}>
+                        {displayStatus}
+                      </Tag>
+                    );
+                  }
                 }
               ]}
               pagination={false}

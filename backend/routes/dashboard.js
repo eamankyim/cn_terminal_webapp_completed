@@ -70,10 +70,12 @@ router.get('/stats', authenticateToken, requireStaff, async (req, res) => {
       prisma.payment.count()
     ]);
 
-    // Get jobs in transit
-    const jobsInTransit = await prisma.job.count({
+    // Get jobs in progress (excluding completed statuses)
+    const jobsInProgress = await prisma.job.count({
       where: {
-        status: 'IN_TRANSIT'
+        status: {
+          notIn: ['CLEARED', 'DELIVERED']
+        }
       }
     });
 
@@ -174,7 +176,7 @@ router.get('/stats', authenticateToken, requireStaff, async (req, res) => {
     res.json({
       stats: {
         totalJobs,
-        jobsInTransit,
+        jobsInProgress,
         totalClients, // Now using the correct variable name
         revenueThisMonth: revenueThisMonth._sum.amount || 0,
         workflowStatuses: workflowStatusCounts,
@@ -309,7 +311,7 @@ router.get('/recent-jobs', authenticateToken, requireStaff, async (req, res) => 
     const jobs = await prisma.job.findMany({
       where: {
         status: {
-          notIn: ['REJECTED', 'ON_HOLD', 'DELIVERED', 'CLOSED']
+          notIn: ['CLEARED', 'DELIVERED']
         }
       },
       take: parseInt(limit),

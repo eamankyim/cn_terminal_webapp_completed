@@ -80,7 +80,8 @@ model Job {
   assignedToId   String
   assignedTo     User             @relation("AssignedJobs", fields: [assignedToId], references: [id])
   status         JobStatus          @default(NEW)
-  submittedDate  DateTime           @default(now())
+  isDraft        Boolean            @default(false)
+  submittedDate  DateTime?
   eta            DateTime?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
@@ -276,22 +277,12 @@ enum ConsignmentStatus {
 
 enum JobStatus {
   NEW
-  DRAFT
-  SUBMITTED
-  UNDER_REVIEW
-  QUOTED
-  AWAITING_PAYMENT
-  PAID
-  CLEARING
+  PREINVOICED
+  INVOICED
+  ENTRY
+  RELEASE
   CLEARED
-  READY_FOR_SHIPMENT
-  IN_TRANSIT
-  ARRIVED_AT_PORT
-  OUT_FOR_DELIVERY
   DELIVERED
-  CLOSED
-  ON_HOLD
-  REJECTED
 }
 
 enum EnquiryStatus {

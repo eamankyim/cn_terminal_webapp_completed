@@ -148,17 +148,17 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
     // Build where condition
     const where = {};
     
-    // Special visibility rules for DRAFT jobs
+    // Special visibility rules for draft jobs
     // Draft jobs are only visible to:
     // 1. The person who created it (createdById)
     // 2. The person assigned to it (assignedToId) - but only if they created it themselves
     const visibilityConditions = [
       // Non-draft jobs are visible to everyone
-      { status: { not: 'DRAFT' } },
+      { isDraft: false },
       // Draft jobs are only visible to creator or assigned person (if they created it)
       {
         AND: [
-          { status: 'DRAFT' },
+          { isDraft: true },
           {
             OR: [
               { createdById: req.user.id }, // Creator can see their drafts
@@ -490,6 +490,7 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
       consignmentId,
       assignedToId,
       status,
+      isDraft = false,
       goodsTypes = [],
       eta,
       mediumOfEnquiry,
@@ -506,6 +507,7 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
     console.log(`  - consignmentId: ${consignmentId}`);
     console.log(`  - assignedToId: ${assignedToId}`);
     console.log(`  - status: ${status}`);
+    console.log(`  - isDraft: ${isDraft}`);
     console.log(`  - goodsTypes:`, goodsTypes);
     console.log(`  - eta: ${eta}`);
     console.log(`  - mediumOfEnquiry: ${mediumOfEnquiry}`);
@@ -576,6 +578,7 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
       trackingId,
       assignedToId,
       status: status || 'NEW',
+      isDraft,
       goodsTypes,
       eta: eta ? new Date(eta) : null,
       mediumOfEnquiry,
@@ -585,7 +588,8 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
       vesselName,
       line,
       jobDescription,
-      createdById: req.user.id
+      createdById: req.user.id,
+      submittedDate: isDraft ? null : new Date() // Only set submittedDate if not a draft
     };
     console.log('📝 Job data to create:', JSON.stringify(jobData, null, 2));
     console.log('🔍 Individual field values:');
@@ -680,6 +684,7 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
       consignmentId,
       assignedToId,
       status,
+      isDraft,
       goodsTypes,
       eta,
       mediumOfEnquiry,
@@ -714,10 +719,10 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
       }
     }
 
-    // Validate ETA is required for READY_FOR_SHIPMENT status
-    if (status === 'READY_FOR_SHIPMENT' && !eta) {
+    // Validate ETA is required for RELEASE status
+    if (status === 'RELEASE' && !eta) {
       return res.status(400).json({ 
-        error: 'ETA is required when status is READY_FOR_SHIPMENT' 
+        error: 'ETA is required when status is RELEASE' 
       });
     }
 
@@ -735,6 +740,15 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
       status,
       updatedById: req.user.id
     };
+
+    // Add isDraft if provided
+    if (isDraft !== undefined) {
+      updateData.isDraft = isDraft;
+      // Set submittedDate when moving from draft to submitted
+      if (!isDraft && existingJob.isDraft) {
+        updateData.submittedDate = new Date();
+      }
+    }
 
     // Add goods types if provided
     if (goodsTypes && goodsTypes.length > 0) {
@@ -855,10 +869,10 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
       return res.status(400).json({ error: 'Status is required' });
     }
 
-    // Validate ETA is required for READY_FOR_SHIPMENT status
-    if (status === 'READY_FOR_SHIPMENT' && !eta) {
+    // Validate ETA is required for RELEASE status
+    if (status === 'RELEASE' && !eta) {
       return res.status(400).json({ 
-        error: 'ETA is required when status is READY_FOR_SHIPMENT' 
+        error: 'ETA is required when status is RELEASE' 
       });
     }
 

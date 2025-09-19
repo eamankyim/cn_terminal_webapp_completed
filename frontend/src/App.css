@@ -40,3 +40,13 @@ code {
     margin-left: 0 !important;
   }
 }
+
+/* Job form modal scrollbar styling - hidden but functional */
+.job-form-modal .ant-modal-body {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.job-form-modal .ant-modal-body::-webkit-scrollbar {
+  display: none; /* WebKit browsers */
+}

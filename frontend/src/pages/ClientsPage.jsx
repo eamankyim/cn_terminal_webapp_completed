@@ -476,10 +476,8 @@ const ClientsPage = () => {
                            <div>{selectedClient.ghanaCard}</div>
                          </div>
                          <div style={{ marginBottom: '16px', display: 'flex' }}>
-                           <div style={{ width: '140px', fontWeight: 'bold' }}></div>
-                           <div style={{ fontSize: '12px', color: '#666', fontStyle: 'italic' }}>
-                             Personal ID Card for the contact person
-                           </div>
+                           <div style={{ width: '140px', fontWeight: 'bold' }}>Last Activity:</div>
+                           <div>{selectedClient.lastActivity || 'N/A'}</div>
                          </div>
                        </div>
 
@@ -512,46 +510,6 @@ const ClientsPage = () => {
                          </div>
                        </div>
 
-                       {/* Activity Summary */}
-                       <div style={{ 
-                         marginBottom: '24px', 
-                         border: '1px solid #d9d9d9', 
-                         borderRadius: '8px', 
-                         padding: '20px',
-                         backgroundColor: '#ffffff'
-                       }}>
-                         <Title level={4} style={{ 
-                           marginBottom: '20px', 
-                           borderBottom: '1px solid #d9d9d9',
-                           paddingBottom: '8px'
-                         }}>
-                           Activity Summary
-                         </Title>
-                         <div style={{ marginBottom: '16px', display: 'flex' }}>
-                           <div style={{ width: '140px', fontWeight: 'bold' }}>Total Shipments:</div>
-                           <div>{selectedClient.totalShipments}</div>
-                         </div>
-                         <div style={{ marginBottom: '16px', display: 'flex' }}>
-                           <div style={{ width: '140px', fontWeight: 'bold' }}>Total Value:</div>
-                           <div>GHS {(selectedClient.totalValue || 0).toLocaleString()}</div>
-                         </div>
-                         <div style={{ marginBottom: '16px', display: 'flex' }}>
-                           <div style={{ width: '140px', fontWeight: 'bold' }}>Last Activity:</div>
-                           <div>{selectedClient.lastActivity}</div>
-                         </div>
-                         <div style={{ marginBottom: '16px', display: 'flex' }}>
-                          <div style={{ width: '140px', fontWeight: 'bold' }}>Documents:</div>
-                          <div>{selectedClient.documents ? selectedClient.documents.join(', ') : 'N/A'}</div>
-                         </div>
-                         <div style={{ marginBottom: '16px', display: 'flex' }}>
-                           <div style={{ width: '140px', fontWeight: 'bold' }}>Total Consignments:</div>
-                           <div>{selectedClient.consignments?.length || 0}</div>
-                         </div>
-                         <div style={{ marginBottom: '16px', display: 'flex' }}>
-                           <div style={{ width: '140px', fontWeight: 'bold' }}>Consignments Value:</div>
-                           <div>GHS {(selectedClient.consignments?.reduce((sum, c) => sum + c.value, 0) || 0).toLocaleString()}</div>
-                         </div>
-                       </div>
                      </div>
                    )
                  },

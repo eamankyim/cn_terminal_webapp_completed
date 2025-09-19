@@ -85,7 +85,7 @@ async function main() {
         ghanaCard: 'GHA-123456789-0',
         tin: '123456789',
         goodsType: 'Electronics',
-        status: 'IN_TRANSIT',
+        status: 'RELEASE',
         value: 25000,
         date: new Date('2024-01-20')
       }
@@ -157,7 +157,7 @@ async function main() {
         goodsType: 'Electronics',
         port: 'Tema Port',
         assignedTo: 'Clearing Agent A',
-        status: 'UNDER_REVIEW',
+        status: 'ENTRY',
         createdById: adminUser.id
       }
     }),
@@ -194,7 +194,7 @@ async function main() {
         goodsType: 'Machinery',
         port: 'Tema Port',
         goodsDescription: 'Industrial equipment for manufacturing',
-        status: 'SUBMITTED'
+        status: 'NEW'
       }
     }),
     prisma.enquiry.upsert({
@@ -210,7 +210,7 @@ async function main() {
         goodsType: 'Pharmaceuticals',
         port: 'Accra Port',
         goodsDescription: 'Medical supplies and equipment',
-        status: 'QUOTED'
+        status: 'INVOICED'
       }
     })
   ]);
@@ -275,7 +275,7 @@ async function main() {
         amount: 18000,
         issueDate: new Date('2024-01-26'),
         dueDate: new Date('2024-02-26'),
-        status: 'PAID',
+        status: 'CLEARED',
         paymentDate: new Date('2024-01-27'),
         paymentMethod: 'BANK_TRANSFER',
         createdById: adminUser.id

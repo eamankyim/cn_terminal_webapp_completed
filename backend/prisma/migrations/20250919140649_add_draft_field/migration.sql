@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "jobs" ADD COLUMN     "isDraft" BOOLEAN NOT NULL DEFAULT false,
+ALTER COLUMN "submittedDate" DROP NOT NULL,
+ALTER COLUMN "submittedDate" DROP DEFAULT;
