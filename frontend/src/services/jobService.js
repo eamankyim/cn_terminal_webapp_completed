@@ -24,7 +24,7 @@ class JobService {
   async createJob(data) {
     try {
       const response = await apiService.createJob(data);
-      return response.job;
+      return response;
     } catch (error) {
       console.error('Error creating job:', error);
       throw error;
@@ -34,7 +34,7 @@ class JobService {
   async updateJob(id, data) {
     try {
       const response = await apiService.updateJob(id, data);
-      return response.job;
+      return response;
     } catch (error) {
       console.error('Error updating job:', error);
       throw error;

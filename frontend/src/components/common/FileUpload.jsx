@@ -92,44 +92,66 @@ const FileUpload = ({
       if (onFileUpload) {
         console.log('🔧 Using custom upload handler...');
         response = await onFileUpload(file);
+        
+        const newFile = {
+          uid: file.uid,
+          name: file.name,
+          status: 'done',
+          url: response.file?.url || response.url,
+          response: response,
+          size: file.size,
+          type: file.type,
+          originFileObj: file // Keep reference to original file
+        };
+        
+        console.log('📄 New file object created:', newFile);
+        const newFileList = [...fileList, newFile];
+        console.log('📋 Updated file list:', newFileList);
+        
+        setFileList(newFileList);
+        
+        if (onFileChange) {
+          console.log('📞 Calling onFileChange callback...');
+          onFileChange(newFileList);
+        }
+        
+        console.log('✅ File upload completed successfully!');
+        console.log('='.repeat(60) + '\n');
+        
+        message.success(`${file.name} uploaded successfully`);
+        return false; // Prevent default upload
       } else {
-        console.log('🔧 Using default upload handler...');
-        response = await fileService.uploadFile(file, {
-          folder: 'general',
-          category: 'document'
-        });
+        console.log('🔧 No custom upload handler - storing file locally for later upload...');
+        
+        // For new jobs, store the file locally without uploading
+        const newFile = {
+          uid: file.uid,
+          name: file.name,
+          status: 'done',
+          url: '', // No URL yet
+          response: null,
+          size: file.size,
+          type: file.type,
+          originFileObj: file // Keep reference to original file for later upload
+        };
+        
+        console.log('📄 New file object created (local):', newFile);
+        const newFileList = [...fileList, newFile];
+        console.log('📋 Updated file list:', newFileList);
+        
+        setFileList(newFileList);
+        
+        if (onFileChange) {
+          console.log('📞 Calling onFileChange callback...');
+          onFileChange(newFileList);
+        }
+        
+        console.log('✅ File stored locally for later upload!');
+        console.log('='.repeat(60) + '\n');
+        
+        message.success(`${file.name} added (will upload when job is created)`);
+        return false; // Prevent default upload
       }
-      
-      console.log('✅ Upload response received:', response);
-      
-      const newFile = {
-        uid: file.uid,
-        name: file.name,
-        status: 'done',
-        url: response.file?.url || response.url,
-        response: response,
-        size: file.size,
-        type: file.type,
-        originFileObj: file // Keep reference to original file
-      };
-
-      console.log('📄 New file object created:', newFile);
-
-      const newFileList = [...fileList, newFile];
-      console.log('📋 Updated file list:', newFileList);
-      
-      setFileList(newFileList);
-      
-      if (onFileChange) {
-        console.log('📞 Calling onFileChange callback...');
-        onFileChange(newFileList);
-      }
-
-      console.log('✅ File upload completed successfully!');
-      console.log('='.repeat(60) + '\n');
-      
-      message.success(`${file.name} uploaded successfully`);
-      return false; // Prevent default upload
     } catch (error) {
       console.log('\n' + '='.repeat(60));
       console.log('💥 FILE UPLOAD COMPONENT ERROR');

@@ -60,6 +60,16 @@ class InvoiceService {
       throw error;
     }
   }
+
+  async getJobsForInvoice(search = '') {
+    try {
+      const response = await apiService.getJobsForInvoice(search);
+      return response;
+    } catch (error) {
+      console.error('Error fetching jobs for invoice creation:', error);
+      throw error;
+    }
+  }
 }
 
 export default new InvoiceService();

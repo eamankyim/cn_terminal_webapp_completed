@@ -281,6 +281,77 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
   }
 });
 
+// Get jobs for invoice creation dropdown (only jobs without invoices)
+router.get('/jobs', authenticateToken, requireStaff, async (req, res) => {
+  try {
+    console.log('\n' + '='.repeat(60));
+    console.log('📋 GET JOBS FOR INVOICE CREATION');
+    console.log('='.repeat(60));
+    console.log(`👤 User: ${req.user.name} (${req.user.email})`);
+    console.log(`📝 Query params:`, req.query);
+
+    const { search = '', limit = 50 } = req.query;
+
+    console.log(`🔍 Search term: "${search}"`);
+    console.log(`📊 Limit: ${limit}`);
+
+    // Build search conditions
+    const searchConditions = search ? [
+      { trackingId: { contains: search, mode: 'insensitive' } },
+      { customer: { name: { contains: search, mode: 'insensitive' } } }
+    ] : [];
+
+    // Find jobs that don't have invoices
+    const jobs = await prisma.job.findMany({
+      where: {
+        AND: [
+          // Only non-draft jobs
+          { isDraft: false },
+          // Jobs without invoices
+          {
+            invoices: {
+              none: {}
+            }
+          },
+          // Search conditions if provided
+          ...(searchConditions.length > 0 ? [{ OR: searchConditions }] : [])
+        ]
+      },
+      select: {
+        id: true,
+        trackingId: true,
+        status: true,
+        goodsTypes: true,
+        createdAt: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: parseInt(limit)
+    });
+
+    console.log(`✅ Found ${jobs.length} jobs without invoices`);
+    console.log('📄 Sample job data:', jobs[0] || 'No jobs found');
+    console.log('='.repeat(60) + '\n');
+
+    res.json({ jobs });
+  } catch (error) {
+    console.log('\n' + '='.repeat(60));
+    console.log('💥 GET JOBS FOR INVOICE ERROR');
+    console.log('='.repeat(60));
+    console.error('❌ Error:', error);
+    console.log('='.repeat(60) + '\n');
+    
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get invoice by ID
 router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
   try {
@@ -592,42 +663,6 @@ router.delete('/:id', authenticateToken, requireStaff, async (req, res) => {
     res.json({ message: 'Invoice deleted successfully' });
   } catch (error) {
     console.error('Delete invoice error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Get jobs for invoice creation dropdown
-router.get('/jobs', authenticateToken, requireStaff, async (req, res) => {
-  try {
-    const { search = '' } = req.query;
-
-    const jobs = await prisma.job.findMany({
-      where: {
-        OR: [
-          { trackingId: { contains: search, mode: 'insensitive' } },
-          { customer: { name: { contains: search, mode: 'insensitive' } } }
-        ]
-      },
-      select: {
-        id: true,
-        trackingId: true,
-        status: true,
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 50
-    });
-
-    res.json({ jobs });
-  } catch (error) {
-    console.error('Get jobs for invoice error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

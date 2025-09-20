@@ -22,7 +22,9 @@ import {
   Drawer,
   Dropdown,
   Spin,
-  Alert
+  Alert,
+  Tabs,
+  Empty
 } from 'antd';
 import { 
   FileTextOutlined, 
@@ -36,9 +38,12 @@ import {
   DollarOutlined,
   CalendarOutlined,
   UserOutlined,
-  MoreOutlined
+  MoreOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined
 } from '@ant-design/icons';
 import invoiceService from '../services/invoiceService';
+import jobService from '../services/jobService';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -53,12 +58,22 @@ const InvoicesPage = () => {
   const [editingInvoice, setEditingInvoice] = useState(null);
   const [form] = Form.useForm();
   const [invoices, setInvoices] = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [jobsLoading, setJobsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('invoices');
 
   useEffect(() => {
     loadInvoices();
   }, []);
+
+  // Reload jobs when invoices change to update filtering
+  useEffect(() => {
+    if (invoices.length >= 0) { // Only load jobs after invoices are loaded
+      loadJobs();
+    }
+  }, [invoices]);
 
   const loadInvoices = async () => {
     try {
@@ -94,6 +109,29 @@ const InvoicesPage = () => {
     }
   };
 
+  const loadJobs = async () => {
+    try {
+      setJobsLoading(true);
+      console.log('🔄 Loading all jobs for invoice creation...');
+      
+      // Fetch all jobs and filter client-side for now
+      const response = await jobService.getJobs({ limit: 100 });
+      console.log('✅ All jobs loaded successfully:', response);
+      
+      // Filter out jobs that already have invoices
+      const jobsWithoutInvoices = (response.jobs || []).filter(job => 
+        !invoices.some(invoice => invoice.jobId === job.id)
+      );
+      
+      console.log(`📊 Found ${jobsWithoutInvoices.length} jobs without invoices`);
+      setJobs(jobsWithoutInvoices);
+    } catch (error) {
+      console.error('❌ Error loading jobs:', error);
+    } finally {
+      setJobsLoading(false);
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'paid': return 'green';
@@ -113,6 +151,35 @@ const InvoicesPage = () => {
       default: return '?';
     }
   };
+
+  const getJobStatusColor = (status, isDraft) => {
+    if (isDraft) return 'default';
+    const statusColors = {
+      'NEW': 'green',
+      'PREINVOICED': 'blue',
+      'INVOICED': 'purple',
+      'ENTRY': 'orange',
+      'RELEASE': 'cyan',
+      'CLEARED': 'green',
+      'DELIVERED': 'green'
+    };
+    return statusColors[status] || 'default';
+  };
+
+  const getJobStatusIcon = (status, isDraft) => {
+    if (isDraft) return <FileTextOutlined />;
+    const statusIcons = {
+      'NEW': <PlusOutlined />,
+      'PREINVOICED': <FileTextOutlined />,
+      'INVOICED': <DollarOutlined />,
+      'ENTRY': <CalendarOutlined />,
+      'RELEASE': <CheckCircleOutlined />,
+      'CLEARED': <CheckCircleOutlined />,
+      'DELIVERED': <CheckCircleOutlined />
+    };
+    return statusIcons[status] || <FileTextOutlined />;
+  };
+
 
   const handleSearch = (value) => {
     setSearchText(value);
@@ -174,18 +241,127 @@ const InvoicesPage = () => {
         await invoiceService.updateInvoice(editingInvoice.id, values);
         message.success('Invoice updated successfully');
       } else {
-        // Create new invoice
-        await invoiceService.createInvoice(values);
+        // Create new invoice with job linking
+        const invoiceData = {
+          ...values,
+          jobId: values.jobId, // Ensure jobId is included
+          customerId: values.customerId || jobs.find(job => job.id === values.jobId)?.customerId,
+          issueDate: values.issueDate?.toISOString(),
+          dueDate: values.dueDate?.toISOString()
+        };
+        
+        console.log('📄 Creating invoice with data:', invoiceData);
+        await invoiceService.createInvoice(invoiceData);
         message.success('Invoice created successfully');
       }
       setIsCreateModalVisible(false);
       setEditingInvoice(null);
       form.resetFields();
-      loadInvoices(); // Reload invoices
+      loadInvoices(); // Reload invoices (this will also reload jobs due to useEffect)
     } catch (error) {
+      console.error('❌ Error creating invoice:', error);
       message.error(error.message || 'Failed to save invoice');
     }
   };
+
+  const handleCreateInvoiceFromJob = (job) => {
+    console.log('📄 Creating invoice for job:', job);
+    
+    // Pre-fill form with job data
+    form.setFieldsValue({
+      jobId: job.id,
+      customerId: job.customerId,
+      clientName: job.customer?.name || 'N/A',
+      clientEmail: job.customer?.email || 'N/A',
+      trackingId: job.trackingId,
+      consignmentId: job.consignmentId,
+      goodsTypes: job.goodsTypes?.join(', ') || 'N/A',
+      amount: 0, // Will be calculated
+      issueDate: new Date(),
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      notes: `Invoice for job ${job.trackingId}`
+    });
+    
+    setEditingInvoice(null);
+    setIsCreateModalVisible(true);
+  };
+
+  const jobColumns = [
+    {
+      title: 'Job ID',
+      dataIndex: 'trackingId',
+      key: 'trackingId',
+      render: (text) => <Text strong>{text}</Text>
+    },
+    {
+      title: 'Client',
+      key: 'clientName',
+      render: (_, record) => (
+        <Space direction="vertical" size="small">
+          <Text strong>{record.customer?.name || 'N/A'}</Text>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            {record.customer?.email || 'N/A'}
+          </Text>
+        </Space>
+      )
+    },
+    {
+      title: 'Goods',
+      dataIndex: 'goodsTypes',
+      key: 'goodsTypes',
+      render: (goodsTypes) => (
+        <div>
+          {goodsTypes && goodsTypes.length > 0 ? (
+            goodsTypes.slice(0, 2).map((type, index) => (
+              <Tag key={index} color="blue" style={{ marginBottom: '2px' }}>
+                {type}
+              </Tag>
+            ))
+          ) : (
+            <Tag color="default">No goods types</Tag>
+          )}
+          {goodsTypes && goodsTypes.length > 2 && (
+            <Tag color="default">+{goodsTypes.length - 2} more</Tag>
+          )}
+        </div>
+      )
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status, record) => {
+        const displayStatus = record.isDraft ? 'DRAFT' : status;
+        return (
+          <Tag color={getJobStatusColor(status, record.isDraft)} icon={getJobStatusIcon(status, record.isDraft)}>
+            {displayStatus}
+          </Tag>
+        );
+      }
+    },
+    {
+      title: 'Created',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (date) => date ? new Date(date).toLocaleDateString() : 'N/A'
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Space>
+          <Button 
+            type="primary" 
+            icon={<PlusOutlined />} 
+            onClick={() => handleCreateInvoiceFromJob(record)}
+            size="small"
+          >
+            Create Invoice
+          </Button>
+        </Space>
+      )
+    }
+  ];
 
   const columns = [
     {
@@ -305,103 +481,154 @@ const InvoicesPage = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Pending Amount"
-              value={invoices.filter(i => i.status === 'pending').reduce((sum, i) => sum + i.total, 0)}
+              title="Jobs with Invoices"
+              value={invoices.filter(invoice => invoice.jobId).length}
               valueStyle={{ color: '#fa8c16' }}
-              prefix="GHS"
-              formatter={(value) => `${(value / 1000).toFixed(0)}K`}
+              prefix={<CheckCircleOutlined />}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Total Revenue"
-              value={invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.total, 0)}
-              valueStyle={{ color: '#722ed1' }}
-              prefix="GHS"
-              formatter={(value) => `${(value / 1000).toFixed(0)}K`}
+              title="Pending Invoicing"
+              value={jobs.length}
+              valueStyle={{ color: '#f5222d' }}
+              prefix={<ClockCircleOutlined />}
             />
           </Card>
         </Col>
       </Row>
 
-      {/* Search and Filters */}
-      <Card style={{ marginBottom: '24px' }}>
-        <Row gutter={16} align="middle">
-          <Col xs={24} md={8}>
-            <Search
-              placeholder="Search invoices by ID, client, or email"
-              allowClear
-              enterButton={<SearchOutlined />}
-              size="large"
-              onSearch={handleSearch}
-              onChange={(e) => setSearchText(e.target.value)}
-            />
-          </Col>
-          <Col xs={24} md={4}>
-            <Select
-              placeholder="Status"
-              style={{ width: '100%' }}
-              allowClear
-              onChange={(value) => {
-                if (value) {
-                  setInvoices(invoices.filter(i => i.status === value));
-                } else {
-                  loadInvoices();
-                }
-              }}
-            >
-              <Option value="paid">Paid</Option>
-              <Option value="pending">Pending</Option>
-              <Option value="overdue">Overdue</Option>
-              <Option value="draft">Draft</Option>
-            </Select>
-          </Col>
-          <Col xs={24} md={4}>
-            <DatePicker
-              placeholder="From Date"
-              style={{ width: '100%' }}
-              onChange={(date) => {
-                if (date) {
-                  const filtered = invoices.filter(i => new Date(i.invoiceDate) >= date.toDate());
-                  setInvoices(filtered);
-                } else {
-                  loadInvoices();
-                }
-              }}
-            />
-          </Col>
-        </Row>
-      </Card>
-
-      {/* Invoices Table */}
+      {/* Main Content Tabs */}
       <Card>
-        {error && (
-          <Alert
-            message="Error Loading Invoices"
-            description={error}
-            type="error"
-            showIcon
-            style={{ marginBottom: '16px' }}
-            action={
-              <Button size="small" onClick={loadInvoices}>
-                Retry
-              </Button>
+        <Tabs 
+          activeKey={activeTab} 
+          onChange={setActiveTab}
+          items={[
+            {
+              key: 'invoices',
+              label: 'All Invoices',
+              children: (
+                <div>
+                  {/* Search and Filters */}
+                  <Card style={{ marginBottom: '24px' }}>
+                    <Row gutter={16} align="middle">
+                      <Col xs={24} md={8}>
+                        <Search
+                          placeholder="Search invoices by ID, client, or email"
+                          allowClear
+                          enterButton={<SearchOutlined />}
+                          size="large"
+                          onSearch={handleSearch}
+                          onChange={(e) => setSearchText(e.target.value)}
+                        />
+                      </Col>
+                      <Col xs={24} md={4}>
+                        <Select
+                          placeholder="Status"
+                          style={{ width: '100%' }}
+                          allowClear
+                          onChange={(value) => {
+                            if (value) {
+                              setInvoices(invoices.filter(i => i.status === value));
+                            } else {
+                              loadInvoices();
+                            }
+                          }}
+                        >
+                          <Option value="paid">Paid</Option>
+                          <Option value="pending">Pending</Option>
+                          <Option value="overdue">Overdue</Option>
+                          <Option value="draft">Draft</Option>
+                        </Select>
+                      </Col>
+                      <Col xs={24} md={4}>
+                        <DatePicker
+                          placeholder="From Date"
+                          style={{ width: '100%' }}
+                          onChange={(date) => {
+                            if (date) {
+                              const filtered = invoices.filter(i => new Date(i.invoiceDate) >= date.toDate());
+                              setInvoices(filtered);
+                            } else {
+                              loadInvoices();
+                            }
+                          }}
+                        />
+                      </Col>
+                    </Row>
+                  </Card>
+
+                  {/* Invoices Table */}
+                  {error && (
+                    <Alert
+                      message="Error Loading Invoices"
+                      description={error}
+                      type="error"
+                      showIcon
+                      style={{ marginBottom: '16px' }}
+                      action={
+                        <Button size="small" onClick={loadInvoices}>
+                          Retry
+                        </Button>
+                      }
+                    />
+                  )}
+                  <Table
+                    columns={columns}
+                    dataSource={invoices}
+                    loading={loading}
+                    rowKey="id"
+                    pagination={{
+                      pageSize: 10,
+                      showSizeChanger: true,
+                      showQuickJumper: true,
+                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} invoices`
+                    }}
+                  />
+                </div>
+              )
+            },
+            {
+              key: 'jobs',
+              label: 'Jobs for Invoicing',
+              children: (
+                <div>
+                  {/* Jobs Table */}
+                  <Table
+                    columns={jobColumns}
+                    dataSource={jobs}
+                    loading={jobsLoading}
+                    rowKey="id"
+                    pagination={{
+                      pageSize: 10,
+                      showSizeChanger: true,
+                      showQuickJumper: true,
+                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} jobs`
+                    }}
+                    locale={{
+                      emptyText: (
+                        <Empty
+                          image={Empty.PRESENTED_IMAGE_SIMPLE}
+                          description={
+                            <div>
+                              <Text type="secondary" style={{ fontSize: '16px', marginBottom: '8px' }}>
+                                No jobs found
+                              </Text>
+                              <Text type="secondary" style={{ fontSize: '14px' }}>
+                                Jobs will appear here once they are created
+                              </Text>
+                            </div>
+                          }
+                        />
+                      )
+                    }}
+                  />
+                </div>
+              )
             }
-          />
-        )}
-        <Table
-          columns={columns}
-          dataSource={invoices}
-          loading={loading}
-          rowKey="id"
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} invoices`
-          }}
+          ]}
         />
       </Card>
 
@@ -646,57 +873,162 @@ const InvoicesPage = () => {
           layout="vertical"
           onFinish={handleCreateInvoice}
         >
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="clientName"
-                label="Client Name"
-                rules={[{ required: true, message: 'Please enter client name' }]}
+          {/* Job Selection */}
+          <Card size="small" title="Job Selection" style={{ marginBottom: 16 }}>
+            <Form.Item
+              name="jobId"
+              label="Select Job to Create Invoice For"
+              rules={[{ required: true, message: 'Please select a job' }]}
+            >
+              <Select
+                placeholder="Choose a job to create invoice for"
+                showSearch
+                optionFilterProp="children"
+                filterOption={(input, option) =>
+                  option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                }
+                loading={jobsLoading}
+                notFoundContent={jobsLoading ? 'Loading jobs...' : 'No jobs available for invoicing'}
+                onChange={(jobId) => {
+                  const selectedJob = jobs.find(job => job.id === jobId);
+                  if (selectedJob) {
+                    // Auto-populate form with job data
+                    form.setFieldsValue({
+                      customerId: selectedJob.customerId,
+                      clientName: selectedJob.customer?.name || 'N/A',
+                      clientEmail: selectedJob.customer?.email || 'N/A',
+                      trackingId: selectedJob.trackingId,
+                      consignmentId: selectedJob.consignmentId,
+                      goodsTypes: selectedJob.goodsTypes?.join(', ') || 'N/A',
+                      notes: `Invoice for job ${selectedJob.trackingId}`
+                    });
+                  }
+                }}
               >
-                <Input placeholder="Enter client name" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="clientEmail"
-                label="Client Email"
-                rules={[
-                  { required: true, message: 'Please enter client email' },
-                  { type: 'email', message: 'Please enter valid email' }
-                ]}
-              >
-                <Input placeholder="Enter client email" />
-              </Form.Item>
-            </Col>
-          </Row>
+                {jobs.map(job => (
+                  <Option key={job.id} value={job.id}>
+                    <div>
+                      <div style={{ fontWeight: 'bold' }}>{job.trackingId}</div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>
+                        {job.customer?.name || 'N/A'} • {job.goodsTypes?.join(', ') || 'No goods types'}
+                      </div>
+                    </div>
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Card>
 
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="invoiceDate"
-                label="Invoice Date"
-                rules={[{ required: true, message: 'Please select invoice date' }]}
-              >
-                <DatePicker style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="dueDate"
-                label="Due Date"
-                rules={[{ required: true, message: 'Please select due date' }]}
-              >
-                <DatePicker style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-          </Row>
+          {/* Job Information (if creating from job) */}
+          {form.getFieldValue('jobId') && (
+            <Card size="small" title="Job Information" style={{ marginBottom: 16 }}>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item
+                    name="trackingId"
+                    label="Job ID"
+                  >
+                    <Input disabled />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="goodsTypes"
+                    label="Goods Types"
+                  >
+                    <Input disabled />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+          )}
 
-          <Form.Item
-            name="notes"
-            label="Notes"
-          >
-            <TextArea placeholder="Enter invoice notes" rows={3} />
-          </Form.Item>
+          {/* Client Information */}
+          <Card size="small" title="Client Information" style={{ marginBottom: 16 }}>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="clientName"
+                  label="Client Name"
+                  rules={[{ required: true, message: 'Please enter client name' }]}
+                >
+                  <Input placeholder="Enter client name" />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="clientEmail"
+                  label="Client Email"
+                  rules={[
+                    { required: true, message: 'Please enter client email' },
+                    { type: 'email', message: 'Please enter valid email' }
+                  ]}
+                >
+                  <Input placeholder="Enter client email" />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
+
+          {/* Invoice Details */}
+          <Card size="small" title="Invoice Details" style={{ marginBottom: 16 }}>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="amount"
+                  label="Amount (GHS)"
+                  rules={[{ required: true, message: 'Please enter amount' }]}
+                >
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    min={0}
+                    step={0.01}
+                    formatter={value => `GHS ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                    parser={value => value.replace(/GHS\s?|(,*)/g, '')}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="status"
+                  label="Invoice Status"
+                  initialValue="DRAFT"
+                >
+                  <Select>
+                    <Option value="DRAFT">Draft</Option>
+                    <Option value="PENDING">Pending</Option>
+                    <Option value="PAID">Paid</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="invoiceDate"
+                  label="Invoice Date"
+                  rules={[{ required: true, message: 'Please select invoice date' }]}
+                >
+                  <DatePicker style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="dueDate"
+                  label="Due Date"
+                  rules={[{ required: true, message: 'Please select due date' }]}
+                >
+                  <DatePicker style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item
+              name="notes"
+              label="Notes"
+            >
+              <TextArea placeholder="Enter invoice notes" rows={3} />
+            </Form.Item>
+          </Card>
 
           <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>
             <Space>

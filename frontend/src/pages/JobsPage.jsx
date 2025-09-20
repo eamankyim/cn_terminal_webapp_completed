@@ -463,6 +463,15 @@ const JobsPage = () => {
       
       // Debug: Log the form values
       console.log('🔍 Form values received:', values);
+      console.log('📄 Documents extracted:', { file: documents, fileList: documents });
+      console.log('📄 Documents count:', documents?.length);
+      console.log('📄 Documents type:', typeof documents);
+      console.log('📄 Documents is array:', Array.isArray(documents));
+      if (documents && documents.length > 0) {
+        console.log('📄 First document structure:', documents[0]);
+        console.log('📄 First document has originFileObj:', !!documents[0].originFileObj);
+        console.log('📄 First document has url:', !!documents[0].url);
+      }
       console.log('🔍 Job data to send:', jobData);
       
       // Use status from form (defaults to NEW if not specified)
@@ -471,21 +480,58 @@ const JobsPage = () => {
       // Set isDraft to false when submitting
       const submittedJobData = { ...jobData, isDraft: false };
       
+      let response;
       if (editingJob) {
         // Update existing job - remove trackingId as it's system-generated
-        await jobService.updateJob(editingJob.id, submittedJobData);
+        console.log('➕ Updating existing job...');
+        response = await jobService.updateJob(editingJob.id, submittedJobData);
         message.success('Job updated successfully');
-        loadJobs(); // Reload jobs
-        
       } else {
         // Create new job - remove trackingId as it's system-generated
-        await jobService.createJob(submittedJobData);
+        console.log('➕ Creating new job...');
+        response = await jobService.createJob(submittedJobData);
+        console.log('📋 Full response:', response);
+        console.log('📋 Response structure:', {
+          hasJob: !!response.job,
+          jobId: response.job?.id,
+          message: response.message
+        });
         message.success('Job created successfully');
-        loadJobs(); // Reload jobs
       }
+      
+      // Handle document uploads if we have documents and a job ID
+      if (documents && documents.length > 0) {
+        const jobId = response.job?.id || response.id;
+        if (jobId) {
+          console.log('📁 Processing documents for job:', jobId);
+          console.log('📄 Documents to process:', documents);
+          
+          // Filter out files that are already uploaded (have URLs)
+          const filesToUpload = documents.filter(file => !file.url && file.originFileObj);
+          console.log('📄 Files to upload:', filesToUpload);
+          
+          if (filesToUpload.length > 0) {
+            await handleJobDocuments(jobId, filesToUpload, 'create');
+          } else {
+            console.log('📄 No new files to upload - all files already have URLs');
+          }
+        } else {
+          console.warn('⚠️ No job ID available for document upload');
+        }
+      } else {
+        console.log('📄 No documents to process');
+      }
+      
+      loadJobs(); // Reload jobs
       setIsModalVisible(false);
       form.resetFields();
     } catch (error) {
+      console.log('\n' + '='.repeat(80));
+      console.log('💥 JOB SUBMIT ERROR');
+      console.log('='.repeat(80));
+      console.error('❌ Error details:', error);
+      console.log('📄 Error message:', error.message);
+      console.log('='.repeat(80) + '\n');
       message.error(error.message || 'Failed to save job');
     } finally {
       setSubmitLoading(false);
@@ -506,23 +552,51 @@ const JobsPage = () => {
       // Set isDraft to true
       const draftJobData = { ...jobData, isDraft: true };
       
+      let response;
       if (editingJob) {
         // Update existing job
-        await jobService.updateJob(editingJob.id, draftJobData);
+        console.log('💾 Updating existing job as draft...');
+        response = await jobService.updateJob(editingJob.id, draftJobData);
         message.success('Job saved as draft');
-        loadJobs(); // Reload jobs
       } else {
         // Create new job
-        await jobService.createJob(draftJobData);
+        console.log('💾 Creating new job as draft...');
+        response = await jobService.createJob(draftJobData);
+        console.log('📋 Draft response:', response);
         message.success('Job saved as draft');
-        loadJobs(); // Reload jobs
       }
+      
+      // Handle document uploads if we have documents and a job ID
+      if (documents && documents.length > 0) {
+        const jobId = response.job?.id || response.id;
+        if (jobId) {
+          console.log('📁 Processing documents for draft job:', jobId);
+          console.log('📄 Documents to process:', documents);
+          
+          // Filter out files that are already uploaded (have URLs)
+          const filesToUpload = documents.filter(file => !file.url && file.originFileObj);
+          console.log('📄 Files to upload:', filesToUpload);
+          
+          if (filesToUpload.length > 0) {
+            await handleJobDocuments(jobId, filesToUpload, 'create');
+          } else {
+            console.log('📄 No new files to upload - all files already have URLs');
+          }
+        } else {
+          console.warn('⚠️ No job ID available for document upload');
+        }
+      } else {
+        console.log('📄 No documents to process for draft');
+      }
+      
+      loadJobs(); // Reload jobs
       setIsModalVisible(false);
       form.resetFields();
     } catch (error) {
       if (error.errorFields) {
         message.error('Please fill in all required fields');
       } else {
+        console.error('Draft save error:', error);
         message.error(error.message || 'Failed to save job as draft');
       }
     } finally {
