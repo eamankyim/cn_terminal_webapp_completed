@@ -188,7 +188,10 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
             id: true,
             name: true,
             email: true,
-            phone: true
+            phone: true,
+            address: true,
+            city: true,
+            country: true
           }
         },
         job: {
@@ -196,7 +199,15 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
             id: true,
             trackingId: true,
             goodsTypes: true,
-            status: true
+            status: true,
+            consignment: {
+              select: {
+                id: true,
+                consigneeName: true,
+                consigneePhone: true,
+                consigneeAddress: true
+              }
+            }
           }
         },
         shipment: {
@@ -366,16 +377,26 @@ router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
             name: true,
             email: true,
             phone: true,
-            address: true
+            address: true,
+            city: true,
+            country: true
           }
         },
         job: {
-        select: {
-          id: true,
-          trackingId: true,
-          goodsTypes: true,
-          status: true
-        }
+          select: {
+            id: true,
+            trackingId: true,
+            goodsTypes: true,
+            status: true,
+            consignment: {
+              select: {
+                id: true,
+                consigneeName: true,
+                consigneePhone: true,
+                consigneeAddress: true
+              }
+            }
+          }
         },
         shipment: {
           select: {
@@ -402,7 +423,23 @@ router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    res.json({ invoice });
+    // Transform the invoice data to include all expected fields
+    const transformedInvoice = {
+      ...invoice,
+      // Ensure charges is an object with default values
+      charges: invoice.charges || {
+        customDuty: 0,
+        shippingCharges: 0,
+        terminalCharges: 0,
+        miscellaneous: 0,
+        clearanceCharges: 0,
+        serviceCharge: 0,
+        vat: 0
+      }
+    };
+
+
+    res.json({ invoice: transformedInvoice });
   } catch (error) {
     console.error('Get invoice error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -418,8 +455,14 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
       customerId,
       amount,
       issueDate,
-      dueDate
+      dueDate,
+      blAmendment,
+      charges,
+      comments,
+      transactionReference,
+      paymentNotes
     } = req.body;
+
 
     // Validate required fields
     if (!jobId || !amount || !issueDate || !dueDate) {
@@ -458,24 +501,35 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
     const invoiceNumber = `INV-${Date.now()}`;
 
     // Create invoice
+    const invoiceData = {
+      invoiceNumber,
+      jobId,
+      shipmentId,
+      customerId: customer.id,
+      amount: parseFloat(amount),
+      issueDate: new Date(issueDate),
+      dueDate: new Date(dueDate),
+      blAmendment: blAmendment || 'no',
+      charges: charges || {},
+      comments: comments || null,
+      transactionReference: transactionReference || null,
+      paymentNotes: paymentNotes || null,
+      createdById: req.user.id
+    };
+
+
     const invoice = await prisma.invoice.create({
-      data: {
-        invoiceNumber,
-        jobId,
-        shipmentId,
-        customerId: customer.id,
-        amount: parseFloat(amount),
-        issueDate: new Date(issueDate),
-        dueDate: new Date(dueDate),
-        createdById: req.user.id
-      },
+      data: invoiceData,
       include: {
         customer: {
           select: {
             id: true,
             name: true,
             email: true,
-            phone: true
+            phone: true,
+            address: true,
+            city: true,
+            country: true
           }
         },
         job: {
@@ -483,7 +537,15 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
             id: true,
             trackingId: true,
             goodsTypes: true,
-            status: true
+            status: true,
+            consignment: {
+              select: {
+                id: true,
+                consigneeName: true,
+                consigneePhone: true,
+                consigneeAddress: true
+              }
+            }
           }
         },
         shipment: {

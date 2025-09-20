@@ -264,9 +264,16 @@ const InvoicesPage = () => {
     }
   };
 
-  const handleViewInvoice = (invoice) => {
-    setSelectedInvoice(invoice);
-    setIsModalVisible(true);
+  const handleViewInvoice = async (invoice) => {
+    try {
+      // Fetch full invoice details from the API
+      const response = await invoiceService.getInvoice(invoice.id);
+      setSelectedInvoice(response); // response is already the invoice object
+      setIsModalVisible(true);
+    } catch (error) {
+      console.error('Error fetching invoice details:', error);
+      message.error('Failed to load invoice details');
+    }
   };
 
   const handleEditInvoice = (invoice) => {
@@ -334,6 +341,7 @@ const InvoicesPage = () => {
             vat: values.vat || 0
           }
         };
+
         
         console.log('📄 Creating invoice with data:', invoiceData);
         await invoiceService.createInvoice(invoiceData);
@@ -746,7 +754,7 @@ const InvoicesPage = () => {
         placement="right"
         onClose={() => setIsModalVisible(false)}
         open={isModalVisible}
-        width={700}
+        width={800}
         extra={
           selectedInvoice && (
             <Space>
@@ -792,84 +800,144 @@ const InvoicesPage = () => {
         {selectedInvoice && (
           <Collapse 
             defaultActiveKey={['1', '2', '3', '4']} 
-            ghost
             size="large"
             items={[
               {
                 key: '1',
                 label: (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <UserOutlined style={{ color: '#722ed1' }} />
-                    <span>Customer Details</span>
-                  </div>
+                  <div style={{ 
+                    fontWeight: '600', 
+                    fontSize: '16px'
+                  }}>
+                    Customer Details
+            </div>
                 ),
                 children: (
-                  <Descriptions column={1} size="small">
-                    <Descriptions.Item label="Customer Name">
-                      <Text strong>{selectedInvoice.customer?.name || 'N/A'}</Text>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Email">
-                      {selectedInvoice.customer?.email || 'N/A'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Phone">
-                      {selectedInvoice.customer?.phone || 'N/A'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Address">
-                      {selectedInvoice.customer?.address || 'N/A'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="City">
-                      {selectedInvoice.customer?.city || 'N/A'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Country">
-                      {selectedInvoice.customer?.country || 'N/A'}
-                    </Descriptions.Item>
-                  </Descriptions>
+            <div style={{ 
+              border: '1px solid #d9d9d9', 
+              borderRadius: '8px', 
+              padding: '20px',
+                    backgroundColor: '#fafafa'
+                  }}>
+                    <Descriptions 
+                      column={1} 
+                      size="small"
+                      labelStyle={{ 
+                        width: '40%', 
+                        textAlign: 'left',
+                        fontWeight: '500'
+                      }}
+                      contentStyle={{ 
+                        width: '60%', 
+                        textAlign: 'right'
+                      }}
+                    >
+                      <Descriptions.Item label="Customer Name">
+                        <Text strong>{selectedInvoice.customer?.name || 'N/A'}</Text>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Email">
+                        {selectedInvoice.customer?.email || 'N/A'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Phone">
+                        {selectedInvoice.customer?.phone || 'N/A'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Address">
+                        {selectedInvoice.customer?.address || 'N/A'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="City">
+                        {selectedInvoice.customer?.city || 'N/A'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Country">
+                        {selectedInvoice.customer?.country || 'N/A'}
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </div>
                 )
               },
               {
                 key: '2',
                 label: (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <FileTextOutlined style={{ color: '#52c41a' }} />
-                    <span>Job Details</span>
-                  </div>
+                  <div style={{ 
+                    fontWeight: '600', 
+                    fontSize: '16px'
+                  }}>
+                    Job Details
+              </div>
                 ),
                 children: (
-                  <Descriptions column={1} size="small">
-                    <Descriptions.Item label="Job ID">
-                      <Text strong>{selectedInvoice.job?.trackingId || 'N/A'}</Text>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Goods Types">
-                      {selectedInvoice.job?.goodsTypes?.join(', ') || 'N/A'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Consignee">
-                      {selectedInvoice.job?.consignment?.consigneeName || 'N/A'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Consignee Phone">
-                      {selectedInvoice.job?.consignment?.consigneePhone || 'N/A'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Consignee Address">
-                      {selectedInvoice.job?.consignment?.consigneeAddress || 'N/A'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Job Status">
-                      <Tag color={getJobStatusColor(selectedInvoice.job?.status)}>
-                        {selectedInvoice.job?.status || 'N/A'}
-                      </Tag>
-                    </Descriptions.Item>
-                  </Descriptions>
+            <div style={{ 
+              border: '1px solid #d9d9d9', 
+              borderRadius: '8px', 
+              padding: '20px',
+                    backgroundColor: '#fafafa'
+                  }}>
+                    <Descriptions 
+                      column={1} 
+                      size="small"
+                      labelStyle={{ 
+                        width: '40%', 
+                        textAlign: 'left',
+                        fontWeight: '500'
+                      }}
+                      contentStyle={{ 
+                        width: '60%', 
+                        textAlign: 'right'
+                      }}
+                    >
+                      <Descriptions.Item label="Job ID">
+                        <Text strong>{selectedInvoice.job?.trackingId || 'N/A'}</Text>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Goods Types">
+                        {selectedInvoice.job?.goodsTypes?.join(', ') || 'N/A'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Consignee">
+                        {selectedInvoice.job?.consignment?.consigneeName || 'N/A'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Consignee Phone">
+                        {selectedInvoice.job?.consignment?.consigneePhone || 'N/A'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Consignee Address">
+                        {selectedInvoice.job?.consignment?.consigneeAddress || 'N/A'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Job Status">
+                        <Tag color={getJobStatusColor(selectedInvoice.job?.status)}>
+                          {selectedInvoice.job?.status || 'N/A'}
+                        </Tag>
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </div>
                 )
               },
               {
                 key: '3',
                 label: (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <InfoCircleOutlined style={{ color: '#1890ff' }} />
-                    <span>Invoice Details</span>
-                  </div>
+                  <div style={{ 
+                    fontWeight: '600', 
+                    fontSize: '16px'
+                  }}>
+                    Invoice Details
+              </div>
                 ),
                 children: (
-                  <div>
-                    <Descriptions column={1} size="small">
+            <div style={{ 
+              border: '1px solid #d9d9d9', 
+              borderRadius: '8px', 
+              padding: '20px',
+                    backgroundColor: '#fafafa'
+                  }}>
+                    <Descriptions 
+                      column={1} 
+                      size="small"
+                      labelStyle={{ 
+                        width: '40%', 
+                        textAlign: 'left',
+                        fontWeight: '500'
+                      }}
+                      contentStyle={{ 
+                        width: '60%', 
+                        textAlign: 'right'
+                      }}
+                    >
                       <Descriptions.Item label="Invoice Number">
                         <Text strong>{selectedInvoice.invoiceNumber || 'N/A'}</Text>
                       </Descriptions.Item>
@@ -902,7 +970,19 @@ const InvoicesPage = () => {
                     <Divider />
                     
                     <Title level={5} style={{ marginBottom: '16px' }}>Service Charges</Title>
-                    <Descriptions column={1} size="small">
+                    <Descriptions 
+                      column={1} 
+                      size="small"
+                      labelStyle={{ 
+                        width: '40%', 
+                        textAlign: 'left',
+                        fontWeight: '500'
+                      }}
+                      contentStyle={{ 
+                        width: '60%', 
+                        textAlign: 'right'
+                      }}
+                    >
                       <Descriptions.Item label="Custom Duty">
                         <Text>GHS {(selectedInvoice.charges?.customDuty || 0).toFixed(2)}</Text>
                       </Descriptions.Item>
@@ -928,9 +1008,9 @@ const InvoicesPage = () => {
                     
                     <Divider />
                     
-                    <div style={{ 
+            <div style={{ 
                       background: '#f8f9fa', 
-                      padding: '20px', 
+              padding: '20px',
                       borderRadius: '8px',
                       border: '1px solid #e9ecef'
                     }}>
@@ -941,16 +1021,7 @@ const InvoicesPage = () => {
                             value={selectedInvoice.amount || 0}
                             precision={2}
                             prefix="GHS"
-                            valueStyle={{ color: '#1890ff', fontSize: '24px', fontWeight: 'bold' }}
-                          />
-                        </Col>
-                        <Col span={12}>
-                          <Statistic
-                            title="VAT Amount"
-                            value={selectedInvoice.charges?.vat || 0}
-                            precision={2}
-                            prefix="GHS"
-                            valueStyle={{ color: '#52c41a' }}
+                            valueStyle={{ color: '#000000', fontSize: '24px', fontWeight: 'bold' }}
                           />
                         </Col>
                       </Row>
@@ -965,21 +1036,21 @@ const InvoicesPage = () => {
                             minute: '2-digit'
                           }) : 'Unknown'}
                         </Text>
-                      </div>
-                    </div>
-                    
+              </div>
+            </div>
+
                     {selectedInvoice.comments && (
                       <>
                         <Divider />
                         <Title level={5} style={{ marginBottom: '16px' }}>Comments & Remarks</Title>
-                        <div style={{ 
+              <div style={{ 
                           background: '#f8f9fa', 
                           padding: '16px', 
-                          borderRadius: '8px',
+                borderRadius: '8px', 
                           border: '1px solid #e9ecef'
                         }}>
                           <Text>{selectedInvoice.comments}</Text>
-                        </div>
+              </div>
                       </>
                     )}
                   </div>
@@ -988,37 +1059,58 @@ const InvoicesPage = () => {
               ...(selectedInvoice.status === 'PAID' ? [{
                 key: '4',
                 label: (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <DollarOutlined style={{ color: '#52c41a' }} />
-                    <span>Payment Details</span>
+            <div style={{ 
+                    fontWeight: '600', 
+                    fontSize: '16px'
+                  }}>
+                    Payment Details
                   </div>
                 ),
                 children: (
-                  <Descriptions column={1} size="small">
-                    <Descriptions.Item label="Payment Date">
-                      {selectedInvoice.paymentDate ? new Date(selectedInvoice.paymentDate).toLocaleDateString('en-GB', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      }) : 'N/A'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Payment Method">
-                      <Text>{selectedInvoice.paymentMethod || 'N/A'}</Text>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Transaction Reference">
-                      <Text>{selectedInvoice.transactionReference || 'N/A'}</Text>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Amount Paid">
-                      <Text strong style={{ color: '#52c41a', fontSize: '16px' }}>
-                        GHS {(selectedInvoice.amount || 0).toFixed(2)}
-                      </Text>
-                    </Descriptions.Item>
-                    {selectedInvoice.paymentNotes && (
-                      <Descriptions.Item label="Payment Notes">
-                        <Text>{selectedInvoice.paymentNotes}</Text>
+                  <div style={{ 
+              border: '1px solid #d9d9d9', 
+              borderRadius: '8px', 
+              padding: '20px',
+                    backgroundColor: '#fafafa'
+                  }}>
+                    <Descriptions 
+                      column={1} 
+                      size="small"
+                      labelStyle={{ 
+                        width: '40%', 
+                        textAlign: 'left',
+                        fontWeight: '500'
+                      }}
+                      contentStyle={{ 
+                        width: '60%', 
+                        textAlign: 'right'
+                      }}
+                    >
+                      <Descriptions.Item label="Payment Date">
+                        {selectedInvoice.paymentDate ? new Date(selectedInvoice.paymentDate).toLocaleDateString('en-GB', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        }) : 'N/A'}
                       </Descriptions.Item>
-                    )}
-                  </Descriptions>
+                      <Descriptions.Item label="Payment Method">
+                        <Text>{selectedInvoice.paymentMethod || 'N/A'}</Text>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Transaction Reference">
+                        <Text>{selectedInvoice.transactionReference || 'N/A'}</Text>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Amount Paid">
+                        <Text strong style={{ color: '#52c41a', fontSize: '16px' }}>
+                          GHS {(selectedInvoice.amount || 0).toFixed(2)}
+                        </Text>
+                      </Descriptions.Item>
+                      {selectedInvoice.paymentNotes && (
+                        <Descriptions.Item label="Payment Notes">
+                          <Text>{selectedInvoice.paymentNotes}</Text>
+                        </Descriptions.Item>
+                      )}
+                    </Descriptions>
+            </div>
                 )
               }] : [])
             ]}
@@ -1416,9 +1508,9 @@ const InvoicesPage = () => {
             </Row>
 
             {/* Invoice Status and Due Date */}
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
                   name="status"
                   label="Invoice Status"
                   initialValue="DRAFT"
@@ -1428,18 +1520,18 @@ const InvoicesPage = () => {
                     <Option value="PENDING">Pending</Option>
                     <Option value="PAID">Paid</Option>
                   </Select>
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="dueDate"
-                  label="Due Date"
-                  rules={[{ required: true, message: 'Please select due date' }]}
-                >
-                  <DatePicker style={{ width: '100%' }} />
-                </Form.Item>
-              </Col>
-            </Row>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="dueDate"
+                label="Due Date"
+                rules={[{ required: true, message: 'Please select due date' }]}
+              >
+                <DatePicker style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
           <Form.Item
               name="comments"
               label="Comments/Remarks"

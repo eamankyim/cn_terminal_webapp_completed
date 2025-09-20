@@ -172,25 +172,30 @@ model Shipment {
 }
 
 model Invoice {
-  id            String         @id @default(cuid())
-  invoiceNumber String         @unique
-  jobId         String
-  shipmentId    String?
-  customerId    String
-  createdById   String
-  amount        Float
-  status        InvoiceStatus  @default(PENDING)
-  issueDate     DateTime
-  dueDate       DateTime
-  paymentDate   DateTime?
-  paymentMethod PaymentMethod?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  createdBy     User           @relation(fields: [createdById], references: [id])
-  customer      Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  job           Job            @relation(fields: [jobId], references: [id])
-  shipment      Shipment?      @relation(fields: [shipmentId], references: [id])
-  payments      Payment[]
+  id                    String         @id @default(cuid())
+  invoiceNumber         String         @unique
+  jobId                 String
+  shipmentId            String?
+  customerId            String
+  createdById           String
+  amount                Float
+  status                InvoiceStatus  @default(PENDING)
+  issueDate             DateTime
+  dueDate               DateTime
+  paymentDate           DateTime?
+  paymentMethod         PaymentMethod?
+  blAmendment           String?        @default("no")
+  charges               Json?          // Store charges as JSON object
+  comments              String?
+  transactionReference  String?
+  paymentNotes          String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  createdBy             User           @relation(fields: [createdById], references: [id])
+  customer              Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  job                   Job            @relation(fields: [jobId], references: [id])
+  shipment              Shipment?      @relation(fields: [shipmentId], references: [id])
+  payments              Payment[]
 
   @@map("invoices")
 }
