@@ -31,7 +31,7 @@ export const testApiIntegration = async () => {
     // Test 4: Public tracking (no authentication required)
     console.log('4. Testing public tracking...');
     try {
-      const tracking = await apiService.trackPackage('TEST123');
+      await apiService.trackPackage('TEST123');
       console.log('✅ Public tracking API working');
     } catch (error) {
       console.log('⚠️ Public tracking test failed (expected if no test data):', error.message);

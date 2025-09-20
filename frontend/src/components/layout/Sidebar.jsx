@@ -75,6 +75,11 @@ const Sidebar = ({ collapsed }) => {
       icon: <SettingOutlined />,
       label: 'Settings',
     },
+    {
+      key: '/configuration',
+      icon: <GlobalOutlined />,
+      label: 'Configuration',
+    },
   ];
 
   return (

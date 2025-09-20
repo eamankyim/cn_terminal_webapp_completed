@@ -334,3 +334,27 @@ enum InvitationStatus {
   EXPIRED
   CANCELLED
 }
+
+model Configuration {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  type        ConfigType @default(STRING)
+  category    String   @default("GENERAL")
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+  
+  @@map("configurations")
+}
+
+enum ConfigType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+  CURRENCY
+  PERCENTAGE
+}

@@ -16,6 +16,7 @@ import DutyCalculatorPage from './pages/DutyCalculatorPage';
 import FileManagementPage from './pages/FileManagementPage';
 
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import ConfigurationPage from './pages/ConfigurationPage';
 import PublicTrackingPage from './pages/PublicTrackingPage';
 import SetupPage from './pages/SetupPage';
 import AcceptInvitationPage from './pages/AcceptInvitationPage';
@@ -71,6 +72,7 @@ function App() {
 
                   <Route path="reports" element={<ReportsPage />} />
                   <Route path="admin" element={<AdminDashboardPage />} />
+                  <Route path="configuration" element={<ConfigurationPage />} />
                 </Route>
                 
                 {/* Catch all route - redirect to dashboard */}

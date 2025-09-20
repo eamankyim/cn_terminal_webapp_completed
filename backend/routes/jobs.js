@@ -105,6 +105,9 @@ const router = express.Router();
  *                   type: string
  *                 description: Array of goods types
  *                 example: ["Electronics", "Machinery"]
+ *               estimatedValue:
+ *                 type: number
+ *                 description: Estimated value of goods
  *                 example: 5000
  *     responses:
  *       201:

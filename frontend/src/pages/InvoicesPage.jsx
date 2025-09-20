@@ -24,7 +24,8 @@ import {
   Spin,
   Alert,
   Tabs,
-  Empty
+  Empty,
+  Collapse
 } from 'antd';
 import { 
   FileTextOutlined, 
@@ -40,10 +41,16 @@ import {
   UserOutlined,
   MoreOutlined,
   CheckCircleOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  ShoppingCartOutlined,
+  CalculatorOutlined,
+  InfoCircleOutlined,
+  PrinterOutlined
 } from '@ant-design/icons';
 import invoiceService from '../services/invoiceService';
 import jobService from '../services/jobService';
+import configurationService from '../services/configurationService';
+import { calculateVAT, calculateTotalVAT, getVATExplanation } from '../utils/vatCalculator';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -63,9 +70,12 @@ const InvoicesPage = () => {
   const [jobsLoading, setJobsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('invoices');
+  const [selectedJobId, setSelectedJobId] = useState(null);
+  const [configurations, setConfigurations] = useState({});
 
   useEffect(() => {
     loadInvoices();
+    loadConfigurations();
   }, []);
 
   // Reload jobs when invoices change to update filtering
@@ -130,6 +140,63 @@ const InvoicesPage = () => {
     } finally {
       setJobsLoading(false);
     }
+  };
+
+  const loadConfigurations = async () => {
+    try {
+      const response = await configurationService.getConfigurations();
+      if (response.success) {
+        setConfigurations(response.data);
+        console.log('✅ Configurations loaded:', response.data);
+      }
+    } catch (error) {
+      console.error('❌ Error loading configurations:', error);
+    }
+  };
+
+  // Calculate VAT based on current form values and configuration
+  const calculateVATForForm = (formValues) => {
+    if (!configurations.TAX || !formValues) return 0;
+
+    const charges = {
+      serviceCharge: parseFloat(formValues.serviceCharge || 0),
+      clearanceCharges: parseFloat(formValues.clearanceCharges || 0),
+      terminalCharges: parseFloat(formValues.terminalCharges || 0),
+      shippingCharges: parseFloat(formValues.shippingCharges || 0),
+      miscellaneous: parseFloat(formValues.miscellaneous || 0)
+    };
+
+    return calculateTotalVAT(charges, configurations);
+  };
+
+  // Update VAT when other charges change
+  const updateVATCalculation = (changedValues, allValues) => {
+    const newVAT = calculateVATForForm(allValues);
+    form.setFieldsValue({ vat: newVAT });
+  };
+
+  // Calculate total amount from all charges
+  const calculateTotalAmount = (formValues) => {
+    const customDuty = parseFloat(formValues.customDuty || 0);
+    const shippingCharges = parseFloat(formValues.shippingCharges || 0);
+    const terminalCharges = parseFloat(formValues.terminalCharges || 0);
+    const miscellaneous = parseFloat(formValues.miscellaneous || 0);
+    const clearanceCharges = parseFloat(formValues.clearanceCharges || 0);
+    const serviceCharge = parseFloat(formValues.serviceCharge || 0);
+    const vat = parseFloat(formValues.vat || 0);
+    
+    const total = customDuty + shippingCharges + terminalCharges + miscellaneous + clearanceCharges + serviceCharge + vat;
+    return parseFloat(total.toFixed(2));
+  };
+
+  // Update total amount when any charge changes
+  const updateTotalAmount = (changedValues, allValues) => {
+    const newVAT = calculateVATForForm(allValues);
+    const totalAmount = calculateTotalAmount({ ...allValues, vat: newVAT });
+    form.setFieldsValue({ 
+      vat: newVAT,
+      totalAmount: totalAmount 
+    });
   };
 
   const getStatusColor = (status) => {
@@ -242,12 +309,30 @@ const InvoicesPage = () => {
         message.success('Invoice updated successfully');
       } else {
         // Create new invoice with job linking
+        const selectedJob = jobs.find(job => job.id === values.jobId);
+        
+        // Use total amount from form (auto-calculated)
+        const totalAmount = values.totalAmount || 0;
+        
         const invoiceData = {
           ...values,
-          jobId: values.jobId, // Ensure jobId is included
-          customerId: values.customerId || jobs.find(job => job.id === values.jobId)?.customerId,
-          issueDate: values.issueDate?.toISOString(),
-          dueDate: values.dueDate?.toISOString()
+          jobId: values.jobId,
+          customerId: selectedJob?.customerId,
+          amount: totalAmount,
+          invoiceNumber: `INV-${selectedJob?.trackingId}`,
+          issueDate: new Date().toISOString(), // System generated
+          dueDate: values.dueDate?.toISOString(),
+          blAmendment: values.blAmendment,
+          // Store individual charges for breakdown
+          charges: {
+            customDuty: values.customDuty || 0,
+            shippingCharges: values.shippingCharges || 0,
+            terminalCharges: values.terminalCharges || 0,
+            miscellaneous: values.miscellaneous || 0,
+            clearanceCharges: values.clearanceCharges || 0,
+            serviceCharge: values.serviceCharge || 0,
+            vat: values.vat || 0
+          }
         };
         
         console.log('📄 Creating invoice with data:', invoiceData);
@@ -267,21 +352,34 @@ const InvoicesPage = () => {
   const handleCreateInvoiceFromJob = (job) => {
     console.log('📄 Creating invoice for job:', job);
     
-    // Pre-fill form with job data
-    form.setFieldsValue({
+    // Get default values from configurations
+    const defaultServiceCharge = configurations.SERVICE?.find(c => c.key === 'DEFAULT_SERVICE_CHARGE')?.value || '50';
+    const defaultClearanceCharge = configurations.SERVICE?.find(c => c.key === 'DEFAULT_CLEARANCE_CHARGE')?.value || '25';
+    const defaultTerminalCharge = configurations.SERVICE?.find(c => c.key === 'DEFAULT_TERMINAL_CHARGE')?.value || '30';
+    const defaultShippingCharge = configurations.SERVICE?.find(c => c.key === 'DEFAULT_SHIPPING_CHARGE')?.value || '40';
+
+    // Set form values
+    const formValues = {
       jobId: job.id,
       customerId: job.customerId,
-      clientName: job.customer?.name || 'N/A',
-      clientEmail: job.customer?.email || 'N/A',
-      trackingId: job.trackingId,
-      consignmentId: job.consignmentId,
-      goodsTypes: job.goodsTypes?.join(', ') || 'N/A',
-      amount: 0, // Will be calculated
-      issueDate: new Date(),
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      serviceCharge: parseFloat(defaultServiceCharge),
+      clearanceCharges: parseFloat(defaultClearanceCharge),
+      terminalCharges: parseFloat(defaultTerminalCharge),
+      shippingCharges: parseFloat(defaultShippingCharge),
       notes: `Invoice for job ${job.trackingId}`
-    });
+    };
+
+    // Calculate VAT using the new formula
+    const calculatedVAT = calculateVATForForm(formValues);
+    formValues.vat = calculatedVAT;
+
+    // Calculate total amount
+    const totalAmount = calculateTotalAmount(formValues);
+    formValues.totalAmount = totalAmount;
+
+    form.setFieldsValue(formValues);
     
+    setSelectedJobId(job.id);
     setEditingInvoice(null);
     setIsCreateModalVisible(true);
   };
@@ -511,81 +609,81 @@ const InvoicesPage = () => {
               label: 'All Invoices',
               children: (
                 <div>
-                  {/* Search and Filters */}
-                  <Card style={{ marginBottom: '24px' }}>
-                    <Row gutter={16} align="middle">
-                      <Col xs={24} md={8}>
-                        <Search
-                          placeholder="Search invoices by ID, client, or email"
-                          allowClear
-                          enterButton={<SearchOutlined />}
-                          size="large"
-                          onSearch={handleSearch}
-                          onChange={(e) => setSearchText(e.target.value)}
-                        />
-                      </Col>
-                      <Col xs={24} md={4}>
-                        <Select
-                          placeholder="Status"
-                          style={{ width: '100%' }}
-                          allowClear
-                          onChange={(value) => {
-                            if (value) {
-                              setInvoices(invoices.filter(i => i.status === value));
-                            } else {
-                              loadInvoices();
-                            }
-                          }}
-                        >
-                          <Option value="paid">Paid</Option>
-                          <Option value="pending">Pending</Option>
-                          <Option value="overdue">Overdue</Option>
-                          <Option value="draft">Draft</Option>
-                        </Select>
-                      </Col>
-                      <Col xs={24} md={4}>
-                        <DatePicker
-                          placeholder="From Date"
-                          style={{ width: '100%' }}
-                          onChange={(date) => {
-                            if (date) {
-                              const filtered = invoices.filter(i => new Date(i.invoiceDate) >= date.toDate());
-                              setInvoices(filtered);
-                            } else {
-                              loadInvoices();
-                            }
-                          }}
-                        />
-                      </Col>
-                    </Row>
-                  </Card>
+      {/* Search and Filters */}
+      <Card style={{ marginBottom: '24px' }}>
+        <Row gutter={16} align="middle">
+          <Col xs={24} md={8}>
+            <Search
+              placeholder="Search invoices by ID, client, or email"
+              allowClear
+              enterButton={<SearchOutlined />}
+              size="large"
+              onSearch={handleSearch}
+              onChange={(e) => setSearchText(e.target.value)}
+            />
+          </Col>
+          <Col xs={24} md={4}>
+            <Select
+              placeholder="Status"
+              style={{ width: '100%' }}
+              allowClear
+              onChange={(value) => {
+                if (value) {
+                  setInvoices(invoices.filter(i => i.status === value));
+                } else {
+                  loadInvoices();
+                }
+              }}
+            >
+              <Option value="paid">Paid</Option>
+              <Option value="pending">Pending</Option>
+              <Option value="overdue">Overdue</Option>
+              <Option value="draft">Draft</Option>
+            </Select>
+          </Col>
+          <Col xs={24} md={4}>
+            <DatePicker
+              placeholder="From Date"
+              style={{ width: '100%' }}
+              onChange={(date) => {
+                if (date) {
+                  const filtered = invoices.filter(i => new Date(i.invoiceDate) >= date.toDate());
+                  setInvoices(filtered);
+                } else {
+                  loadInvoices();
+                }
+              }}
+            />
+          </Col>
+        </Row>
+      </Card>
 
-                  {/* Invoices Table */}
-                  {error && (
-                    <Alert
-                      message="Error Loading Invoices"
-                      description={error}
-                      type="error"
-                      showIcon
-                      style={{ marginBottom: '16px' }}
-                      action={
-                        <Button size="small" onClick={loadInvoices}>
-                          Retry
-                        </Button>
-                      }
-                    />
-                  )}
-                  <Table
-                    columns={columns}
-                    dataSource={invoices}
-                    loading={loading}
-                    rowKey="id"
-                    pagination={{
-                      pageSize: 10,
-                      showSizeChanger: true,
-                      showQuickJumper: true,
-                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} invoices`
-                    }}
+      {/* Invoices Table */}
+        {error && (
+          <Alert
+            message="Error Loading Invoices"
+            description={error}
+            type="error"
+            showIcon
+            style={{ marginBottom: '16px' }}
+            action={
+              <Button size="small" onClick={loadInvoices}>
+                Retry
+              </Button>
+            }
+          />
+        )}
+        <Table
+          columns={columns}
+          dataSource={invoices}
+          loading={loading}
+          rowKey="id"
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} invoices`
+          }}
                   />
                 </div>
               )
@@ -634,34 +732,42 @@ const InvoicesPage = () => {
 
       {/* Invoice Details Modal */}
       <Drawer
-        title="Invoice Details"
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <FileTextOutlined style={{ fontSize: '20px', color: '#1890ff' }} />
+            <span>Invoice Details</span>
+            {selectedInvoice && (
+              <Tag color={getStatusColor(selectedInvoice.status)} style={{ marginLeft: 'auto' }}>
+                {selectedInvoice.status}
+              </Tag>
+            )}
+          </div>
+        }
         placement="right"
         onClose={() => setIsModalVisible(false)}
         open={isModalVisible}
-        width={600}
-      >
-        {selectedInvoice && (
-          <div>
-            {/* Invoice Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
-              <div>
-                <Title level={3}>Invoice #{selectedInvoice.id}</Title>
-                <Tag color={getStatusColor(selectedInvoice.status)} size="large">
-                  {getStatusIcon(selectedInvoice.status)} {selectedInvoice.status}
-                </Tag>
-              </div>
+        width={700}
+        extra={
+          selectedInvoice && (
+            <Space>
+              <Button 
+                icon={<EditOutlined />} 
+                onClick={() => {
+                  setIsModalVisible(false);
+                  handleEditInvoice(selectedInvoice);
+                }}
+              >
+                Edit
+              </Button>
+              <Button 
+                icon={<PrinterOutlined />} 
+                onClick={() => window.print()}
+              >
+                Print
+              </Button>
               <Dropdown
                 menu={{
                   items: [
-                    {
-                      key: 'edit',
-                      label: 'Edit Invoice',
-                      icon: <EditOutlined />,
-                      onClick: () => {
-                        setIsModalVisible(false);
-                        handleEditInvoice(selectedInvoice);
-                      },
-                    },
                     {
                       key: 'delete',
                       label: 'Delete Invoice',
@@ -677,182 +783,246 @@ const InvoicesPage = () => {
                 placement="bottomRight"
                 arrow
               >
-                <Button 
-                  type="text" 
-                  icon={<MoreOutlined />}
-                  size="large"
-                />
+                <Button icon={<MoreOutlined />} />
               </Dropdown>
-            </div>
-
-            {/* Invoice Overview */}
-            <div style={{ 
-              marginBottom: '24px', 
-              border: '1px solid #d9d9d9', 
-              borderRadius: '8px', 
-              padding: '20px',
-              backgroundColor: '#ffffff'
-            }}>
-              <Title level={4} style={{ 
-                marginBottom: '20px', 
-                borderBottom: '1px solid #d9d9d9',
-                paddingBottom: '8px'
-              }}>
-                Invoice Overview
-              </Title>
-              <div style={{ marginBottom: '16px', display: 'flex' }}>
-                <div style={{ width: '140px', fontWeight: 'bold' }}>Invoice Date:</div>
-                <div>{new Date(selectedInvoice.invoiceDate).toLocaleDateString()}</div>
-              </div>
-              <div style={{ marginBottom: '16px', display: 'flex' }}>
-                <div style={{ width: '140px', fontWeight: 'bold' }}>Due Date:</div>
-                <div>{new Date(selectedInvoice.dueDate).toLocaleDateString()}</div>
-              </div>
-              {selectedInvoice.paymentDate && (
-                <div style={{ marginBottom: '16px', display: 'flex' }}>
-                  <div style={{ width: '140px', fontWeight: 'bold' }}>Payment Date:</div>
-                  <div>{new Date(selectedInvoice.paymentDate).toLocaleDateString()}</div>
-                </div>
-              )}
-            </div>
-
-            {/* Client Information */}
-            <div style={{ 
-              marginBottom: '24px', 
-              border: '1px solid #d9d9d9', 
-              borderRadius: '8px', 
-              padding: '20px',
-              backgroundColor: '#ffffff'
-            }}>
-              <Title level={4} style={{ 
-                marginBottom: '20px', 
-                borderBottom: '1px solid #d9d9d9',
-                paddingBottom: '8px'
-              }}>
-                Client Information
-              </Title>
-              <div style={{ marginBottom: '16px', display: 'flex' }}>
-                <div style={{ width: '140px', fontWeight: 'bold' }}>Client Name:</div>
-                <div>{selectedInvoice.clientName}</div>
-              </div>
-              <div style={{ marginBottom: '16px', display: 'flex' }}>
-                <div style={{ width: '140px', fontWeight: 'bold' }}>Client Email:</div>
-                <div>{selectedInvoice.clientEmail}</div>
-              </div>
-            </div>
-
-            {/* Invoice Items */}
-            <div style={{ 
-              marginBottom: '24px', 
-              border: '1px solid #d9d9d9', 
-              borderRadius: '8px', 
-              padding: '20px',
-              backgroundColor: '#ffffff'
-            }}>
-              <Title level={4} style={{ 
-                marginBottom: '20px', 
-                borderBottom: '1px solid #d9d9d9',
-                paddingBottom: '8px'
-              }}>
-                Invoice Items
-              </Title>
-              <Table
-                dataSource={selectedInvoice.items}
-                pagination={false}
-                columns={[
-                  { title: 'Description', dataIndex: 'description', key: 'description' },
-                  { title: 'Qty', dataIndex: 'quantity', key: 'quantity', width: 80 },
-                  { title: 'Rate (GHS)', dataIndex: 'rate', key: 'rate', width: 120 },
-                  { title: 'Amount (GHS)', dataIndex: 'amount', key: 'amount', width: 120 }
-                ]}
-                summary={() => (
-                  <Table.Summary.Row>
-                    <Table.Summary.Cell index={0} colSpan={2}>
-                      <strong>Subtotal</strong>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={2}></Table.Summary.Cell>
-                    <Table.Summary.Cell index={3}>
-                      <strong>GHS {selectedInvoice.amount.toLocaleString()}</strong>
-                    </Table.Summary.Cell>
-                  </Table.Summary.Row>
-                )}
-              />
-            </div>
-
-            {/* Financial Summary */}
-            <div style={{ 
-              marginBottom: '24px', 
-              border: '1px solid #d9d9d9', 
-              borderRadius: '8px', 
-              padding: '20px',
-              backgroundColor: '#ffffff'
-            }}>
-              <Title level={4} style={{ 
-                marginBottom: '20px', 
-                borderBottom: '1px solid #d9d9d9',
-                paddingBottom: '8px'
-              }}>
-                Financial Summary
-              </Title>
-              <div style={{ marginBottom: '16px', display: 'flex' }}>
-                <div style={{ width: '140px', fontWeight: 'bold' }}>Subtotal:</div>
-                <div>GHS {selectedInvoice.amount.toLocaleString()}</div>
-              </div>
-              <div style={{ marginBottom: '16px', display: 'flex' }}>
-                <div style={{ width: '140px', fontWeight: 'bold' }}>Tax (15%):</div>
-                <div>GHS {selectedInvoice.tax.toLocaleString()}</div>
-              </div>
-              <div style={{ marginBottom: '16px', display: 'flex' }}>
-                <div style={{ width: '140px', fontWeight: 'bold' }}>Total:</div>
-                <div style={{ fontWeight: 'bold', fontSize: '16px' }}>GHS {selectedInvoice.total.toLocaleString()}</div>
-              </div>
-            </div>
-
-            {/* Notes */}
-            {selectedInvoice.notes && (
-              <div style={{ 
-                marginBottom: '24px', 
-                border: '1px solid #d9d9d9', 
-                borderRadius: '8px', 
-                padding: '20px',
-                backgroundColor: '#ffffff'
-              }}>
-                <Title level={4} style={{ 
-                  marginBottom: '20px', 
-                  borderBottom: '1px solid #d9d9d9',
-                  paddingBottom: '8px'
-                }}>
-                  Notes
-                </Title>
-                <div>{selectedInvoice.notes}</div>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div style={{ 
-              marginBottom: '24px', 
-              border: '1px solid #d9d9d9', 
-              borderRadius: '8px', 
-              padding: '20px',
-              backgroundColor: '#ffffff'
-            }}>
-              <Title level={4} style={{ 
-                marginBottom: '20px', 
-                borderBottom: '1px solid #d9d9d9',
-                paddingBottom: '8px'
-              }}>
-                Actions
-              </Title>
-              <Space>
-                <Button icon={<DownloadOutlined />}>
-                  Download PDF
-                </Button>
-                <Button type="primary" icon={<SendOutlined />}>
-                  Send to Client
-                </Button>
-              </Space>
-            </div>
-          </div>
+            </Space>
+          )
+        }
+      >
+        {selectedInvoice && (
+          <Collapse 
+            defaultActiveKey={['1', '2', '3', '4']} 
+            ghost
+            size="large"
+            items={[
+              {
+                key: '1',
+                label: (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <UserOutlined style={{ color: '#722ed1' }} />
+                    <span>Customer Details</span>
+                  </div>
+                ),
+                children: (
+                  <Descriptions column={1} size="small">
+                    <Descriptions.Item label="Customer Name">
+                      <Text strong>{selectedInvoice.customer?.name || 'N/A'}</Text>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Email">
+                      {selectedInvoice.customer?.email || 'N/A'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Phone">
+                      {selectedInvoice.customer?.phone || 'N/A'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Address">
+                      {selectedInvoice.customer?.address || 'N/A'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="City">
+                      {selectedInvoice.customer?.city || 'N/A'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Country">
+                      {selectedInvoice.customer?.country || 'N/A'}
+                    </Descriptions.Item>
+                  </Descriptions>
+                )
+              },
+              {
+                key: '2',
+                label: (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FileTextOutlined style={{ color: '#52c41a' }} />
+                    <span>Job Details</span>
+                  </div>
+                ),
+                children: (
+                  <Descriptions column={1} size="small">
+                    <Descriptions.Item label="Job ID">
+                      <Text strong>{selectedInvoice.job?.trackingId || 'N/A'}</Text>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Goods Types">
+                      {selectedInvoice.job?.goodsTypes?.join(', ') || 'N/A'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Consignee">
+                      {selectedInvoice.job?.consignment?.consigneeName || 'N/A'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Consignee Phone">
+                      {selectedInvoice.job?.consignment?.consigneePhone || 'N/A'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Consignee Address">
+                      {selectedInvoice.job?.consignment?.consigneeAddress || 'N/A'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Job Status">
+                      <Tag color={getJobStatusColor(selectedInvoice.job?.status)}>
+                        {selectedInvoice.job?.status || 'N/A'}
+                      </Tag>
+                    </Descriptions.Item>
+                  </Descriptions>
+                )
+              },
+              {
+                key: '3',
+                label: (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <InfoCircleOutlined style={{ color: '#1890ff' }} />
+                    <span>Invoice Details</span>
+                  </div>
+                ),
+                children: (
+                  <div>
+                    <Descriptions column={1} size="small">
+                      <Descriptions.Item label="Invoice Number">
+                        <Text strong>{selectedInvoice.invoiceNumber || 'N/A'}</Text>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Issue Date">
+                        {selectedInvoice.issueDate ? new Date(selectedInvoice.issueDate).toLocaleDateString('en-GB', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        }) : 'N/A'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Due Date">
+                        {selectedInvoice.dueDate ? new Date(selectedInvoice.dueDate).toLocaleDateString('en-GB', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        }) : 'N/A'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Status">
+                        <Tag color={getStatusColor(selectedInvoice.status || 'PENDING')}>
+                          {selectedInvoice.status || 'PENDING'}
+                        </Tag>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="BL Amendment">
+                        <Tag color={selectedInvoice.blAmendment === 'yes' ? 'orange' : 'green'}>
+                          {selectedInvoice.blAmendment === 'yes' ? 'Yes' : 'No'}
+                        </Tag>
+                      </Descriptions.Item>
+                    </Descriptions>
+                    
+                    <Divider />
+                    
+                    <Title level={5} style={{ marginBottom: '16px' }}>Service Charges</Title>
+                    <Descriptions column={1} size="small">
+                      <Descriptions.Item label="Custom Duty">
+                        <Text>GHS {(selectedInvoice.charges?.customDuty || 0).toFixed(2)}</Text>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Shipping Charges">
+                        <Text>GHS {(selectedInvoice.charges?.shippingCharges || 0).toFixed(2)}</Text>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Terminal Charges">
+                        <Text>GHS {(selectedInvoice.charges?.terminalCharges || 0).toFixed(2)}</Text>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Miscellaneous">
+                        <Text>GHS {(selectedInvoice.charges?.miscellaneous || 0).toFixed(2)}</Text>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Clearance Charges">
+                        <Text>GHS {(selectedInvoice.charges?.clearanceCharges || 0).toFixed(2)}</Text>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Service Charge">
+                        <Text>GHS {(selectedInvoice.charges?.serviceCharge || 0).toFixed(2)}</Text>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="VAT">
+                        <Text>GHS {(selectedInvoice.charges?.vat || 0).toFixed(2)}</Text>
+                      </Descriptions.Item>
+                    </Descriptions>
+                    
+                    <Divider />
+                    
+                    <div style={{ 
+                      background: '#f8f9fa', 
+                      padding: '20px', 
+                      borderRadius: '8px',
+                      border: '1px solid #e9ecef'
+                    }}>
+                      <Row gutter={16}>
+                        <Col span={12}>
+                          <Statistic
+                            title="Total Amount"
+                            value={selectedInvoice.amount || 0}
+                            precision={2}
+                            prefix="GHS"
+                            valueStyle={{ color: '#1890ff', fontSize: '24px', fontWeight: 'bold' }}
+                          />
+                        </Col>
+                        <Col span={12}>
+                          <Statistic
+                            title="VAT Amount"
+                            value={selectedInvoice.charges?.vat || 0}
+                            precision={2}
+                            prefix="GHS"
+                            valueStyle={{ color: '#52c41a' }}
+                          />
+                        </Col>
+                      </Row>
+                      <Divider />
+                      <div style={{ textAlign: 'center' }}>
+                        <Text type="secondary">
+                          Invoice created on {selectedInvoice.createdAt ? new Date(selectedInvoice.createdAt).toLocaleDateString('en-GB', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          }) : 'Unknown'}
+                        </Text>
+                      </div>
+                    </div>
+                    
+                    {selectedInvoice.comments && (
+                      <>
+                        <Divider />
+                        <Title level={5} style={{ marginBottom: '16px' }}>Comments & Remarks</Title>
+                        <div style={{ 
+                          background: '#f8f9fa', 
+                          padding: '16px', 
+                          borderRadius: '8px',
+                          border: '1px solid #e9ecef'
+                        }}>
+                          <Text>{selectedInvoice.comments}</Text>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              },
+              ...(selectedInvoice.status === 'PAID' ? [{
+                key: '4',
+                label: (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <DollarOutlined style={{ color: '#52c41a' }} />
+                    <span>Payment Details</span>
+                  </div>
+                ),
+                children: (
+                  <Descriptions column={1} size="small">
+                    <Descriptions.Item label="Payment Date">
+                      {selectedInvoice.paymentDate ? new Date(selectedInvoice.paymentDate).toLocaleDateString('en-GB', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      }) : 'N/A'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Payment Method">
+                      <Text>{selectedInvoice.paymentMethod || 'N/A'}</Text>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Transaction Reference">
+                      <Text>{selectedInvoice.transactionReference || 'N/A'}</Text>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Amount Paid">
+                      <Text strong style={{ color: '#52c41a', fontSize: '16px' }}>
+                        GHS {(selectedInvoice.amount || 0).toFixed(2)}
+                      </Text>
+                    </Descriptions.Item>
+                    {selectedInvoice.paymentNotes && (
+                      <Descriptions.Item label="Payment Notes">
+                        <Text>{selectedInvoice.paymentNotes}</Text>
+                      </Descriptions.Item>
+                    )}
+                  </Descriptions>
+                )
+              }] : [])
+            ]}
+          />
         )}
       </Drawer>
 
@@ -872,6 +1042,7 @@ const InvoicesPage = () => {
           form={form}
           layout="vertical"
           onFinish={handleCreateInvoice}
+          onValuesChange={updateTotalAmount}
         >
           {/* Job Selection */}
           <Card size="small" title="Job Selection" style={{ marginBottom: 16 }}>
@@ -884,33 +1055,54 @@ const InvoicesPage = () => {
                 placeholder="Choose a job to create invoice for"
                 showSearch
                 optionFilterProp="children"
-                filterOption={(input, option) =>
-                  option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                }
+                filterOption={(input, option) => {
+                  const job = jobs.find(j => j.id === option.value);
+                  const searchText = `${job?.trackingId} ${job?.customer?.name} ${job?.goodsTypes?.join(' ')} ${job?.consignment?.consigneeName || ''}`.toLowerCase();
+                  return searchText.indexOf(input.toLowerCase()) >= 0;
+                }}
                 loading={jobsLoading}
                 notFoundContent={jobsLoading ? 'Loading jobs...' : 'No jobs available for invoicing'}
                 onChange={(jobId) => {
+                  console.log('🔍 Job selected:', jobId);
+                  setSelectedJobId(jobId);
                   const selectedJob = jobs.find(job => job.id === jobId);
                   if (selectedJob) {
-                    // Auto-populate form with job data
-                    form.setFieldsValue({
+                    // Get default values from configurations
+                    const defaultServiceCharge = configurations.SERVICE?.find(c => c.key === 'DEFAULT_SERVICE_CHARGE')?.value || '50';
+                    const defaultClearanceCharge = configurations.SERVICE?.find(c => c.key === 'DEFAULT_CLEARANCE_CHARGE')?.value || '25';
+                    const defaultTerminalCharge = configurations.SERVICE?.find(c => c.key === 'DEFAULT_TERMINAL_CHARGE')?.value || '30';
+                    const defaultShippingCharge = configurations.SERVICE?.find(c => c.key === 'DEFAULT_SHIPPING_CHARGE')?.value || '40';
+
+                    // Set form values
+                    const formValues = {
                       customerId: selectedJob.customerId,
-                      clientName: selectedJob.customer?.name || 'N/A',
-                      clientEmail: selectedJob.customer?.email || 'N/A',
-                      trackingId: selectedJob.trackingId,
-                      consignmentId: selectedJob.consignmentId,
-                      goodsTypes: selectedJob.goodsTypes?.join(', ') || 'N/A',
+                      serviceCharge: parseFloat(defaultServiceCharge),
+                      clearanceCharges: parseFloat(defaultClearanceCharge),
+                      terminalCharges: parseFloat(defaultTerminalCharge),
+                      shippingCharges: parseFloat(defaultShippingCharge),
                       notes: `Invoice for job ${selectedJob.trackingId}`
-                    });
+                    };
+
+                    // Calculate VAT using the new formula
+                    const calculatedVAT = calculateVATForForm(formValues);
+                    formValues.vat = calculatedVAT;
+
+                    form.setFieldsValue(formValues);
                   }
                 }}
+                labelInValue={false}
+                optionLabelProp="label"
               >
                 {jobs.map(job => (
-                  <Option key={job.id} value={job.id}>
+                  <Option 
+                    key={job.id} 
+                    value={job.id}
+                    label={job.trackingId}
+                  >
                     <div>
                       <div style={{ fontWeight: 'bold' }}>{job.trackingId}</div>
                       <div style={{ fontSize: '12px', color: '#666' }}>
-                        {job.customer?.name || 'N/A'} • {job.goodsTypes?.join(', ') || 'No goods types'}
+                        {job.customer?.name || 'N/A'} • {job.goodsTypes?.join(', ') || 'No goods types'} • {job.consignment?.consigneeName || 'No consignee'}
                       </div>
                     </div>
                   </Option>
@@ -919,75 +1111,312 @@ const InvoicesPage = () => {
             </Form.Item>
           </Card>
 
-          {/* Job Information (if creating from job) */}
-          {form.getFieldValue('jobId') && (
-            <Card size="small" title="Job Information" style={{ marginBottom: 16 }}>
-              <Row gutter={16}>
+          {/* Job Information - Always show when job is selected */}
+          {form.getFieldValue('jobId') && (() => {
+            const selectedJob = jobs.find(job => job.id === form.getFieldValue('jobId'));
+            console.log('🔍 Selected job:', selectedJob);
+            return selectedJob ? (
+              <Card size="small" title="Job Information" style={{ marginBottom: 16 }}>
+                <Row gutter={[16, 8]}>
+                  <Col xs={24} sm={6} md={4}>
+                    <div style={{ marginBottom: '4px' }}>
+                      <Text type="secondary" style={{ fontSize: '11px' }}>Job ID</Text>
+                      <div style={{ fontWeight: 'bold', fontSize: '13px' }}>
+                        {selectedJob.trackingId}
+                      </div>
+                    </div>
+                  </Col>
+                  <Col xs={24} sm={6} md={4}>
+                    <div style={{ marginBottom: '4px' }}>
+                      <Text type="secondary" style={{ fontSize: '11px' }}>Goods Types</Text>
+                      <div style={{ fontSize: '13px' }}>
+                        {selectedJob.goodsTypes && selectedJob.goodsTypes.length > 0 ? (
+                          selectedJob.goodsTypes.map((type, index) => (
+                            <Tag key={index} color="blue" size="small" style={{ marginRight: '2px', marginBottom: '1px' }}>
+                              {type}
+                            </Tag>
+                          ))
+                        ) : (
+                          <Text type="secondary" style={{ fontSize: '12px' }}>No goods types</Text>
+                        )}
+                      </div>
+                    </div>
+                  </Col>
+                  <Col xs={24} sm={6} md={6}>
+                    <div style={{ marginBottom: '4px' }}>
+                      <Text type="secondary" style={{ fontSize: '11px' }}>Consignee</Text>
+                      <div style={{ fontSize: '13px', fontWeight: '500' }}>
+                        {selectedJob.consignment?.consigneeName || 'No consignee'}
+                      </div>
+                    </div>
+                  </Col>
+                  {selectedJob.consignment?.consigneePhone && (
+                    <Col xs={24} sm={6} md={4}>
+                      <div style={{ marginBottom: '4px' }}>
+                        <Text type="secondary" style={{ fontSize: '11px' }}>Consignee Phone</Text>
+                        <div style={{ fontSize: '13px' }}>
+                          {selectedJob.consignment.consigneePhone}
+                        </div>
+                      </div>
+                    </Col>
+                  )}
+                  {selectedJob.consignment?.consigneeAddress && (
+                    <Col xs={24} sm={12}>
+                      <div style={{ marginBottom: '8px' }}>
+                        <Text type="secondary" style={{ fontSize: '12px' }}>Consignee Address</Text>
+                        <div style={{ fontSize: '14px' }}>
+                          {selectedJob.consignment.consigneeAddress}
+                        </div>
+                      </div>
+                    </Col>
+                  )}
+                  <Col xs={24}>
+                    <Divider style={{ margin: '8px 0' }} />
+                  </Col>
+                  <Col xs={24} sm={6} md={6}>
+                    <div style={{ marginBottom: '4px' }}>
+                      <Text type="secondary" style={{ fontSize: '11px' }}>Client Name</Text>
+                      <div style={{ fontSize: '13px', fontWeight: '500' }}>
+                        {selectedJob.customer?.name || 'N/A'}
+                      </div>
+                    </div>
+                  </Col>
+                  <Col xs={24} sm={6} md={6}>
+                    <div style={{ marginBottom: '4px' }}>
+                      <Text type="secondary" style={{ fontSize: '11px' }}>Client Email</Text>
+                      <div style={{ fontSize: '13px' }}>
+                        {selectedJob.customer?.email || 'N/A'}
+                      </div>
+                    </div>
+                  </Col>
+                  <Col xs={24} sm={6} md={4}>
+                    <div style={{ marginBottom: '4px' }}>
+                      <Text type="secondary" style={{ fontSize: '11px' }}>Client Phone</Text>
+                      <div style={{ fontSize: '13px' }}>
+                        {selectedJob.customer?.phone || 'N/A'}
+                      </div>
+                    </div>
+                  </Col>
+                  {selectedJob.customer?.address && (
+                    <Col xs={24} sm={6} md={8}>
+                      <div style={{ marginBottom: '4px' }}>
+                        <Text type="secondary" style={{ fontSize: '11px' }}>Client Address</Text>
+                        <div style={{ fontSize: '13px' }}>
+                          {selectedJob.customer.address}
+                        </div>
+                      </div>
+                    </Col>
+                  )}
+                </Row>
+              </Card>
+            ) : (
+              <Card size="small" style={{ marginBottom: 16, textAlign: 'center', padding: '20px' }}>
+                <Text type="secondary">Please select a job to view details</Text>
+              </Card>
+            );
+          })()}
+
+
+          {/* Invoice Details - Only show when job is selected */}
+          {selectedJobId && (
+            <Card size="small" title="Invoice Details" style={{ marginBottom: 16 }}>
+            {/* Invoice Number - Auto-generated and read-only */}
+            {form.getFieldValue('jobId') && (() => {
+              const selectedJob = jobs.find(job => job.id === form.getFieldValue('jobId'));
+              const invoiceNumber = selectedJob ? `INV-${selectedJob.trackingId}` : '';
+              return (
+                <Row gutter={16} style={{ marginBottom: 16 }}>
+                  <Col span={12}>
+                    <div>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>Invoice Number</Text>
+                      <div style={{ 
+                        padding: '8px 12px', 
+                        backgroundColor: '#f5f5f5', 
+                        border: '1px solid #d9d9d9', 
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                      }}>
+                        {invoiceNumber}
+                      </div>
+                    </div>
+                  </Col>
+                  <Col span={12}>
+                    <div>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>Invoice Date</Text>
+                      <div style={{ 
+                        padding: '8px 12px', 
+                        backgroundColor: '#f5f5f5', 
+                        border: '1px solid #d9d9d9', 
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}>
+                        {new Date().toLocaleDateString()}
+                      </div>
+                    </div>
+                  </Col>
+                </Row>
+              );
+            })()}
+
+            {/* Charges Section */}
+            <div style={{ marginBottom: 16 }}>
+              <Text strong style={{ fontSize: '14px', marginBottom: '12px', display: 'block' }}>Charges Breakdown</Text>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                    name="customDuty"
+                    label="Custom Duty (GHS)"
+                    rules={[{ required: true, message: 'Please enter custom duty' }]}
+                  >
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      min={0}
+                      step={0.01}
+                      formatter={value => `GHS ${Number(value || 0).toFixed(2)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={value => parseFloat(value.replace(/GHS\s?|(,*)/g, '') || 0).toFixed(2)}
+                    />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                    name="shippingCharges"
+                    label="Shipping Charges (GHS)"
+                    rules={[{ required: true, message: 'Please enter shipping charges' }]}
+                  >
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      min={0}
+                      step={0.01}
+                      formatter={value => `GHS ${Number(value || 0).toFixed(2)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={value => parseFloat(value.replace(/GHS\s?|(,*)/g, '') || 0).toFixed(2)}
+                    />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                    name="terminalCharges"
+                    label="Terminal Charges (GHS)"
+                    rules={[{ required: true, message: 'Please enter terminal charges' }]}
+                  >
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      min={0}
+                      step={0.01}
+                      formatter={value => `GHS ${Number(value || 0).toFixed(2)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={value => parseFloat(value.replace(/GHS\s?|(,*)/g, '') || 0).toFixed(2)}
+                    />
+              </Form.Item>
+            </Col>
                 <Col span={12}>
                   <Form.Item
-                    name="trackingId"
-                    label="Job ID"
+                    name="miscellaneous"
+                    label="Miscellaneous (GHS)"
                   >
-                    <Input disabled />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="goodsTypes"
-                    label="Goods Types"
-                  >
-                    <Input disabled />
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      min={0}
+                      step={0.01}
+                      formatter={value => `GHS ${Number(value || 0).toFixed(2)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={value => parseFloat(value.replace(/GHS\s?|(,*)/g, '') || 0).toFixed(2)}
+                    />
                   </Form.Item>
                 </Col>
               </Row>
-            </Card>
-          )}
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item
+                    name="clearanceCharges"
+                    label="Clearance Charges (GHS)"
+                    rules={[{ required: true, message: 'Please enter clearance charges' }]}
+                  >
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      min={0}
+                      step={0.01}
+                      formatter={value => `GHS ${Number(value || 0).toFixed(2)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={value => parseFloat(value.replace(/GHS\s?|(,*)/g, '') || 0).toFixed(2)}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="serviceCharge"
+                    label="Service Charge (GHS)"
+                    rules={[{ required: true, message: 'Please enter service charge' }]}
+                  >
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      min={0}
+                      step={0.01}
+                      formatter={value => `GHS ${Number(value || 0).toFixed(2)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={value => parseFloat(value.replace(/GHS\s?|(,*)/g, '') || 0).toFixed(2)}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item
+                    name="vat"
+                    label="VAT (GHS) - Auto-calculated"
+                    rules={[{ required: true, message: 'Please enter VAT' }]}
+                  >
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      min={0}
+                      step={0.01}
+                      formatter={value => `GHS ${Number(value || 0).toFixed(2)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={value => parseFloat(value.replace(/GHS\s?|(,*)/g, '') || 0).toFixed(2)}
+                      readOnly
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="blAmendment"
+                    label="BL Amendment"
+                    rules={[{ required: true, message: 'Please select BL Amendment status' }]}
+                  >
+                    <Select placeholder="Select BL Amendment">
+                      <Option value="yes">Yes</Option>
+                      <Option value="no">No</Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+              </Row>
+            </div>
 
-          {/* Client Information */}
-          <Card size="small" title="Client Information" style={{ marginBottom: 16 }}>
+            {/* Total Amount */}
             <Row gutter={16}>
-              <Col span={12}>
+              <Col span={24}>
                 <Form.Item
-                  name="clientName"
-                  label="Client Name"
-                  rules={[{ required: true, message: 'Please enter client name' }]}
-                >
-                  <Input placeholder="Enter client name" />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="clientEmail"
-                  label="Client Email"
-                  rules={[
-                    { required: true, message: 'Please enter client email' },
-                    { type: 'email', message: 'Please enter valid email' }
-                  ]}
-                >
-                  <Input placeholder="Enter client email" />
-                </Form.Item>
-              </Col>
-            </Row>
-          </Card>
-
-          {/* Invoice Details */}
-          <Card size="small" title="Invoice Details" style={{ marginBottom: 16 }}>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  name="amount"
-                  label="Amount (GHS)"
-                  rules={[{ required: true, message: 'Please enter amount' }]}
+                  name="totalAmount"
+                  label="Total Amount (GHS)"
+                  rules={[{ required: true, message: 'Total amount is required' }]}
                 >
                   <InputNumber
                     style={{ width: '100%' }}
                     min={0}
                     step={0.01}
-                    formatter={value => `GHS ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    parser={value => value.replace(/GHS\s?|(,*)/g, '')}
+                    formatter={value => `GHS ${Number(value || 0).toFixed(2)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                    parser={value => parseFloat(value.replace(/GHS\s?|(,*)/g, '') || 0).toFixed(2)}
+                    readOnly
+                    size="large"
                   />
                 </Form.Item>
+                <div style={{ marginTop: -16, marginBottom: 16, fontSize: '12px', color: '#666' }}>
+                  <Text type="secondary">
+                    Total = Custom Duty + Shipping + Terminal + Miscellaneous + Clearance + Service + VAT
+                  </Text>
+                </div>
               </Col>
+            </Row>
+
+            {/* Invoice Status and Due Date */}
+            <Row gutter={16}>
               <Col span={12}>
                 <Form.Item
                   name="status"
@@ -1001,17 +1430,6 @@ const InvoicesPage = () => {
                   </Select>
                 </Form.Item>
               </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  name="invoiceDate"
-                  label="Invoice Date"
-                  rules={[{ required: true, message: 'Please select invoice date' }]}
-                >
-                  <DatePicker style={{ width: '100%' }} />
-                </Form.Item>
-              </Col>
               <Col span={12}>
                 <Form.Item
                   name="dueDate"
@@ -1022,19 +1440,21 @@ const InvoicesPage = () => {
                 </Form.Item>
               </Col>
             </Row>
-            <Form.Item
-              name="notes"
-              label="Notes"
-            >
-              <TextArea placeholder="Enter invoice notes" rows={3} />
-            </Form.Item>
-          </Card>
+          <Form.Item
+              name="comments"
+              label="Comments/Remarks"
+          >
+              <TextArea placeholder="Enter any additional comments or remarks" rows={3} />
+          </Form.Item>
+            </Card>
+          )}
 
           <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>
             <Space>
               <Button onClick={() => {
                 setIsCreateModalVisible(false);
                 setEditingInvoice(null);
+                setSelectedJobId(null);
                 form.resetFields();
               }}>
                 Cancel
