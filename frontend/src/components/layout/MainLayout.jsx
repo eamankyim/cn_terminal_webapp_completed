@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { Layout, Button, Space, Avatar, Dropdown, Menu, Badge } from 'antd';
+import { Layout, Button, Space, Avatar, Dropdown, Menu } from 'antd';
 import { 
   MenuFoldOutlined, 
   MenuUnfoldOutlined, 
-  BellOutlined, 
   LogoutOutlined,
   UserOutlined,
   SettingOutlined
@@ -11,6 +10,7 @@ import {
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Sidebar from './Sidebar';
+import NotificationBell from '../common/NotificationBell';
 import './MainLayout.css';
 
 const { Header, Content } = Layout;
@@ -19,9 +19,6 @@ const MainLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
-
-  // Mock notification count - in real app this would come from API
-  const notificationCount = 3;
 
   // Function to generate initials from user name
   const getUserInitials = (name) => {
@@ -33,13 +30,6 @@ const MainLayout = () => {
     }
     
     return (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase();
-  };
-
-  const handleNotificationClick = () => {
-    // In real app, this would open a notification panel or navigate to notifications
-    console.log('Notifications clicked - count:', notificationCount);
-    // You could navigate to a notifications page or open a dropdown
-    // navigate('/notifications');
   };
 
   const handleLogout = () => {
@@ -81,20 +71,8 @@ const MainLayout = () => {
             />
             
             <Space size="large">
-              {/* Notifications with badge attached to bell */}
-              <Badge count={notificationCount} size="small" offset={[-5, 5]}>
-                <Button
-                  type="text"
-                  icon={<BellOutlined />}
-                  onClick={handleNotificationClick}
-                  className="notification-button"
-                  style={{
-                    fontSize: '18px',
-                    width: 48,
-                    height: 48,
-                  }}
-                />
-              </Badge>
+              {/* Real-time Notifications */}
+              <NotificationBell />
               
               {/* User Profile with initials fallback */}
               <Dropdown overlay={userMenu} trigger={['click']} placement="bottomRight">

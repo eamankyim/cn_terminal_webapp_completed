@@ -1,6 +1,7 @@
 const express = require('express');
 const { prisma } = require('../config/database');
 const { authenticateToken, requireStaff } = require('../middleware/auth');
+const NotificationService = require('../services/notificationService');
 
 const router = express.Router();
 
@@ -363,6 +364,28 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
       }
     });
     console.log('✅ Customer created successfully:', customer.id);
+    
+    // Create notification for new customer
+    try {
+      await NotificationService.createNotification({
+        title: 'New Customer Registered',
+        message: `New customer "${customer.name}" has been registered in the system`,
+        type: 'SUCCESS',
+        category: 'CUSTOMER_UPDATE',
+        userId: req.user.id,
+        metadata: {
+          customerName: customer.name,
+          customerEmail: customer.email,
+          customerType: customer.customerType,
+          createdBy: req.user.name
+        }
+      });
+      console.log('📢 Notification created for new customer');
+    } catch (notificationError) {
+      console.error('⚠️ Failed to create notification for new customer:', notificationError);
+      // Don't fail the customer creation if notification fails
+    }
+    
     console.log('🎉 Customer creation completed successfully');
     console.log('='.repeat(60) + '\n');
 
@@ -546,6 +569,26 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
         }
       }
     });
+
+    // Create notification for customer update
+    try {
+      await NotificationService.createNotification({
+        title: 'Customer Updated',
+        message: `Customer "${updatedCustomer.name}" information has been updated`,
+        type: 'INFO',
+        category: 'CUSTOMER_UPDATE',
+        userId: req.user.id,
+        metadata: {
+          customerName: updatedCustomer.name,
+          customerEmail: updatedCustomer.email,
+          updatedBy: req.user.name
+        }
+      });
+      console.log('📢 Notification created for customer update');
+    } catch (notificationError) {
+      console.error('⚠️ Failed to create notification for customer update:', notificationError);
+      // Don't fail the customer update if notification fails
+    }
 
     res.json({
       message: 'Customer updated successfully',

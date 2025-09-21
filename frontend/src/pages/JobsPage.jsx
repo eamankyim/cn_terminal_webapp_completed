@@ -57,6 +57,58 @@ import userService from '../services/userService';
 import jobService from '../services/jobService';
 import { fileService } from '../services/fileService';
 
+// Status hierarchy system - jobs can only progress forward
+const STATUS_HIERARCHY = {
+  'NEW': 1,
+  'PREINVOICED': 2,
+  'INVOICED': 3,      // Auto-set only when invoice is created
+  'ENTRY': 4,
+  'RELEASE': 5,
+  'CLEARED': 6,
+  'DELIVERED': 7      // Final status - no further changes
+};
+
+// Status display names
+const STATUS_LABELS = {
+  'NEW': 'New',
+  'PREINVOICED': 'Pre-invoiced',
+  'INVOICED': 'Invoiced',
+  'ENTRY': 'Entry',
+  'RELEASE': 'Release',
+  'CLEARED': 'Cleared',
+  'DELIVERED': 'Delivered'
+};
+
+// Get available next statuses for a given current status
+const getAvailableStatuses = (currentStatus) => {
+  const currentLevel = STATUS_HIERARCHY[currentStatus];
+  if (!currentLevel) return [];
+  
+  return Object.entries(STATUS_HIERARCHY)
+    .filter(([status, level]) => {
+      // Only allow forward progression
+      // Exclude INVOICED (auto-set only) and DELIVERED (final status)
+      return level > currentLevel && status !== 'INVOICED' && status !== 'DELIVERED';
+    })
+    .map(([status]) => status);
+};
+
+// Check if status transition is valid
+const isValidStatusTransition = (currentStatus, newStatus) => {
+  const currentLevel = STATUS_HIERARCHY[currentStatus];
+  const newLevel = STATUS_HIERARCHY[newStatus];
+  
+  if (!currentLevel || !newLevel) return false;
+  
+  // Must be forward progression
+  if (newLevel <= currentLevel) return false;
+  
+  // INVOICED can only be set automatically
+  if (newStatus === 'INVOICED') return false;
+  
+  return true;
+};
+
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
@@ -75,10 +127,13 @@ const JobsPage = () => {
   const [selectedJobDocuments, setSelectedJobDocuments] = useState([]);
   const [isStatusUpdateModalVisible, setIsStatusUpdateModalVisible] = useState(false);
   const [statusUpdateForm] = Form.useForm();
+  const [currentJobForStatusUpdate, setCurrentJobForStatusUpdate] = useState(null);
   const [isDocumentViewerVisible, setIsDocumentViewerVisible] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [selectedCustomerConsignments, setSelectedCustomerConsignments] = useState([]);
   const [jobs, setJobs] = useState([]);
+  const [draftJobs, setDraftJobs] = useState([]);
+  const [activeTab, setActiveTab] = useState('all');
   const [staffMembers, setStaffMembers] = useState([]);
   const [jobsLoading, setJobsLoading] = useState(true);
   
@@ -125,7 +180,17 @@ const JobsPage = () => {
         console.log('  - line:', response.jobs[0].line);
         console.log('  - jobDescription:', response.jobs[0].jobDescription);
       }
-      setJobs(response.jobs || []);
+      
+      const allJobs = response.jobs || [];
+      
+      // Separate regular jobs from drafts
+      const regularJobs = allJobs.filter(job => !job.isDraft);
+      const drafts = allJobs.filter(job => job.isDraft);
+      
+      setJobs(regularJobs);
+      setDraftJobs(drafts);
+      
+      console.log(`📊 Loaded ${regularJobs.length} regular jobs and ${drafts.length} drafts`);
     } catch (error) {
       console.error('Error loading jobs:', error);
       setError('Failed to load jobs');
@@ -707,6 +772,13 @@ const JobsPage = () => {
   const handleStatusUpdate = async (values) => {
     setLoading(true);
     try {
+      // Validate status transition
+      if (currentJobForStatusUpdate && !isValidStatusTransition(currentJobForStatusUpdate.status, values.status)) {
+        message.error('Invalid status transition. Jobs can only progress forward in the workflow.');
+        setLoading(false);
+        return;
+      }
+      
       // Format ETA if it's a moment object
       const eta = values.eta ? values.eta.toISOString() : undefined;
       console.log('🔍 Frontend ETA:', values.eta, 'Formatted:', eta);
@@ -715,6 +787,7 @@ const JobsPage = () => {
       console.log('🔍 Backend response job data:', response);
       message.success('Job status updated successfully');
       setIsStatusUpdateModalVisible(false);
+      setCurrentJobForStatusUpdate(null);
       statusUpdateForm.resetFields();
       loadJobs(); // Reload jobs
     } catch (error) {
@@ -869,7 +942,7 @@ const JobsPage = () => {
               valueStyle={{ color: '#1890ff' }}
               />
             </Card>
-          </Col>
+        </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
@@ -902,59 +975,110 @@ const JobsPage = () => {
         </Col>
       </Row>
 
-      {/* Jobs Table */}
-      <Card title="All Jobs">
-        {error && (
-          <Alert
-            message="Error Loading Jobs"
-            description={error}
-            type="error"
-            showIcon
-            style={{ marginBottom: '16px' }}
-            action={
-              <Button size="small" onClick={loadJobs}>
-                Retry
-              </Button>
+      {/* Jobs Tabs */}
+      <Card>
+        <Tabs 
+          activeKey={activeTab} 
+          onChange={setActiveTab}
+          items={[
+            {
+              key: 'all',
+              label: `All Jobs (${jobs.length})`,
+              children: (
+                <div>
+                  {error && (
+                    <Alert
+                      message="Error Loading Jobs"
+                      description={error}
+                      type="error"
+                      showIcon
+                      style={{ marginBottom: '16px' }}
+                      action={
+                        <Button size="small" onClick={loadJobs}>
+                          Retry
+                        </Button>
+                      }
+                    />
+                  )}
+                  <Table
+                    columns={columns}
+                    dataSource={jobs}
+                    loading={jobsLoading}
+                    rowKey="id"
+                    pagination={{
+                      pageSize: 10,
+                      showSizeChanger: true,
+                      showQuickJumper: true,
+                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} jobs`
+                    }}
+                    locale={{
+                      emptyText: (
+                        <Empty
+                          image={Empty.PRESENTED_IMAGE_SIMPLE}
+                          description={
+                            <div>
+                              <Text type="secondary" style={{ fontSize: '16px', marginBottom: '8px' }}>
+                                No jobs found
+                              </Text>
+                              <Text type="secondary" style={{ fontSize: '14px' }}>
+                                Get started by creating your first job
+                              </Text>
+                            </div>
+                          }
+                        >
+                          <Button 
+                            type="primary" 
+                            icon={<PlusOutlined />}
+                            onClick={() => setIsModalVisible(true)}
+                            size="large"
+                          >
+                            Create First Job
+                          </Button>
+                        </Empty>
+                      )
+                    }}
+                  />
+                </div>
+              )
+            },
+            {
+              key: 'drafts',
+              label: `Drafts (${draftJobs.length})`,
+              children: (
+                <div>
+                  <Table
+                    columns={columns}
+                    dataSource={draftJobs}
+                    loading={jobsLoading}
+                    rowKey="id"
+                    pagination={{
+                      pageSize: 10,
+                      showSizeChanger: true,
+                      showQuickJumper: true,
+                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} drafts`
+                    }}
+                    locale={{
+                      emptyText: (
+                        <Empty
+                          image={Empty.PRESENTED_IMAGE_SIMPLE}
+                          description={
+                            <div>
+                              <Text type="secondary" style={{ fontSize: '16px', marginBottom: '8px' }}>
+                                No drafts found
+                              </Text>
+                              <Text type="secondary" style={{ fontSize: '14px' }}>
+                                Draft jobs will appear here when saved
+                              </Text>
+                            </div>
+                          }
+                        />
+                      )
+                    }}
+                  />
+                </div>
+              )
             }
-          />
-        )}
-        <Table
-          columns={columns}
-          dataSource={jobs}
-          loading={jobsLoading}
-          rowKey="id"
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} jobs`
-          }}
-          locale={{
-            emptyText: (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={
-                  <div>
-                    <Text type="secondary" style={{ fontSize: '16px', marginBottom: '8px' }}>
-                      No jobs found
-                    </Text>
-                    <Text type="secondary" style={{ fontSize: '14px' }}>
-                      Get started by creating your first job
-                    </Text>
-                  </div>
-                }
-              >
-                <Button 
-                  type="primary" 
-                  icon={<PlusOutlined />}
-                  onClick={() => setIsModalVisible(true)}
-                  size="large"
-                >
-                  Create First Job
-                </Button>
-                </Empty>
-            )
-          }}
+          ]}
         />
       </Card>
 
@@ -1099,14 +1223,8 @@ const JobsPage = () => {
                 rules={[{ required: true, message: 'Please select status' }]}
                 initialValue="NEW"
               >
-                <Select placeholder="Select status">
+                <Select placeholder="Select status" disabled>
                   <Option value="NEW">New</Option>
-                  <Option value="PREINVOICED">Pre-invoiced</Option>
-                  <Option value="INVOICED">Invoiced</Option>
-                  <Option value="ENTRY">Entry</Option>
-                  <Option value="RELEASE">Release</Option>
-                  <Option value="CLEARED">Cleared</Option>
-                  <Option value="DELIVERED">Delivered</Option>
                 </Select>
           </Form.Item>
             </Col>
@@ -1283,9 +1401,50 @@ const JobsPage = () => {
         <Modal
           title="Update Job Status"
         open={isStatusUpdateModalVisible}
-        onCancel={() => setIsStatusUpdateModalVisible(false)}
+        onCancel={() => {
+          setIsStatusUpdateModalVisible(false);
+          setCurrentJobForStatusUpdate(null);
+        }}
         footer={null}
         >
+          {currentJobForStatusUpdate && (
+            <div style={{ marginBottom: '16px' }}>
+              {/* Workflow Progress Indicator */}
+              <div style={{ padding: '8px', backgroundColor: '#fafafa', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
+                <Text type="secondary" style={{ fontSize: '12px', marginBottom: '8px', display: 'block' }}>
+                  <strong>Workflow Progress:</strong>
+                </Text>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  {Object.entries(STATUS_HIERARCHY).map(([status, level]) => {
+                    const isCurrent = status === currentJobForStatusUpdate.status;
+                    const isAvailable = getAvailableStatuses(currentJobForStatusUpdate.status).includes(status);
+                    const isPast = level < STATUS_HIERARCHY[currentJobForStatusUpdate.status];
+                    
+                    return (
+                      <div key={status} style={{ display: 'flex', alignItems: 'center' }}>
+                        <Tag 
+                          color={isCurrent ? 'blue' : isPast ? 'green' : isAvailable ? 'orange' : 'default'}
+                          style={{ fontSize: '11px' }}
+                        >
+                          {STATUS_LABELS[status]}
+                        </Tag>
+                        {level < 7 && (
+                          <span style={{ color: '#d9d9d9', fontSize: '12px' }}>→</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <Text type="secondary" style={{ fontSize: '10px', marginTop: '4px', display: 'block' }}>
+                  <span style={{ color: '#52c41a' }}>●</span> Completed &nbsp;
+                  <span style={{ color: '#1890ff' }}>●</span> Current &nbsp;
+                  <span style={{ color: '#fa8c16' }}>●</span> Available &nbsp;
+                  <span style={{ color: '#d9d9d9' }}>●</span> Locked
+                </Text>
+              </div>
+            </div>
+          )}
+          
           <Form
             form={statusUpdateForm}
             layout="vertical"
@@ -1297,14 +1456,12 @@ const JobsPage = () => {
             rules={[{ required: true, message: 'Please select new status' }]}
           >
             <Select placeholder="Select new status">
-              <Option value="NEW">New</Option>
-              <Option value="PREINVOICED">Pre-invoiced</Option>
-              <Option value="INVOICED">Invoiced</Option>
-              <Option value="ENTRY">Entry</Option>
-              <Option value="RELEASE">Release</Option>
-              <Option value="CLEARED">Cleared</Option>
-              <Option value="DELIVERED">Delivered</Option>
-              </Select>
+              {currentJobForStatusUpdate && getAvailableStatuses(currentJobForStatusUpdate.status).map(status => (
+                <Option key={status} value={status}>
+                  {STATUS_LABELS[status]}
+                </Option>
+              ))}
+            </Select>
             </Form.Item>
 
             <Form.Item
@@ -1500,6 +1657,7 @@ const JobsPage = () => {
               type="primary"
               icon={<EditOutlined />}
               onClick={() => {
+                setCurrentJobForStatusUpdate(selectedJob);
                 statusUpdateForm.setFieldsValue({ status: selectedJob.status });
                 setIsStatusUpdateModalVisible(true);
               }}

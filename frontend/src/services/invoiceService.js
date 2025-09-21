@@ -70,6 +70,16 @@ class InvoiceService {
       throw error;
     }
   }
+
+  async createPayment(invoiceId, paymentData) {
+    try {
+      const response = await apiService.createPayment(invoiceId, paymentData);
+      return response;
+    } catch (error) {
+      console.error('Error creating payment:', error);
+      throw error;
+    }
+  }
 }
 
 export default new InvoiceService();

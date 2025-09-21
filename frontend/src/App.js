@@ -12,12 +12,9 @@ import JobsPage from './pages/JobsPage';
 import ClientsPage from './pages/ClientsPage';
 import ReportsPage from './pages/ReportsPage';
 import InvoicesPage from './pages/InvoicesPage';
-import DutyCalculatorPage from './pages/DutyCalculatorPage';
-import FileManagementPage from './pages/FileManagementPage';
 
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import ConfigurationPage from './pages/ConfigurationPage';
-import PublicTrackingPage from './pages/PublicTrackingPage';
 import SetupPage from './pages/SetupPage';
 import AcceptInvitationPage from './pages/AcceptInvitationPage';
 
@@ -25,6 +22,7 @@ import AcceptInvitationPage from './pages/AcceptInvitationPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { CustomerProvider } from './contexts/CustomerContext';
 import { ConsignmentProvider } from './contexts/ConsignmentContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 const { defaultAlgorithm } = theme;
@@ -47,13 +45,13 @@ function App() {
       <AuthProvider>
         <CustomerProvider>
           <ConsignmentProvider>
-            <Router>
+            <NotificationProvider>
+              <Router>
             <div className="App">
               <Routes>
                 {/* Public Routes */}
                 <Route path="/setup" element={<SetupPage />} />
                 <Route path="/login" element={<LoginPage />} />
-                <Route path="/track" element={<PublicTrackingPage />} />
                 <Route path="/accept-invitation/:id" element={<AcceptInvitationPage />} />
                 
                 {/* Protected Routes */}
@@ -67,8 +65,6 @@ function App() {
                   <Route path="enquiries" element={<JobsPage />} />
                   <Route path="clients" element={<ClientsPage />} />
                   <Route path="invoices" element={<InvoicesPage />} />
-                  <Route path="duty-calculator" element={<DutyCalculatorPage />} />
-                  <Route path="files" element={<FileManagementPage />} />
 
                   <Route path="reports" element={<ReportsPage />} />
                   <Route path="admin" element={<AdminDashboardPage />} />
@@ -80,6 +76,7 @@ function App() {
               </Routes>
             </div>
             </Router>
+            </NotificationProvider>
           </ConsignmentProvider>
         </CustomerProvider>
       </AuthProvider>

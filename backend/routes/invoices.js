@@ -1,6 +1,7 @@
 const express = require('express');
 const { prisma } = require('../config/database');
 const { authenticateToken, requireStaff } = require('../middleware/auth');
+const NotificationService = require('../services/notificationService');
 
 const router = express.Router();
 
@@ -564,6 +565,15 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
       }
     });
 
+    // Create notification for invoice creation
+    try {
+      await NotificationService.notifyInvoiceCreated(invoice.id, req.user.id);
+      console.log('📢 Invoice creation notification created');
+    } catch (notificationError) {
+      console.error('⚠️ Failed to create invoice creation notification:', notificationError);
+      // Don't fail the invoice creation if notification fails
+    }
+
     res.status(201).json({
       message: 'Invoice created successfully',
       invoice
@@ -679,12 +689,105 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
       }
     });
 
+    // Create notification for invoice status change
+    try {
+      await NotificationService.notifyInvoiceStatusChange(
+        id, 
+        existingInvoice.status, 
+        status, 
+        req.user.id
+      );
+      console.log('📢 Invoice status change notification created');
+    } catch (notificationError) {
+      console.error('⚠️ Failed to create invoice status change notification:', notificationError);
+      // Don't fail the status update if notification fails
+    }
+
     res.json({
       message: 'Invoice status updated successfully',
       invoice: updatedInvoice
     });
   } catch (error) {
     console.error('Update invoice status error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create payment for invoice
+router.post('/:id/payments', authenticateToken, requireStaff, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, paymentMethod, gatewayRef, receiptUrl, payer } = req.body;
+
+    // Validate required fields
+    if (!amount || !paymentMethod || !payer) {
+      return res.status(400).json({ 
+        error: 'Amount, payment method, and payer are required' 
+      });
+    }
+
+    // Check if invoice exists
+    const invoice = await prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        customer: {
+          select: {
+            name: true,
+            email: true
+          }
+        },
+        job: {
+          select: {
+            trackingId: true
+          }
+        }
+      }
+    });
+
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    // Create payment
+    const payment = await prisma.payment.create({
+      data: {
+        invoiceId: id,
+        amount: parseFloat(amount),
+        paymentMethod,
+        gatewayRef,
+        receiptUrl,
+        payer,
+        createdById: req.user.id
+      }
+    });
+
+    // Update invoice status to PAID if payment amount matches or exceeds invoice amount
+    if (parseFloat(amount) >= invoice.amount) {
+      await prisma.invoice.update({
+        where: { id },
+        data: {
+          status: 'PAID',
+          paymentDate: new Date(),
+          paymentMethod
+        }
+      });
+    }
+
+    // Create notification for payment received
+    try {
+      await NotificationService.notifyPaymentReceived(payment.id, req.user.id);
+      console.log('📢 Payment received notification created');
+    } catch (notificationError) {
+      console.error('⚠️ Failed to create payment notification:', notificationError);
+      // Don't fail the payment creation if notification fails
+    }
+
+    res.status(201).json({
+      message: 'Payment created successfully',
+      payment
+    });
+  } catch (error) {
+    console.error('Create payment error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

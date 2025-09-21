@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import dayjs from 'dayjs';
 import { 
   Card, 
   Typography, 
@@ -42,6 +43,7 @@ import {
   MoreOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
+  ExclamationCircleOutlined,
   ShoppingCartOutlined,
   CalculatorOutlined,
   InfoCircleOutlined,
@@ -58,6 +60,104 @@ const { Search } = Input;
 const { Option } = Select;
 const { TextArea } = Input;
 
+// Payment Form Component
+const PaymentForm = React.forwardRef(({ invoice, onSuccess }, ref) => {
+  const [form] = Form.useForm();
+
+  const handleSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      
+      // Format the date properly for the API
+      if (values.paymentDate) {
+        values.paymentDate = values.paymentDate.format('YYYY-MM-DD');
+      }
+      
+      await onSuccess(values);
+    } catch (error) {
+      console.error('Form validation failed:', error);
+    }
+  };
+
+  // Expose handleSubmit through ref
+  React.useImperativeHandle(ref, () => ({
+    handleSubmit
+  }));
+
+  return (
+    <div>
+      <p style={{ marginBottom: '16px' }}>
+        Please provide payment details for invoice <strong>{invoice.invoiceNumber}</strong>
+      </p>
+      <Form
+        form={form}
+        layout="vertical"
+        initialValues={{
+          paymentMethod: 'BANK_TRANSFER',
+          paymentDate: null, // Let DatePicker handle the default
+          amount: invoice.amount || 0
+        }}
+      >
+        <Form.Item
+          name="paymentMethod"
+          label="Payment Method"
+          rules={[{ required: true, message: 'Please select payment method' }]}
+        >
+          <Select>
+            <Select.Option value="BANK_TRANSFER">Bank Transfer</Select.Option>
+            <Select.Option value="CASH">Cash</Select.Option>
+            <Select.Option value="MOBILE_MONEY">Mobile Money</Select.Option>
+            <Select.Option value="CARD">Card Payment</Select.Option>
+          </Select>
+        </Form.Item>
+        
+        <Form.Item
+          name="paymentDate"
+          label="Payment Date"
+          rules={[{ required: true, message: 'Please select payment date' }]}
+        >
+          <DatePicker 
+            style={{ width: '100%' }} 
+            placeholder="Select payment date"
+            defaultValue={null}
+          />
+        </Form.Item>
+        
+        <Form.Item
+          name="amount"
+          label="Amount Paid (GHS)"
+          rules={[{ required: true, message: 'Please enter amount paid' }]}
+        >
+          <InputNumber
+            style={{ width: '100%' }}
+            formatter={value => `GHS ${Number(value || 0).toFixed(2)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+            parser={value => parseFloat(value.replace(/GHS\s?|(,*)/g, '') || 0).toFixed(2)}
+            min={0}
+            step={0.01}
+          />
+        </Form.Item>
+        
+        <Form.Item
+          name="transactionReference"
+          label="Transaction Reference (Optional)"
+        >
+          <Input placeholder="Enter transaction reference or receipt number" />
+        </Form.Item>
+        
+        <Form.Item
+          name="paymentNotes"
+          label="Payment Notes (Optional)"
+        >
+          <Input.TextArea 
+            placeholder="Additional payment notes or comments"
+            rows={3}
+          />
+        </Form.Item>
+      </Form>
+    </div>
+  );
+});
+
 const InvoicesPage = () => {
   const [searchText, setSearchText] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -67,7 +167,8 @@ const InvoicesPage = () => {
   const [isPrintModalVisible, setIsPrintModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [invoices, setInvoices] = useState([]);
-  const [jobs, setJobs] = useState([]);
+  const [jobs, setJobs] = useState([]); // Jobs available for invoice creation (filtered)
+  const [allJobs, setAllJobs] = useState([]); // All jobs for display in table
   const [loading, setLoading] = useState(true);
   const [jobsLoading, setJobsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -124,19 +225,25 @@ const InvoicesPage = () => {
   const loadJobs = async () => {
     try {
       setJobsLoading(true);
-      console.log('🔄 Loading all jobs for invoice creation...');
+      console.log('🔄 Loading all jobs...');
       
-      // Fetch all jobs and filter client-side for now
+      // Fetch all jobs
       const response = await jobService.getJobs({ limit: 100 });
       console.log('✅ All jobs loaded successfully:', response);
       
-      // Filter out jobs that already have invoices
-      const jobsWithoutInvoices = (response.jobs || []).filter(job => 
+      const allJobsData = response.jobs || [];
+      
+      // Set all jobs for display in table (status comes from database)
+      setAllJobs(allJobsData);
+      
+      // Filter jobs available for invoice creation (only PREINVOICED jobs without invoices)
+      const jobsForInvoicing = allJobsData.filter(job => 
+        job.status === 'PREINVOICED' && 
         !invoices.some(invoice => invoice.jobId === job.id)
       );
       
-      console.log(`📊 Found ${jobsWithoutInvoices.length} jobs without invoices`);
-      setJobs(jobsWithoutInvoices);
+      console.log(`📊 Found ${jobsForInvoicing.length} jobs available for invoicing`);
+      setJobs(jobsForInvoicing);
     } catch (error) {
       console.error('❌ Error loading jobs:', error);
     } finally {
@@ -203,21 +310,21 @@ const InvoicesPage = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'paid': return 'green';
-      case 'pending': return 'orange';
-      case 'overdue': return 'red';
-      case 'draft': return 'default';
+      case 'PAID': return 'green';
+      case 'PENDING': return 'orange';
+      case 'OVERDUE': return 'red';
+      case 'DRAFT': return 'default';
       default: return 'default';
     }
   };
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'paid': return '✓';
-      case 'pending': return '⏳';
-      case 'overdue': return '⚠';
-      case 'draft': return '📝';
-      default: return '?';
+      case 'PAID': return '✓';
+      case 'PENDING': return '⏳';
+      case 'OVERDUE': return '⚠';
+      case 'DRAFT': return '📝';
+      default: return '';
     }
   };
 
@@ -368,14 +475,33 @@ const InvoicesPage = () => {
 
   const handleEditInvoice = (invoice) => {
     setEditingInvoice(invoice);
-    form.setFieldsValue({
+    
+    // Set all form values including charges
+    const formValues = {
       customerId: invoice.customerId,
       jobId: invoice.jobId,
       shipmentId: invoice.shipmentId,
       amount: invoice.amount,
-      issueDate: invoice.issueDate ? new Date(invoice.issueDate) : null,
-      dueDate: invoice.dueDate ? new Date(invoice.dueDate) : null
-    });
+      dueDate: invoice.dueDate ? dayjs(invoice.dueDate) : null,
+      blAmendment: invoice.blAmendment,
+      comments: invoice.comments,
+      // Set charges from the charges object
+      customDuty: invoice.charges?.customDuty || 0,
+      shippingCharges: invoice.charges?.shippingCharges || 0,
+      terminalCharges: invoice.charges?.terminalCharges || 0,
+      miscellaneous: invoice.charges?.miscellaneous || 0,
+      clearanceCharges: invoice.charges?.clearanceCharges || 0,
+      serviceCharge: invoice.charges?.serviceCharge || 0,
+      vat: invoice.charges?.vat || 0
+    };
+    
+    form.setFieldsValue(formValues);
+    
+    // Load jobs if not already loaded to ensure job information is available
+    if (jobs.length === 0) {
+      loadJobs();
+    }
+    
     setIsCreateModalVisible(true);
   };
 
@@ -388,7 +514,24 @@ const InvoicesPage = () => {
       cancelText: 'Cancel',
       onOk: async () => {
         try {
+          // Get the invoice to find the associated job
+          const invoice = invoices.find(inv => inv.id === invoiceId);
+          
           await invoiceService.deleteInvoice(invoiceId);
+          
+          // Revert job status back to PREINVOICED if invoice was deleted
+          if (invoice && invoice.jobId) {
+            try {
+              console.log('🔄 Reverting job status to PREINVOICED for job:', invoice.jobId);
+              const statusResponse = await jobService.updateJobStatus(invoice.jobId, 'PREINVOICED', 'Invoice deleted', null);
+              console.log('✅ Job status reverted to PREINVOICED:', statusResponse);
+            } catch (statusError) {
+              console.error('⚠️ Failed to revert job status:', statusError);
+              message.error('Invoice deleted but failed to revert job status');
+              // Don't fail the entire operation if status update fails
+            }
+          }
+          
           message.success('Invoice deleted successfully');
           loadInvoices(); // Reload invoices
         } catch (error) {
@@ -398,15 +541,91 @@ const InvoicesPage = () => {
     });
   };
 
+  const handleMarkAsPaid = async (invoiceId) => {
+    const invoice = selectedInvoice;
+    if (!invoice) return;
+
+    // Create a modal with form for payment details
+    let paymentFormRef = null;
+    
+    const modal = Modal.confirm({
+      title: <span style={{ fontSize: '16px', fontWeight: '500' }}>Mark Invoice as Paid</span>,
+      width: 500,
+      icon: null,
+      content: (
+        <PaymentForm 
+          ref={(ref) => { paymentFormRef = ref; }}
+          invoice={invoice}
+          onSuccess={async (values) => {
+            try {
+              // Update invoice status with payment details
+              await invoiceService.updateInvoiceStatus(
+                invoiceId, 
+                'PAID', 
+                values.paymentDate, 
+                values.paymentMethod
+              );
+              
+              // Create payment record
+              await invoiceService.createPayment(invoiceId, {
+                amount: parseFloat(values.amount),
+                paymentMethod: values.paymentMethod,
+                gatewayRef: values.transactionReference,
+                receiptUrl: null, // No receipt URL for manual payments
+                payer: invoice.customer?.name || 'Unknown'
+              });
+              
+              message.success('Invoice marked as paid successfully');
+              loadInvoices();
+              
+              // Close the drawer and refresh the selected invoice
+              setIsModalVisible(false);
+              if (selectedInvoice) {
+                const updatedInvoice = await invoiceService.getInvoice(invoiceId);
+                setSelectedInvoice(updatedInvoice);
+              }
+              
+              modal.destroy();
+            } catch (error) {
+              console.error('Error marking invoice as paid:', error);
+              message.error('Failed to mark invoice as paid');
+            }
+          }}
+        />
+      ),
+      okText: 'Mark as Paid',
+      okType: 'primary',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        // Trigger form submission
+        if (paymentFormRef) {
+          await paymentFormRef.handleSubmit();
+        }
+        return false; // Prevent default modal close
+      },
+    });
+  };
+
   const handleCreateInvoice = async (values) => {
     try {
       if (editingInvoice) {
         // Update existing invoice
-        await invoiceService.updateInvoice(editingInvoice.id, values);
+        const updateData = {
+          ...values,
+          dueDate: values.dueDate ? dayjs(values.dueDate).toISOString() : null,
+        };
+        await invoiceService.updateInvoice(editingInvoice.id, updateData);
         message.success('Invoice updated successfully');
       } else {
         // Create new invoice with job linking
         const selectedJob = jobs.find(job => job.id === values.jobId);
+        
+        // Check if job already has an invoice
+        const existingInvoice = invoices.find(invoice => invoice.jobId === values.jobId);
+        if (existingInvoice) {
+          message.error('An invoice already exists for this job');
+          return;
+        }
         
         // Use total amount from form (auto-calculated)
         const totalAmount = values.totalAmount || 0;
@@ -418,7 +637,7 @@ const InvoicesPage = () => {
           amount: totalAmount,
           invoiceNumber: `INV-${selectedJob?.trackingId}`,
           issueDate: new Date().toISOString(), // System generated
-          dueDate: values.dueDate?.toISOString(),
+          dueDate: values.dueDate ? dayjs(values.dueDate).toISOString() : null,
           blAmendment: values.blAmendment,
           // Store individual charges for breakdown
           charges: {
@@ -435,6 +654,20 @@ const InvoicesPage = () => {
         
         console.log('📄 Creating invoice with data:', invoiceData);
         await invoiceService.createInvoice(invoiceData);
+        
+        // Update job status to INVOICED
+        if (selectedJob) {
+          try {
+            console.log('🔄 Updating job status to INVOICED for job:', selectedJob.id);
+            const statusResponse = await jobService.updateJobStatus(selectedJob.id, 'INVOICED', 'Invoice created', null);
+            console.log('✅ Job status updated to INVOICED:', statusResponse);
+          } catch (statusError) {
+            console.error('⚠️ Failed to update job status:', statusError);
+            message.error('Invoice created but failed to update job status');
+            // Don't fail the entire operation if status update fails
+          }
+        }
+        
         message.success('Invoice created successfully');
       }
       setIsCreateModalVisible(false);
@@ -449,6 +682,19 @@ const InvoicesPage = () => {
 
   const handleCreateInvoiceFromJob = (job) => {
     console.log('📄 Creating invoice for job:', job);
+    
+    // Check if job is in PREINVOICED status
+    if (job.status !== 'PREINVOICED') {
+      message.warning('Only jobs with PREINVOICED status can be used to create invoices');
+      return;
+    }
+    
+    // Check if job already has an invoice
+    const existingInvoice = invoices.find(invoice => invoice.jobId === job.id);
+    if (existingInvoice) {
+      message.warning('An invoice already exists for this job');
+      return;
+    }
     
     // Get default values from configurations
     const defaultServiceCharge = configurations.SERVICE?.find(c => c.key === 'DEFAULT_SERVICE_CHARGE')?.value || '50';
@@ -550,7 +796,15 @@ const InvoicesPage = () => {
             type="primary" 
             icon={<PlusOutlined />} 
             onClick={() => handleCreateInvoiceFromJob(record)}
+            disabled={record.status !== 'PREINVOICED' || invoices.some(invoice => invoice.jobId === record.id)}
             size="small"
+            title={
+              record.status !== 'PREINVOICED' 
+                ? 'Only PREINVOICED jobs can be used to create invoices' 
+                : invoices.some(invoice => invoice.jobId === record.id)
+                ? 'Invoice already exists for this job'
+                : 'Create Invoice'
+            }
           >
             Create Invoice
           </Button>
@@ -611,7 +865,7 @@ const InvoicesPage = () => {
       key: 'status',
       render: (_, record) => (
         <Tag color={getStatusColor(record.status)}>
-          {getStatusIcon(record.status)} {record.status}
+          {record.status}
         </Tag>
       ),
     },
@@ -724,7 +978,7 @@ const InvoicesPage = () => {
           <Card>
             <Statistic
               title="Paid Invoices"
-              value={invoices.filter(i => i.status === 'paid').length}
+              value={invoices.filter(i => i.status === 'PAID').length}
               valueStyle={{ color: '#52c41a' }}
               prefix={<DollarOutlined />}
             />
@@ -733,20 +987,25 @@ const InvoicesPage = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Jobs with Invoices"
-              value={invoices.filter(invoice => invoice.jobId).length}
+              title="Pending Payment"
+              value={invoices.filter(i => i.status === 'PENDING').length}
               valueStyle={{ color: '#fa8c16' }}
-              prefix={<CheckCircleOutlined />}
+              prefix={<ClockCircleOutlined />}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Pending Invoicing"
-              value={jobs.length}
+              title="Overdue"
+              value={invoices.filter(i => {
+                if (i.status === 'PAID') return false;
+                const dueDate = new Date(i.dueDate);
+                const today = new Date();
+                return dueDate < today;
+              }).length}
               valueStyle={{ color: '#f5222d' }}
-              prefix={<ClockCircleOutlined />}
+              prefix={<ExclamationCircleOutlined />}
             />
           </Card>
         </Col>
@@ -801,7 +1060,7 @@ const InvoicesPage = () => {
               style={{ width: '100%' }}
               onChange={(date) => {
                 if (date) {
-                  const filtered = invoices.filter(i => new Date(i.invoiceDate) >= date.toDate());
+                  const filtered = invoices.filter(i => new Date(i.issueDate) >= dayjs(date).toDate());
                   setInvoices(filtered);
                 } else {
                   loadInvoices();
@@ -848,16 +1107,16 @@ const InvoicesPage = () => {
               children: (
                 <div>
                   {/* Jobs Table */}
-                  <Table
-                    columns={jobColumns}
-                    dataSource={jobs}
-                    loading={jobsLoading}
-                    rowKey="id"
+                    <Table
+                      columns={jobColumns}
+                      dataSource={jobs}
+                      loading={jobsLoading}
+                      rowKey="id"
                     pagination={{
                       pageSize: 10,
                       showSizeChanger: true,
                       showQuickJumper: true,
-                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} jobs`
+                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} PREINVOICED jobs`
                     }}
                     locale={{
                       emptyText: (
@@ -866,10 +1125,10 @@ const InvoicesPage = () => {
                           description={
                             <div>
                               <Text type="secondary" style={{ fontSize: '16px', marginBottom: '8px' }}>
-                                No jobs found
+                                No PREINVOICED jobs found
                               </Text>
                               <Text type="secondary" style={{ fontSize: '14px' }}>
-                                Jobs will appear here once they are created
+                                PREINVOICED jobs will appear here for invoice creation
                               </Text>
                             </div>
                           }
@@ -904,32 +1163,54 @@ const InvoicesPage = () => {
         extra={
           selectedInvoice && (
             <Space>
-              <Button 
-                icon={<EditOutlined />} 
-                onClick={() => {
-                  setIsModalVisible(false);
-                  handleEditInvoice(selectedInvoice);
-                }}
-              >
-                Edit
-              </Button>
-              <Button 
-                icon={<PrinterOutlined />} 
-                onClick={handlePrintInvoice}
-              >
-                Print
-              </Button>
+              {selectedInvoice.status === 'PENDING' && (
+                <Button 
+                  type="primary"
+                  icon={<CheckCircleOutlined />} 
+                  onClick={() => handleMarkAsPaid(selectedInvoice.id)}
+                >
+                  Mark as Paid
+                </Button>
+              )}
               <Dropdown
                 menu={{
                   items: [
                     {
+                      key: 'edit',
+                      label: selectedInvoice.status === 'PAID' ? 'Edit Invoice' : 'Edit Invoice',
+                      icon: <EditOutlined />,
+                      disabled: selectedInvoice.status === 'PAID',
+                      onClick: () => {
+                        if (selectedInvoice.status !== 'PAID') {
+                        setIsModalVisible(false);
+                        handleEditInvoice(selectedInvoice);
+                        } else {
+                          message.warning('Cannot edit paid invoices');
+                        }
+                      },
+                    },
+                    {
+                      key: 'print',
+                      label: 'Print Invoice',
+                      icon: <PrinterOutlined />,
+                      onClick: handlePrintInvoice,
+                    },
+                    {
+                      type: 'divider',
+                    },
+                    {
                       key: 'delete',
-                      label: 'Delete Invoice',
+                      label: selectedInvoice.status === 'PAID' ? 'Delete Invoice' : 'Delete Invoice',
                       icon: <DeleteOutlined />,
                       danger: true,
+                      disabled: selectedInvoice.status === 'PAID',
                       onClick: () => {
+                        if (selectedInvoice.status !== 'PAID') {
                         setIsModalVisible(false);
                         handleDeleteInvoice(selectedInvoice.id);
+                        } else {
+                          message.warning('Cannot delete paid invoices');
+                        }
                       },
                     },
                   ],
@@ -1219,43 +1500,59 @@ const InvoicesPage = () => {
               padding: '20px',
                     backgroundColor: '#fafafa'
                   }}>
-                    <Descriptions 
-                      column={1} 
-                      size="small"
-                      labelStyle={{ 
-                        width: '40%', 
-                        textAlign: 'left',
-                        fontWeight: '500'
-                      }}
-                      contentStyle={{ 
-                        width: '60%', 
-                        textAlign: 'right'
-                      }}
-                    >
-                      <Descriptions.Item label="Payment Date">
-                        {selectedInvoice.paymentDate ? new Date(selectedInvoice.paymentDate).toLocaleDateString('en-GB', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        }) : 'N/A'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Payment Method">
-                        <Text>{selectedInvoice.paymentMethod || 'N/A'}</Text>
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Transaction Reference">
-                        <Text>{selectedInvoice.transactionReference || 'N/A'}</Text>
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Amount Paid">
-                        <Text strong style={{ color: '#52c41a', fontSize: '16px' }}>
-                          GHS {(selectedInvoice.amount || 0).toFixed(2)}
-                        </Text>
-                      </Descriptions.Item>
-                      {selectedInvoice.paymentNotes && (
-                        <Descriptions.Item label="Payment Notes">
-                          <Text>{selectedInvoice.paymentNotes}</Text>
-                        </Descriptions.Item>
-                      )}
-                    </Descriptions>
+                    {selectedInvoice.payments && selectedInvoice.payments.length > 0 ? (
+                      selectedInvoice.payments.map((payment, index) => (
+                        <div key={payment.id || index} style={{ marginBottom: index < selectedInvoice.payments.length - 1 ? '20px' : '0' }}>
+                          {index > 0 && <Divider style={{ margin: '16px 0' }} />}
+                          <Descriptions 
+                            column={1} 
+                            size="small"
+                            labelStyle={{ 
+                              width: '40%', 
+                              textAlign: 'left',
+                              fontWeight: '500'
+                            }}
+                            contentStyle={{ 
+                              width: '60%', 
+                              textAlign: 'right'
+                            }}
+                          >
+                            <Descriptions.Item label="Payment Date">
+                              {payment.createdAt ? new Date(payment.createdAt).toLocaleDateString('en-GB', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              }) : 'N/A'}
+                            </Descriptions.Item>
+                            <Descriptions.Item label="Payment Method">
+                              <Text>{payment.paymentMethod || 'N/A'}</Text>
+                            </Descriptions.Item>
+                            <Descriptions.Item label="Transaction Reference">
+                              <Text>{payment.gatewayRef || 'N/A'}</Text>
+                            </Descriptions.Item>
+                            <Descriptions.Item label="Amount Paid">
+                              <Text strong style={{ color: '#52c41a', fontSize: '16px' }}>
+                                GHS {(payment.amount || 0).toFixed(2)}
+                              </Text>
+                            </Descriptions.Item>
+                            <Descriptions.Item label="Payer">
+                              <Text>{payment.payer || 'N/A'}</Text>
+                            </Descriptions.Item>
+                            {payment.receiptUrl && (
+                              <Descriptions.Item label="Receipt">
+                                <a href={payment.receiptUrl} target="_blank" rel="noopener noreferrer">
+                                  View Receipt
+                                </a>
+                              </Descriptions.Item>
+                            )}
+                          </Descriptions>
+            </div>
+                      ))
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+                        No payment details available
+          </div>
+                    )}
             </div>
                 )
               }] : [])
@@ -1282,8 +1579,12 @@ const InvoicesPage = () => {
           onFinish={handleCreateInvoice}
           onValuesChange={updateTotalAmount}
         >
-          {/* Job Selection */}
-          <Card size="small" title="Job Selection" style={{ marginBottom: 16 }}>
+          {/* Job Selection - Only for new invoices */}
+          {!editingInvoice && (
+            <Card size="small" title="Job Selection" style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: '12px', fontSize: '12px', color: '#666' }}>
+                Only jobs with PREINVOICED status are available for invoice creation
+              </div>
             <Form.Item
               name="jobId"
               label="Select Job to Create Invoice For"
@@ -1299,7 +1600,7 @@ const InvoicesPage = () => {
                   return searchText.indexOf(input.toLowerCase()) >= 0;
                 }}
                 loading={jobsLoading}
-                notFoundContent={jobsLoading ? 'Loading jobs...' : 'No jobs available for invoicing'}
+                notFoundContent={jobsLoading ? 'Loading jobs...' : 'No PREINVOICED jobs available for invoicing'}
                 onChange={(jobId) => {
                   console.log('🔍 Job selected:', jobId);
                   setSelectedJobId(jobId);
@@ -1348,10 +1649,18 @@ const InvoicesPage = () => {
               </Select>
             </Form.Item>
           </Card>
+          )}
 
-          {/* Job Information - Always show when job is selected */}
-          {form.getFieldValue('jobId') && (() => {
-            const selectedJob = jobs.find(job => job.id === form.getFieldValue('jobId'));
+          {/* Job Information - Show when job is selected or when editing */}
+          {(form.getFieldValue('jobId') || editingInvoice) && (() => {
+            const jobId = form.getFieldValue('jobId') || editingInvoice?.jobId;
+            let selectedJob = jobs.find(job => job.id === jobId);
+            
+            // If job not found in jobs array but we're editing, use job data from invoice
+            if (!selectedJob && editingInvoice?.job) {
+              selectedJob = editingInvoice.job;
+            }
+            
             console.log('🔍 Selected job:', selectedJob);
             return selectedJob ? (
               <Card size="small" title="Job Information" style={{ marginBottom: 16 }}>
@@ -1449,19 +1758,28 @@ const InvoicesPage = () => {
               </Card>
             ) : (
               <Card size="small" style={{ marginBottom: 16, textAlign: 'center', padding: '20px' }}>
-                <Text type="secondary">Please select a job to view details</Text>
+                <Text type="secondary">
+                  {editingInvoice ? 'Loading job details...' : 'Please select a job to view details'}
+                </Text>
               </Card>
             );
           })()}
 
 
-          {/* Invoice Details - Only show when job is selected */}
-          {selectedJobId && (
+          {/* Invoice Details - Show when job is selected or when editing */}
+          {(selectedJobId || editingInvoice) && (
             <Card size="small" title="Invoice Details" style={{ marginBottom: 16 }}>
             {/* Invoice Number - Auto-generated and read-only */}
-            {form.getFieldValue('jobId') && (() => {
-              const selectedJob = jobs.find(job => job.id === form.getFieldValue('jobId'));
-              const invoiceNumber = selectedJob ? `INV-${selectedJob.trackingId}` : '';
+            {(form.getFieldValue('jobId') || editingInvoice) && (() => {
+              const jobId = form.getFieldValue('jobId') || editingInvoice?.jobId;
+              let selectedJob = jobs.find(job => job.id === jobId);
+              
+              // If job not found in jobs array but we're editing, use job data from invoice
+              if (!selectedJob && editingInvoice?.job) {
+                selectedJob = editingInvoice.job;
+              }
+              
+              const invoiceNumber = selectedJob ? `INV-${selectedJob.trackingId}` : (editingInvoice?.invoiceNumber || '');
               return (
                 <Row gutter={16} style={{ marginBottom: 16 }}>
                   <Col span={12}>
@@ -1659,14 +1977,13 @@ const InvoicesPage = () => {
               <Form.Item
                   name="status"
                   label="Invoice Status"
-                  initialValue="DRAFT"
+                  initialValue="PENDING"
                 >
                   <Select>
-                    <Option value="DRAFT">Draft</Option>
                     <Option value="PENDING">Pending</Option>
                     <Option value="PAID">Paid</Option>
                   </Select>
-              </Form.Item>
+                </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item

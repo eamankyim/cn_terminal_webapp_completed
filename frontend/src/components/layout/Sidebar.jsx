@@ -5,7 +5,6 @@ import {
   DashboardOutlined,
   FileAddOutlined,
   UserOutlined,
-  SearchOutlined,
   DollarOutlined,
   HomeOutlined,
   SettingOutlined,
@@ -13,8 +12,6 @@ import {
   ContainerOutlined,
   FileTextOutlined,
   CheckCircleOutlined,
-  FolderOutlined,
-  CalculatorOutlined,
   GlobalOutlined,
 } from '@ant-design/icons';
 import './Sidebar.css';
@@ -49,21 +46,6 @@ const Sidebar = ({ collapsed }) => {
       key: '/invoices',
       icon: <FileTextOutlined />,
       label: 'Invoices',
-    },
-    {
-      key: '/duty-calculator',
-      icon: <CalculatorOutlined />,
-      label: 'Duty Calculator',
-    },
-    {
-      key: '/tracking',
-      icon: <SearchOutlined />,
-      label: 'Tracking',
-    },
-    {
-      key: '/files',
-      icon: <FolderOutlined />,
-      label: 'File Management',
     },
     {
       key: '/reports',

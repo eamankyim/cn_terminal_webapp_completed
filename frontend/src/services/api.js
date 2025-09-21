@@ -316,6 +316,9 @@ class ApiService {
     return this.get('/invoices/jobs', { search });
   }
 
+  async createPayment(invoiceId, paymentData) {
+    return this.post(`/invoices/${invoiceId}/payments`, paymentData);
+  }
 
   // Public tracking endpoint (no authentication required)
   async trackPackage(trackingId) {

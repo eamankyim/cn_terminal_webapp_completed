@@ -24,6 +24,7 @@ model User {
   assignedJobs    Job[]        @relation("AssignedJobs")
   statusHistory   JobStatusHistory[] @relation("StatusHistory")
   createdPayments Payment[]
+  notifications   Notification[]
 
   @@map("users")
 }
@@ -96,6 +97,7 @@ model Job {
   invoices       Invoice[]
   documents      JobDocument[]
   statusHistory  JobStatusHistory[]
+  notifications  Notification[]
   consignment    Consignment?       @relation(fields: [consignmentId], references: [id])
   createdBy      User               @relation("CreatedJobs", fields: [createdById], references: [id])
   customer       Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -196,6 +198,7 @@ model Invoice {
   job                   Job            @relation(fields: [jobId], references: [id])
   shipment              Shipment?      @relation(fields: [shipmentId], references: [id])
   payments              Payment[]
+  notifications         Notification[]
 
   @@map("invoices")
 }
@@ -216,6 +219,7 @@ model Payment {
   updatedAt     DateTime      @updatedAt
   createdBy     User          @relation(fields: [createdById], references: [id])
   invoice       Invoice?      @relation(fields: [invoiceId], references: [id])
+  notifications Notification[]
 
   @@map("payments")
 }
@@ -362,4 +366,51 @@ enum ConfigType {
   JSON
   CURRENCY
   PERCENTAGE
+}
+
+model Notification {
+  id          String             @id @default(cuid())
+  title       String
+  message     String
+  type        NotificationType   @default(INFO)
+  category    NotificationCategory
+  isRead      Boolean            @default(false)
+  userId      String?
+  jobId       String?
+  invoiceId   String?
+  paymentId   String?
+  metadata    Json?              // Additional data for the notification
+  createdAt   DateTime           @default(now())
+  readAt      DateTime?
+  expiresAt   DateTime?
+  user        User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job         Job?               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  invoice     Invoice?           @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  payment     Payment?           @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+  URGENT
+}
+
+enum NotificationCategory {
+  JOB_ASSIGNMENT
+  JOB_STATUS_CHANGE
+  JOB_CREATED
+  JOB_UPDATED
+  INVOICE_CREATED
+  INVOICE_STATUS_CHANGE
+  PAYMENT_RECEIVED
+  PAYMENT_FAILED
+  USER_INVITATION
+  ROLE_ASSIGNMENT
+  SYSTEM_ALERT
+  CUSTOMER_UPDATE
+  DELIVERY_SCHEDULED
 }

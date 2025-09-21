@@ -29,6 +29,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const reportsRoutes = require('./routes/reports');
 const fileRoutes = require('./routes/files');
 const configurationRoutes = require('./routes/configurations');
+const notificationRoutes = require('./routes/notifications');
 
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
@@ -51,6 +52,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/configurations', configurationRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 /**
  * @swagger

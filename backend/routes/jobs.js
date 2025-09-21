@@ -1,6 +1,7 @@
 const express = require('express');
 const { prisma } = require('../config/database');
 const { authenticateToken, requireStaff } = require('../middleware/auth');
+const NotificationService = require('../services/notificationService');
 
 const router = express.Router();
 
@@ -654,6 +655,33 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
     });
     console.log('✅ Status history created');
 
+    // Create notifications for job creation and assignment
+    try {
+      // Notify the assigned user about the new job
+      await NotificationService.notifyJobAssignment(job.id, job.assignedToId, req.user.id);
+      console.log('📢 Job assignment notification created');
+
+      // Notify all staff about new job creation (optional - for visibility)
+      await NotificationService.createNotification({
+        title: 'New Job Created',
+        message: `New job ${job.trackingId} has been created for ${job.customer.name}`,
+        type: 'INFO',
+        category: 'JOB_CREATED',
+        userId: req.user.id,
+        jobId: job.id,
+        metadata: {
+          jobTrackingId: job.trackingId,
+          customerName: job.customer.name,
+          assignedTo: job.assignedToId,
+          createdBy: req.user.name
+        }
+      });
+      console.log('📢 Job creation notification created');
+    } catch (notificationError) {
+      console.error('⚠️ Failed to create job notifications:', notificationError);
+      // Don't fail the job creation if notifications fail
+    }
+
     console.log('🎉 Job creation completed successfully');
     console.log('='.repeat(60) + '\n');
 
@@ -895,6 +923,48 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
       return res.status(404).json({ error: 'Job not found' });
     }
 
+    // Status hierarchy validation - jobs can only progress forward
+    const STATUS_HIERARCHY = {
+      'NEW': 1,
+      'PREINVOICED': 2,
+      'INVOICED': 3,      // Auto-set only when invoice is created
+      'ENTRY': 4,
+      'RELEASE': 5,
+      'CLEARED': 6,
+      'DELIVERED': 7      // Final status - no further changes
+    };
+
+    const currentLevel = STATUS_HIERARCHY[existingJob.status];
+    const newLevel = STATUS_HIERARCHY[status];
+
+    // Validate status exists in hierarchy
+    if (!currentLevel || !newLevel) {
+      return res.status(400).json({ 
+        error: 'Invalid status provided' 
+      });
+    }
+
+    // Validate forward progression only
+    if (newLevel <= currentLevel) {
+      return res.status(400).json({ 
+        error: 'Jobs can only progress forward in the workflow. Cannot move to previous or same status.' 
+      });
+    }
+
+    // INVOICED can only be set automatically (not manually)
+    if (status === 'INVOICED') {
+      return res.status(400).json({ 
+        error: 'INVOICED status can only be set automatically when an invoice is created' 
+      });
+    }
+
+    // DELIVERED is final status - no further changes allowed
+    if (existingJob.status === 'DELIVERED') {
+      return res.status(400).json({ 
+        error: 'Cannot update status of delivered jobs' 
+      });
+    }
+
     // Prepare update data
     const updateData = {
       status,
@@ -997,6 +1067,20 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
     });
 
     console.log('🔍 Complete job ETA:', completeJob?.eta);
+
+    // Create notification for job status change
+    try {
+      await NotificationService.notifyJobStatusChange(
+        id, 
+        existingJob.status, 
+        status, 
+        req.user.id
+      );
+      console.log('📢 Job status change notification created');
+    } catch (notificationError) {
+      console.error('⚠️ Failed to create job status change notification:', notificationError);
+      // Don't fail the status update if notification fails
+    }
 
     res.json({
       message: 'Job status updated successfully',
