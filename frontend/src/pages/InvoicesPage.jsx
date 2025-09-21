@@ -45,7 +45,8 @@ import {
   ShoppingCartOutlined,
   CalculatorOutlined,
   InfoCircleOutlined,
-  PrinterOutlined
+  PrinterOutlined,
+  ShareAltOutlined
 } from '@ant-design/icons';
 import invoiceService from '../services/invoiceService';
 import jobService from '../services/jobService';
@@ -63,6 +64,7 @@ const InvoicesPage = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState(null);
+  const [isPrintModalVisible, setIsPrintModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [invoices, setInvoices] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -269,10 +271,98 @@ const InvoicesPage = () => {
       // Fetch full invoice details from the API
       const response = await invoiceService.getInvoice(invoice.id);
       setSelectedInvoice(response); // response is already the invoice object
-      setIsModalVisible(true);
+    setIsModalVisible(true);
     } catch (error) {
       console.error('Error fetching invoice details:', error);
       message.error('Failed to load invoice details');
+    }
+  };
+
+  const handlePrintInvoice = () => {
+    setIsPrintModalVisible(true);
+  };
+
+  const handlePrint = () => {
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    const invoiceContent = document.getElementById('invoice-print');
+    
+    if (printWindow && invoiceContent) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Invoice ${selectedInvoice?.invoiceNumber || ''}</title>
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              font-family: Arial, sans-serif;
+              background: white;
+              visibility: hidden;
+            }
+            @media print {
+              body {
+                visibility: visible !important;
+              }
+            }
+            @page {
+              margin: 0.5in;
+              size: A4;
+            }
+            * {
+              -webkit-print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+          </style>
+          <script>
+            // Maximize the window when it loads
+            window.onload = function() {
+              if (window.screen) {
+                window.moveTo(0, 0);
+                window.resizeTo(screen.availWidth, screen.availHeight);
+              }
+            };
+          </script>
+        </head>
+        <body>
+          ${invoiceContent.outerHTML}
+        </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+      
+      // Hide the window content and print immediately
+      printWindow.onload = () => {
+        // Maximize the window
+        if (printWindow.screen) {
+          printWindow.moveTo(0, 0);
+          printWindow.resizeTo(printWindow.screen.availWidth, printWindow.screen.availHeight);
+        }
+        
+        printWindow.focus();
+        printWindow.print();
+        // Close after a short delay to allow print dialog to appear
+        setTimeout(() => {
+          printWindow.close();
+        }, 1000);
+      };
+    } else {
+      // Fallback to regular print
+      window.print();
+    }
+  };
+
+  const handleShareInvoice = () => {
+    if (selectedInvoice?.customer?.email) {
+      const subject = `Invoice ${selectedInvoice.invoiceNumber} - CN Terminal`;
+      const body = `Dear ${selectedInvoice.customer.name},\n\nPlease find attached your invoice for the services provided.\n\nInvoice Number: ${selectedInvoice.invoiceNumber}\nAmount: GHS ${(selectedInvoice.amount || 0).toFixed(2)}\nDue Date: ${selectedInvoice.dueDate ? new Date(selectedInvoice.dueDate).toLocaleDateString('en-GB') : 'N/A'}\n\nThank you for choosing CN Terminal for your terminal services.\n\nBest regards,\nCN Terminal Team`;
+      
+      const mailtoLink = `mailto:${selectedInvoice.customer.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.open(mailtoLink);
+    } else {
+      message.error('Customer email not available for sharing');
     }
   };
 
@@ -543,6 +633,62 @@ const InvoicesPage = () => {
 
   return (
     <div style={{ padding: '24px' }}>
+      <style>
+        {`
+          @media print {
+            /* Hide everything by default */
+            * {
+              visibility: hidden;
+            }
+            
+            /* Show only the invoice content */
+            #invoice-print,
+            #invoice-print * {
+              visibility: visible !important;
+            }
+            
+            /* Position the invoice at the top */
+            #invoice-print {
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 100% !important;
+              height: auto !important;
+              margin: 0 !important;
+              padding: 20px !important;
+              background: white !important;
+              z-index: 9999 !important;
+            }
+            
+            /* Hide modal and other elements */
+            .ant-modal,
+            .ant-modal-mask,
+            .ant-modal-wrap {
+              display: none !important;
+            }
+            
+            /* Page settings */
+            @page {
+              margin: 0.5in;
+              size: A4;
+            }
+            
+            /* Ensure colors print correctly */
+            * {
+              -webkit-print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+            
+            /* Hide browser UI elements */
+            @media print {
+              body {
+                margin: 0 !important;
+                padding: 0 !important;
+              }
+            }
+          }
+        `}
+      </style>
       <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <Title level={2}>Invoice Management</Title>
@@ -769,7 +915,7 @@ const InvoicesPage = () => {
               </Button>
               <Button 
                 icon={<PrinterOutlined />} 
-                onClick={() => window.print()}
+                onClick={handlePrintInvoice}
               >
                 Print
               </Button>
@@ -1557,6 +1703,386 @@ const InvoicesPage = () => {
             </Space>
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Print Invoice Modal */}
+      <Modal
+        title="Invoice Preview"
+        open={isPrintModalVisible}
+        onCancel={() => setIsPrintModalVisible(false)}
+        width={800}
+        footer={[
+          <Button key="share" icon={<ShareAltOutlined />} onClick={handleShareInvoice}>
+            Share via Email
+          </Button>,
+          <Button key="print" type="primary" icon={<PrinterOutlined />} onClick={handlePrint}>
+            Print Invoice
+          </Button>
+        ]}
+        style={{ top: 20 }}
+      >
+        {selectedInvoice && (
+          <div id="invoice-print" style={{ 
+            backgroundColor: 'white', 
+            padding: '20px',
+            fontFamily: 'Arial, sans-serif',
+            lineHeight: '1.4',
+            color: '#000',
+            fontSize: '12px'
+          }}>
+            {/* Company Header */}
+            <div style={{ 
+              backgroundColor: '#00072D',
+              color: 'white',
+              padding: '20px',
+              marginBottom: '20px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '20px'
+            }}>
+              {/* Logo */}
+              <img 
+                src="/cn_logo.png" 
+                alt="CN Terminal" 
+                style={{ 
+                  width: '60px', 
+                  height: '60px',
+                  objectFit: 'cover',
+                  borderRadius: '8px'
+                }} 
+              />
+              
+              {/* Company Info */}
+              <div style={{ flex: 1 }}>
+                <h1 style={{ 
+                  color: 'white', 
+                  fontSize: '28px', 
+                  margin: '0 0 5px 0',
+                  fontWeight: 'bold'
+                }}>
+                  CN TERMINAL
+                </h1>
+                <p style={{ 
+                  color: '#d9d9d9', 
+                  fontSize: '14px', 
+                  margin: '0 0 3px 0' 
+                }}>
+                  Professional Terminal Services
+                </p>
+                <p style={{ 
+                  color: '#bfbfbf', 
+                  fontSize: '12px', 
+                  margin: '0' 
+                }}>
+                  Accra, Ghana | +233 123 456 789 | info@cnterminal.com
+                </p>
+              </div>
+            </div>
+
+            {/* Invoice Header */}
+            <div style={{ 
+              marginBottom: '15px'
+            }}>
+              <h2 style={{ 
+                color: '#333', 
+                fontSize: '20px', 
+                margin: '0 0 5px 0',
+                fontWeight: 'bold'
+              }}>
+                INVOICE
+              </h2>
+              <p style={{ margin: '0 0 2px 0', color: '#666', fontSize: '12px' }}>
+                Invoice #: {selectedInvoice.invoiceNumber}
+              </p>
+              <p style={{ margin: '0 0 2px 0', color: '#666', fontSize: '12px' }}>
+                Date: {selectedInvoice.issueDate ? new Date(selectedInvoice.issueDate).toLocaleDateString('en-GB') : 'N/A'}
+              </p>
+              <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>
+                Due Date: {selectedInvoice.dueDate ? new Date(selectedInvoice.dueDate).toLocaleDateString('en-GB') : 'N/A'}
+              </p>
+            </div>
+
+            {/* Bill To Section */}
+            <div style={{ marginBottom: '15px' }}>
+              <h3 style={{ 
+                color: '#333', 
+                fontSize: '14px', 
+                margin: '0 0 8px 0',
+                borderBottom: '1px solid #333',
+                paddingBottom: '3px'
+              }}>
+                BILL TO
+              </h3>
+              <div style={{ 
+                backgroundColor: '#f9f9f9', 
+                padding: '10px', 
+                borderRadius: '4px',
+                border: '1px solid #e0e0e0'
+              }}>
+                <p style={{ margin: '0 0 3px 0', fontSize: '14px', fontWeight: 'bold' }}>
+                  {selectedInvoice.customer?.name || 'N/A'}
+                </p>
+                <p style={{ margin: '0 0 2px 0', color: '#666', fontSize: '12px' }}>
+                  {selectedInvoice.customer?.email || 'N/A'}
+                </p>
+                <p style={{ margin: '0 0 2px 0', color: '#666', fontSize: '12px' }}>
+                  {selectedInvoice.customer?.phone || 'N/A'}
+                </p>
+                <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>
+                  {selectedInvoice.customer?.address || 'N/A'}
+                </p>
+                {selectedInvoice.customer?.city && (
+                  <p style={{ margin: '2px 0 0 0', color: '#666', fontSize: '12px' }}>
+                    {selectedInvoice.customer.city}, {selectedInvoice.customer.country || 'Ghana'}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Job Information Section */}
+            <div style={{ marginBottom: '15px' }}>
+              <h3 style={{ 
+                color: '#333', 
+                fontSize: '14px', 
+                margin: '0 0 8px 0',
+                borderBottom: '1px solid #333',
+                paddingBottom: '3px'
+              }}>
+                JOB INFORMATION
+              </h3>
+              <div style={{ 
+                backgroundColor: '#f9f9f9', 
+                padding: '10px', 
+                borderRadius: '4px',
+                border: '1px solid #e0e0e0'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div>
+                    <p style={{ margin: '0 0 2px 0', fontWeight: 'bold', fontSize: '12px' }}>Job ID</p>
+                    <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>
+                      {selectedInvoice.job?.trackingId || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 2px 0', fontWeight: 'bold', fontSize: '12px' }}>Goods Types</p>
+                    <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>
+                      {selectedInvoice.job?.goodsTypes?.join(', ') || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 2px 0', fontWeight: 'bold', fontSize: '12px' }}>Status</p>
+                    <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>
+                      {selectedInvoice.job?.status || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+                {selectedInvoice.job?.consignment && (
+                  <div style={{ borderTop: '1px solid #e0e0e0', paddingTop: '8px' }}>
+                    <p style={{ margin: '0 0 5px 0', fontWeight: 'bold', fontSize: '12px' }}>Consignee Details</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <div>
+                        <p style={{ margin: '0 0 2px 0', fontWeight: 'bold', fontSize: '12px' }}>Name</p>
+                        <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>
+                          {selectedInvoice.job.consignment.consigneeName || 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <p style={{ margin: '0 0 2px 0', fontWeight: 'bold', fontSize: '12px' }}>Phone</p>
+                        <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>
+                          {selectedInvoice.job.consignment.consigneePhone || 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <p style={{ margin: '0 0 2px 0', fontWeight: 'bold', fontSize: '12px' }}>Address</p>
+                        <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>
+                          {selectedInvoice.job.consignment.consigneeAddress || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Charges Breakdown */}
+            <div style={{ marginBottom: '15px' }}>
+              <h3 style={{ 
+                color: '#333', 
+                fontSize: '14px', 
+                margin: '0 0 8px 0',
+                borderBottom: '1px solid #333',
+                paddingBottom: '3px'
+              }}>
+                CHARGES BREAKDOWN
+              </h3>
+              <div style={{ 
+                border: '1px solid #e0e0e0',
+                borderRadius: '4px',
+                overflow: 'hidden'
+              }}>
+                <table style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse',
+                  fontSize: '12px'
+                }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f5f5f5' }}>
+                      <th style={{ 
+                        padding: '8px', 
+                        textAlign: 'left', 
+                        borderBottom: '1px solid #e0e0e0',
+                        fontWeight: 'bold'
+                      }}>
+                        Description
+                      </th>
+                      <th style={{ 
+                        padding: '8px', 
+                        textAlign: 'right', 
+                        borderBottom: '1px solid #e0e0e0',
+                        fontWeight: 'bold'
+                      }}>
+                        Amount (GHS)
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                        Custom Duty
+                      </td>
+                      <td style={{ 
+                        padding: '6px 8px', 
+                        textAlign: 'right', 
+                        borderBottom: '1px solid #f0f0f0',
+                        fontWeight: 'bold'
+                      }}>
+                        {(selectedInvoice.charges?.customDuty || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                        Shipping Charges
+                      </td>
+                      <td style={{ 
+                        padding: '6px 8px', 
+                        textAlign: 'right', 
+                        borderBottom: '1px solid #f0f0f0',
+                        fontWeight: 'bold'
+                      }}>
+                        {(selectedInvoice.charges?.shippingCharges || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                        Terminal Charges
+                      </td>
+                      <td style={{ 
+                        padding: '6px 8px', 
+                        textAlign: 'right', 
+                        borderBottom: '1px solid #f0f0f0',
+                        fontWeight: 'bold'
+                      }}>
+                        {(selectedInvoice.charges?.terminalCharges || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                        Miscellaneous
+                      </td>
+                      <td style={{ 
+                        padding: '6px 8px', 
+                        textAlign: 'right', 
+                        borderBottom: '1px solid #f0f0f0',
+                        fontWeight: 'bold'
+                      }}>
+                        {(selectedInvoice.charges?.miscellaneous || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                        Clearance Charges
+                      </td>
+                      <td style={{ 
+                        padding: '6px 8px', 
+                        textAlign: 'right', 
+                        borderBottom: '1px solid #f0f0f0',
+                        fontWeight: 'bold'
+                      }}>
+                        {(selectedInvoice.charges?.clearanceCharges || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                        Service Charge
+                      </td>
+                      <td style={{ 
+                        padding: '6px 8px', 
+                        textAlign: 'right', 
+                        borderBottom: '1px solid #f0f0f0',
+                        fontWeight: 'bold'
+                      }}>
+                        {(selectedInvoice.charges?.serviceCharge || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                    <tr style={{ backgroundColor: '#f9f9f9' }}>
+                      <td style={{ 
+                        padding: '6px 8px', 
+                        borderBottom: '1px solid #e0e0e0',
+                        fontWeight: 'bold'
+                      }}>
+                        VAT (15%)
+                      </td>
+                      <td style={{ 
+                        padding: '6px 8px', 
+                        textAlign: 'right', 
+                        borderBottom: '1px solid #e0e0e0',
+                        fontWeight: 'bold',
+                        color: '#333'
+                      }}>
+                        {(selectedInvoice.charges?.vat || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                    <tr style={{ backgroundColor: '#00072D', color: 'white' }}>
+                      <td style={{ 
+                        padding: '10px 8px', 
+                        fontWeight: 'bold',
+                        fontSize: '14px'
+                      }}>
+                        TOTAL AMOUNT
+                      </td>
+                      <td style={{ 
+                        padding: '10px 8px', 
+                        textAlign: 'right', 
+                        fontWeight: 'bold',
+                        fontSize: '16px'
+                      }}>
+                        {(selectedInvoice.amount || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+
+            {/* Footer */}
+            <div style={{ 
+              textAlign: 'center', 
+              marginTop: '20px',
+              paddingTop: '10px',
+              borderTop: '1px solid #333',
+              color: '#666'
+            }}>
+              <p style={{ margin: '0 0 3px 0', fontSize: '12px' }}>
+                Thank you for choosing CN Terminal for your terminal services
+              </p>
+              <p style={{ margin: '0', fontSize: '10px' }}>
+                For any inquiries, please contact us at info@cnterminal.com or +233 123 456 789
+              </p>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
