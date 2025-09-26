@@ -73,8 +73,12 @@ export const NotificationProvider = ({ children }) => {
   // Mark all notifications as read
   const markAllAsRead = async () => {
     try {
+      console.log('🔄 NotificationContext: Marking all notifications as read...');
       const response = await notificationService.markAllAsRead();
+      console.log('📡 NotificationContext: API response:', response);
+      
       if (response.success) {
+        console.log('✅ NotificationContext: Updating local state...');
         setNotifications(prev => 
           prev.map(notification => ({
             ...notification,
@@ -83,9 +87,12 @@ export const NotificationProvider = ({ children }) => {
           }))
         );
         setUnreadCount(0);
+        console.log('✅ NotificationContext: Local state updated');
+      } else {
+        console.error('❌ NotificationContext: API returned success: false', response);
       }
     } catch (error) {
-      console.error('Error marking all notifications as read:', error);
+      console.error('❌ NotificationContext: Error marking all notifications as read:', error);
     }
   };
 

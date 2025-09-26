@@ -3,10 +3,13 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpecs = require('./config/swagger');
-const { prisma } = require('./config/database');
+const { prisma, testConnection } = require('./config/database');
 
 // Load environment variables
 dotenv.config();
+
+// Test database connection on startup
+testConnection();
 
 const app = express();
 
@@ -30,6 +33,10 @@ const reportsRoutes = require('./routes/reports');
 const fileRoutes = require('./routes/files');
 const configurationRoutes = require('./routes/configurations');
 const notificationRoutes = require('./routes/notifications');
+const roleRoutes = require('./routes/roles');
+const expenseRoutes = require('./routes/expenses');
+const payoutRoutes = require('./routes/payouts');
+const cashflowRoutes = require('./routes/cashflow');
 
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
@@ -53,6 +60,23 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/configurations', configurationRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/roles', roleRoutes);
+console.log('🔧 Registering accounting routes...');
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/payouts', payoutRoutes);
+app.use('/api/cashflow', cashflowRoutes);
+console.log('✅ Accounting routes registered successfully');
+
+// Add catch-all route for debugging
+app.use('/api/*', (req, res, next) => {
+  console.log('🚨 UNMATCHED ROUTE:', req.method, req.originalUrl);
+  console.log('🚨 Available routes should include:', [
+    '/api/expenses/stats/summary',
+    '/api/payouts/stats/summary', 
+    '/api/cashflow/summary'
+  ]);
+  next();
+});
 
 /**
  * @swagger

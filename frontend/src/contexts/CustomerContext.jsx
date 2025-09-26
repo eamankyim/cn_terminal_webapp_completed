@@ -17,8 +17,6 @@ export const CustomerProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const { isAuthenticated } = useAuth();
 
-  // Initial customers data - will be replaced with API call
-  const initialCustomers = [];
 
   // Load customers when authenticated
   useEffect(() => {
@@ -37,8 +35,8 @@ export const CustomerProvider = ({ children }) => {
       setCustomers(response.customers || []);
     } catch (error) {
       console.error('Failed to load customers:', error);
-      // Fallback to mock data if API fails
-      setCustomers(initialCustomers);
+      // Set empty array if API fails
+      setCustomers([]);
     } finally {
       setLoading(false);
     }

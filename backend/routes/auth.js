@@ -3,7 +3,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { prisma } = require('../config/database');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, requireAdminOrIT, PERMISSIONS } = require('../middleware/auth');
+const { validatePassword } = require('../utils/passwordValidation');
 
 const router = express.Router();
 
@@ -77,26 +78,63 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    console.log('\n' + '='.repeat(80));
+    console.log('🔐 LOGIN ATTEMPT');
+    console.log('='.repeat(80));
+    console.log('📧 Email:', email);
+    console.log('🔒 Password length:', password ? password.length : 'MISSING');
+    console.log('⏰ Time:', new Date().toISOString());
+    console.log('='.repeat(80));
+
     if (!email || !password) {
+      console.log('❌ Missing email or password');
+      console.log('='.repeat(80) + '\n');
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
     // Find user by email
+    console.log('🔍 Searching for user with email:', email);
     const user = await prisma.user.findUnique({
       where: { email }
     });
 
-    if (!user || !user.isActive) {
+    if (!user) {
+      console.log('❌ User not found in database');
+      console.log('='.repeat(80) + '\n');
+      return res.status(401).json({ error: 'Invalid credentials or inactive user' });
+    }
+
+    console.log('✅ User found:', {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      createdAt: user.createdAt
+    });
+
+    if (!user.isActive) {
+      console.log('❌ User is inactive');
+      console.log('='.repeat(80) + '\n');
       return res.status(401).json({ error: 'Invalid credentials or inactive user' });
     }
 
     // Check password
+    console.log('🔐 Checking password...');
+    console.log('🔒 Stored password hash length:', user.password.length);
+    console.log('🔒 Stored password hash preview:', user.password.substring(0, 20) + '...');
+    
     const isValidPassword = await bcrypt.compare(password, user.password);
+    console.log('🔐 Password comparison result:', isValidPassword);
+    
     if (!isValidPassword) {
+      console.log('❌ Password does not match');
+      console.log('='.repeat(80) + '\n');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     // Create JWT token
+    console.log('🎫 Creating JWT token...');
     const token = jwt.sign(
       { 
         userId: user.id, 
@@ -106,6 +144,18 @@ router.post('/login', async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
+
+    console.log('✅ Login successful!');
+    console.log('🎫 Token created (length):', token.length);
+    console.log('👤 User data:', {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role
+    });
+    console.log('='.repeat(80));
+    console.log('🎉 LOGIN SUCCESSFUL');
+    console.log('='.repeat(80) + '\n');
 
     // Return user data (without password) and token
     const { password: _, ...userData } = user;
@@ -150,11 +200,13 @@ router.post('/login', async (req, res) => {
  *                 example: john.doe@cnterminal.com
  *               password:
  *                 type: string
- *                 description: User's password
- *                 example: password123
+ *                 minLength: 8
+ *                 pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)"
+ *                 description: User's password (must be at least 8 characters with uppercase, lowercase, and number)
+ *                 example: Password123
  *               role:
  *                 type: string
- *                 enum: [ADMIN, STAFF, DRIVER, WAREHOUSE]
+ *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, RELEASE_OFFICER, REVIEW_OFFICER, INVOICE_OFFICER, CLEARING_OFFICER, STAFF]
  *                 default: STAFF
  *                 description: User's role in the system
  *                 example: STAFF
@@ -189,12 +241,27 @@ router.post('/login', async (req, res) => {
  *         description: Internal server error
  */
 // Register route (admin only)
-router.post('/register', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/register', authenticateToken, requireAdminOrIT, async (req, res) => {
   try {
     const { name, email, password, role = 'STAFF' } = req.body;
+    
+    // Validate role
+    const validRoles = ['ADMIN', 'IT_CONSULTANT', 'ENQUIRY_OFFICER', 'RELEASE_OFFICER', 'REVIEW_OFFICER', 'INVOICE_OFFICER', 'CLEARING_OFFICER', 'STAFF'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ error: 'Invalid role specified' });
+    }
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email, and password are required' });
+    }
+
+    // Validate password strength
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({ 
+        error: 'Password validation failed',
+        details: passwordValidation.errors
+      });
     }
 
     // Check if user already exists
@@ -392,8 +459,10 @@ router.put('/profile', authenticateToken, async (req, res) => {
  *                 example: oldpassword123
  *               newPassword:
  *                 type: string
- *                 description: New password
- *                 example: newpassword123
+ *                 minLength: 8
+ *                 pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)"
+ *                 description: New password (must be at least 8 characters with uppercase, lowercase, and number)
+ *                 example: NewPassword123
  *     responses:
  *       200:
  *         description: Password changed successfully
@@ -419,6 +488,15 @@ router.put('/change-password', authenticateToken, async (req, res) => {
 
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+
+    // Validate new password strength
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({ 
+        error: 'New password validation failed',
+        details: passwordValidation.errors
+      });
     }
 
     // Get user with password
@@ -613,7 +691,7 @@ router.put('/users/:id/status', authenticateToken, requireAdmin, async (req, res
  *                 example: john@example.com
  *               role:
  *                 type: string
- *                 enum: [ADMIN, STAFF, DRIVER, WAREHOUSE]
+ *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, RELEASE_OFFICER, REVIEW_OFFICER, INVOICE_OFFICER, CLEARING_OFFICER, STAFF]
  *                 description: User's role
  *                 example: STAFF
  *               isActive:
@@ -843,12 +921,37 @@ router.post('/forgot-password', async (req, res) => {
     const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
     
     console.log('\n' + '='.repeat(80));
-    console.log('🔐 PASSWORD RESET LINK GENERATED');
+    console.log('🔐 🔑 PASSWORD RESET LINK GENERATED 🔑');
     console.log('='.repeat(80));
-    console.log(`👤 User: ${user.name} (${user.email})`);
-    console.log(`⏰ Expires: ${expiresAt.toLocaleString()}`);
-    console.log(`🔗 Reset Link: ${resetLink}`);
+    console.log('🔐 🔗 PASSWORD RESET LINK (COPY THIS):');
+    console.log('🔐 ' + resetLink);
+    console.log('🔐 👤 User:', user.name, `(${user.email})`);
+    console.log('🔐 🎭 Role:', user.role);
+    console.log('🔐 ⏰ Expires:', expiresAt.toLocaleString());
+    console.log('🔐 🆔 Token ID:', resetToken.substring(0, 8) + '...');
     console.log('='.repeat(80));
+    console.log('🔐 💡 TIP: Copy the link above and paste it in your browser to reset password');
+    console.log('='.repeat(80) + '\n');
+    
+    // Also write to the same log file as invitations
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const logFile = path.join(__dirname, '..', 'invitation-links.txt');
+      
+      // Create header if file doesn't exist
+      if (!fs.existsSync(logFile)) {
+        const header = `CN TERMINAL - INVITATION & PASSWORD RESET LINKS LOG\nCreated: ${new Date().toISOString()}\n${'='.repeat(80)}\n\n`;
+        fs.writeFileSync(logFile, header);
+      }
+      
+      const logEntry = `🔑 PASSWORD RESET REQUEST - ${new Date().toISOString()}\n${'='.repeat(60)}\n🔗 RESET LINK: ${resetLink}\n👤 User: ${user.name} (${user.email})\n🎭 Role: ${user.role}\n⏰ Expires: ${expiresAt.toLocaleString()}\n🆔 Token: ${resetToken.substring(0, 8)}...\n${'='.repeat(60)}\n\n`;
+      fs.appendFileSync(logFile, logEntry);
+      console.log('🔐 💾 Password reset link saved to: invitation-links.txt');
+      console.log('🔐 📁 File location:', logFile);
+    } catch (fileError) {
+      console.log('🔐 ⚠️ Could not save to file:', fileError.message);
+    }
     console.log('📧 In production, this link would be sent via email to the user');
     console.log('='.repeat(80) + '\n');
 
@@ -886,9 +989,10 @@ router.post('/forgot-password', async (req, res) => {
  *                 example: abc123def456...
  *               password:
  *                 type: string
- *                 minLength: 6
- *                 description: New password
- *                 example: newpassword123
+ *                 minLength: 8
+ *                 pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)"
+ *                 description: New password (must be at least 8 characters with uppercase, lowercase, and number)
+ *                 example: NewPassword123
  *     responses:
  *       200:
  *         description: Password reset successfully
@@ -923,10 +1027,15 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Token and password are required' });
     }
 
-    if (password.length < 6) {
-      console.log('❌ Error: Password too short');
+    // Validate password strength
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      console.log('❌ Password validation failed:', passwordValidation.errors);
       console.log('='.repeat(60) + '\n');
-      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+      return res.status(400).json({ 
+        error: 'Password validation failed',
+        details: passwordValidation.errors
+      });
     }
 
     // Find the reset token
@@ -987,9 +1096,18 @@ router.post('/reset-password', async (req, res) => {
       })
     ]);
 
-    console.log('✅ Password reset completed successfully');
-    console.log(`👤 User ${resetToken.user.email} password updated`);
-    console.log('='.repeat(60) + '\n');
+    console.log('\n' + '='.repeat(80));
+    console.log('🔐 🎉 PASSWORD RESET COMPLETED SUCCESSFULLY! 🎉');
+    console.log('='.repeat(80));
+    console.log('🔐 👤 User Details:');
+    console.log('🔐 📧 Email:', resetToken.user.email);
+    console.log('🔐 👤 Name:', resetToken.user.name);
+    console.log('🔐 🎭 Role:', resetToken.user.role);
+    console.log('🔐 ✅ Status: Password Updated');
+    console.log('🔐 🔑 New Password: Set');
+    console.log('='.repeat(80));
+    console.log('🔐 💡 User can now log in with their new password');
+    console.log('='.repeat(80) + '\n');
 
     res.json({ message: 'Password reset successfully' });
   } catch (error) {
@@ -1111,6 +1229,81 @@ router.post('/verify-reset-token', async (req, res) => {
     console.log('='.repeat(60));
     console.error('Error details:', error);
     console.log('='.repeat(60) + '\n');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/debug-user:
+ *   get:
+ *     summary: Debug user information (development only)
+ *     tags: [Authentication]
+ *     parameters:
+ *       - in: query
+ *         name: email
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User email to debug
+ *     responses:
+ *       200:
+ *         description: User debug information
+ *       404:
+ *         description: User not found
+ */
+// Debug endpoint to check user information (development only)
+router.get('/debug-user', async (req, res) => {
+  try {
+    const { email } = req.query;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email parameter is required' });
+    }
+    
+    console.log('\n' + '='.repeat(80));
+    console.log('🔍 USER DEBUG REQUEST');
+    console.log('='.repeat(80));
+    console.log('📧 Email:', email);
+    console.log('⏰ Time:', new Date().toISOString());
+    console.log('='.repeat(80));
+    
+    const user = await prisma.user.findUnique({
+      where: { email }
+    });
+    
+    if (!user) {
+      console.log('❌ User not found');
+      console.log('='.repeat(80) + '\n');
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    console.log('✅ User found:', {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+      passwordHashLength: user.password.length,
+      passwordHashPreview: user.password.substring(0, 20) + '...'
+    });
+    console.log('='.repeat(80) + '\n');
+    
+    res.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+        passwordHashLength: user.password.length,
+        passwordHashPreview: user.password.substring(0, 20) + '...'
+      }
+    });
+  } catch (error) {
+    console.error('Debug user error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

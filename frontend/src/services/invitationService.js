@@ -89,6 +89,17 @@ class InvitationService {
       throw error;
     }
   }
+
+  // Get invitation links from log file
+  async getInvitationLogs() {
+    try {
+      const response = await apiService.get('/invitations/logs/file');
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch invitation logs:', error);
+      throw error;
+    }
+  }
 }
 
 // Create and export a singleton instance

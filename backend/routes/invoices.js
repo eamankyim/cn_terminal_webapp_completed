@@ -565,6 +565,9 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
       }
     });
 
+    // Invoice creation is now independent - no automatic status update
+    console.log('📄 Invoice created independently for job:', jobId);
+
     // Create notification for invoice creation
     try {
       await NotificationService.notifyInvoiceCreated(invoice.id, req.user.id);

@@ -56,14 +56,16 @@ import { useCustomers } from '../contexts/CustomerContext';
 import userService from '../services/userService';
 import jobService from '../services/jobService';
 import { fileService } from '../services/fileService';
+import apiService from '../services/api';
+import { getJobStatusColor, getJobStatusIcon as getStatusIconUtil } from '../utils/statusUtils';
 
 // Status hierarchy system - jobs can only progress forward
 const STATUS_HIERARCHY = {
   'NEW': 1,
   'PREINVOICED': 2,
-  'INVOICED': 3,      // Auto-set only when invoice is created
+  'INVOICED': 3,      // Regular status option - can be set manually
   'ENTRY': 4,
-  'RELEASE': 5,
+  'RELEASED': 5,
   'CLEARED': 6,
   'DELIVERED': 7      // Final status - no further changes
 };
@@ -74,7 +76,7 @@ const STATUS_LABELS = {
   'PREINVOICED': 'Pre-invoiced',
   'INVOICED': 'Invoiced',
   'ENTRY': 'Entry',
-  'RELEASE': 'Release',
+  'RELEASED': 'Released',
   'CLEARED': 'Cleared',
   'DELIVERED': 'Delivered'
 };
@@ -87,8 +89,8 @@ const getAvailableStatuses = (currentStatus) => {
   return Object.entries(STATUS_HIERARCHY)
     .filter(([status, level]) => {
       // Only allow forward progression
-      // Exclude INVOICED (auto-set only) and DELIVERED (final status)
-      return level > currentLevel && status !== 'INVOICED' && status !== 'DELIVERED';
+      // Exclude DELIVERED (final status) - INVOICED is now a regular status option
+      return level > currentLevel && status !== 'DELIVERED';
     })
     .map(([status]) => status);
 };
@@ -103,9 +105,7 @@ const isValidStatusTransition = (currentStatus, newStatus) => {
   // Must be forward progression
   if (newLevel <= currentLevel) return false;
   
-  // INVOICED can only be set automatically
-  if (newStatus === 'INVOICED') return false;
-  
+  // INVOICED is now a regular status option that can be set manually
   return true;
 };
 
@@ -150,6 +150,7 @@ const JobsPage = () => {
   const [lineOptions, setLineOptions] = useState([
     'PIL', 'SAF', 'COSCO', 'CMA', 'OOCL', 'MSK', 'ONE'
   ]);
+  const [terminalOptions, setTerminalOptions] = useState([]);
   const [error, setError] = useState(null);
   
   // Custom option modal state
@@ -161,7 +162,19 @@ const JobsPage = () => {
   useEffect(() => {
     loadJobs();
     loadStaffMembers();
+    loadTerminalOptions();
   }, []);
+
+  // Sync selectedJob with jobs list when jobs update
+  useEffect(() => {
+    if (selectedJob && jobs.length > 0) {
+      const updatedJob = jobs.find(job => job.id === selectedJob.id);
+      if (updatedJob && updatedJob.updatedAt !== selectedJob.updatedAt) {
+        console.log('🔄 Syncing selectedJob with updated jobs list');
+        setSelectedJob(updatedJob);
+      }
+    }
+  }, [jobs, selectedJob]);
 
   const loadJobs = async () => {
     try {
@@ -183,19 +196,68 @@ const JobsPage = () => {
       
       const allJobs = response.jobs || [];
       
+      // Debug: Log all jobs and their isDraft status
+      console.log('🔍 All jobs from API:', allJobs.length);
+      allJobs.forEach((job, index) => {
+        console.log(`🔍 Job ${index + 1}: ${job.trackingId} - isDraft: ${job.isDraft}, status: ${job.status}`);
+      });
+      
       // Separate regular jobs from drafts
       const regularJobs = allJobs.filter(job => !job.isDraft);
       const drafts = allJobs.filter(job => job.isDraft);
+      
+      console.log('🔍 Regular jobs after filtering:', regularJobs.map(j => `${j.trackingId} (isDraft: ${j.isDraft})`));
+      console.log('🔍 Draft jobs after filtering:', drafts.map(j => `${j.trackingId} (isDraft: ${j.isDraft})`));
       
       setJobs(regularJobs);
       setDraftJobs(drafts);
       
       console.log(`📊 Loaded ${regularJobs.length} regular jobs and ${drafts.length} drafts`);
+      
+      // Also reload terminal options when jobs are loaded
+      loadTerminalOptions();
     } catch (error) {
       console.error('Error loading jobs:', error);
       setError('Failed to load jobs');
     } finally {
       setJobsLoading(false);
+    }
+  };
+
+  const loadTerminalOptions = async () => {
+    try {
+      console.log('Loading terminal options from existing jobs and localStorage...');
+      
+      // Load terminals from database (existing jobs)
+      const response = await jobService.getJobs({ limit: 1000 }); // Get more jobs to find all terminals
+      const allJobs = response.jobs || [];
+      
+      // Extract unique terminal names from jobs with RELEASED status
+      const dbTerminals = [...new Set(
+        allJobs
+          .filter(job => job.status === 'RELEASED' && job.terminalName)
+          .map(job => job.terminalName)
+      )];
+      
+      // Load terminals from localStorage (user-typed terminals)
+      const savedTerminals = JSON.parse(localStorage.getItem('terminalOptions') || '[]');
+      
+      // Combine and deduplicate terminals
+      const allTerminals = [...new Set([...dbTerminals, ...savedTerminals.map(t => t.value)])];
+      
+      // Convert to options format
+      const terminalOptions = allTerminals.map(terminal => ({
+        value: terminal,
+        label: terminal
+      }));
+      
+      console.log('🔍 Loaded terminal options:', terminalOptions);
+      console.log('  - From database:', dbTerminals);
+      console.log('  - From localStorage:', savedTerminals.map(t => t.value));
+      setTerminalOptions(terminalOptions);
+    } catch (error) {
+      console.error('Error loading terminal options:', error);
+      // Don't set error state as this is not critical
     }
   };
 
@@ -229,22 +291,6 @@ const JobsPage = () => {
 
 
 
-  const getStatusColor = (status, isDraft) => {
-    if (isDraft) {
-      return 'default';
-    }
-    const statusColors = {
-      'NEW': 'green',
-      'PREINVOICED': 'blue',
-      'INVOICED': 'purple',
-      'ENTRY': 'orange',
-      'RELEASE': 'cyan',
-      'CLEARED': 'green',
-      'DELIVERED': 'green'
-    };
-    return statusColors[status] || 'default';
-  };
-
   const getStatusIcon = (status, isDraft) => {
     if (isDraft) {
       return <FileTextOutlined />;
@@ -254,7 +300,7 @@ const JobsPage = () => {
       'PREINVOICED': <FileTextOutlined />,
       'INVOICED': <DollarOutlined />,
       'ENTRY': <ContainerOutlined />,
-      'RELEASE': <CheckCircleOutlined />,
+      'RELEASED': <CheckCircleOutlined />,
       'CLEARED': <ContainerOutlined />,
       'DELIVERED': <CheckCircleOutlined />
     };
@@ -353,7 +399,7 @@ const JobsPage = () => {
       render: (status, record) => {
         const displayStatus = record.isDraft ? 'DRAFT' : status;
         return (
-          <Tag color={getStatusColor(status, record.isDraft)} icon={getStatusIcon(status, record.isDraft)}>
+          <Tag color={getJobStatusColor(status, record.isDraft)} icon={getStatusIcon(status, record.isDraft)}>
             {displayStatus}
           </Tag>
         );
@@ -446,7 +492,6 @@ const JobsPage = () => {
     const formValues = {
       customerId: job.customerId,
       consignmentId: job.consignmentId,
-      trackingId: job.trackingId,
       goodsTypes: job.goodsTypes || [],
       assignedToId: job.assignedToId,
       eta: job.eta,
@@ -471,17 +516,6 @@ const JobsPage = () => {
   };
 
   const handleViewJob = async (job) => {
-    // Debug: Log the job data to see what we're getting
-    console.log('🔍 Job data received in handleViewJob:', job);
-    console.log('🔍 Job fields check:');
-    console.log('  - mediumOfEnquiry:', job.mediumOfEnquiry);
-    console.log('  - documentsBrought:', job.documentsBrought);
-    console.log('  - containerNumber:', job.containerNumber);
-    console.log('  - blNumber:', job.blNumber);
-    console.log('  - vesselName:', job.vesselName);
-    console.log('  - line:', job.line);
-    console.log('  - jobDescription:', job.jobDescription);
-    
     // Show drawer immediately with complete job data (already loaded)
     setSelectedJob(job);
     setIsDetailsDrawerVisible(true);
@@ -524,7 +558,7 @@ const JobsPage = () => {
     setSubmitLoading(true);
     try {
       // Extract documents from form values (but don't process them here)
-      const { documents, trackingId, ...jobData } = values;
+      const { documents, ...jobData } = values;
       
       // Debug: Log the form values
       console.log('🔍 Form values received:', values);
@@ -547,12 +581,12 @@ const JobsPage = () => {
       
       let response;
       if (editingJob) {
-        // Update existing job - remove trackingId as it's system-generated
+        // Update existing job
         console.log('➕ Updating existing job...');
         response = await jobService.updateJob(editingJob.id, submittedJobData);
         message.success('Job updated successfully');
       } else {
-        // Create new job - remove trackingId as it's system-generated
+        // Create new job - trackingId will be auto-generated by backend
         console.log('➕ Creating new job...');
         response = await jobService.createJob(submittedJobData);
         console.log('📋 Full response:', response);
@@ -608,7 +642,7 @@ const JobsPage = () => {
     try {
       // Validate form first
       const formValues = await form.validateFields();
-      const { documents, trackingId, ...jobData } = formValues;
+      const { documents, ...jobData } = formValues;
       
       // Debug: Log the form values
       console.log('🔍 Draft form values received:', formValues);
@@ -695,7 +729,7 @@ const JobsPage = () => {
   const handleConsignmentSelect = (consignmentId) => {
     const selectedConsignment = selectedCustomerConsignments.find(c => c.id === consignmentId);
     if (selectedConsignment) {
-      // Auto-fill consignment details (trackingId is system-generated)
+      // Auto-fill consignment details
       form.setFieldsValue({
         consignmentId: consignmentId
       });
@@ -779,17 +813,73 @@ const JobsPage = () => {
         return;
       }
       
-      // Format ETA if it's a moment object
-      const eta = values.eta ? values.eta.toISOString() : undefined;
-      console.log('🔍 Frontend ETA:', values.eta, 'Formatted:', eta);
+      // Handle demurrage/free days and release money for RELEASED status
+      const demurrageFreeDays = values.demurrageFreeDays;
+      const releaseMoneyReceived = values.releaseMoneyReceived;
+      console.log('🔍 Demurrage/Free Days:', demurrageFreeDays);
+      console.log('🔍 Release Money Received:', releaseMoneyReceived);
       
-      const response = await jobService.updateJobStatus(selectedJob.id, values.status, values.comment, eta);
+      // Handle RELEASED status fields
+      const terminalName = values.terminalName;
+      const scheduleTime = values.scheduleTime;
+      const driverName = values.driverName;
+      const driverContact = values.driverContact;
+      console.log('🔍 Terminal Name:', terminalName);
+      console.log('🔍 Schedule Time:', scheduleTime);
+      console.log('🔍 Driver Name:', driverName);
+      console.log('🔍 Driver Contact:', driverContact);
+      
+      // Handle shipper name and invoice number for INVOICED status
+      const shipperName = values.shipperName;
+      const invoiceNumber = values.invoiceNumber;
+      console.log('🔍 Shipper Name:', shipperName);
+      console.log('🔍 Invoice Number:', invoiceNumber);
+      
+      const response = await jobService.updateJobStatus(selectedJob.id, values.status, values.comment, undefined, values.assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact);
       console.log('🔍 Backend response job data:', response);
+      
+      // Update the selectedJob state with the updated job data
+      if (response && response.job) {
+        setSelectedJob(prevJob => ({
+          ...prevJob,
+          status: response.job.status,
+          assignedToId: response.job.assignedToId,
+          assignedTo: response.job.assignedTo,
+          eta: response.job.eta,
+          demurrageFreeDays: response.job.demurrageFreeDays,
+          releaseMoneyReceived: response.job.releaseMoneyReceived,
+          shipperName: response.job.shipperName,
+          invoiceNumber: response.job.invoiceNumber,
+          terminalName: response.job.terminalName,
+          scheduleTime: response.job.scheduleTime,
+          driverName: response.job.driverName,
+          driverContact: response.job.driverContact,
+          updatedAt: response.job.updatedAt,
+          statusHistory: response.job.statusHistory || prevJob.statusHistory
+        }));
+        
+        // Also update the currentJobForStatusUpdate to reflect the new status
+        setCurrentJobForStatusUpdate(prevJob => ({
+          ...prevJob,
+          status: response.job.status,
+          assignedToId: response.job.assignedToId,
+          assignedTo: response.job.assignedTo
+        }));
+      } else {
+        console.warn('⚠️ No job data in response, response structure:', response);
+        // Fallback: try to update from the jobs list if available
+        const updatedJobFromList = jobs.find(job => job.id === selectedJob.id);
+        if (updatedJobFromList) {
+          console.log('🔍 Using fallback: updating from jobs list');
+          setSelectedJob(updatedJobFromList);
+        }
+      }
+      
       message.success('Job status updated successfully');
       setIsStatusUpdateModalVisible(false);
       setCurrentJobForStatusUpdate(null);
       statusUpdateForm.resetFields();
-      loadJobs(); // Reload jobs
+      loadJobs(); // Reload jobs list
     } catch (error) {
       console.error('Status update error:', error);
       message.error('Failed to update status');
@@ -805,10 +895,15 @@ const JobsPage = () => {
 
 
 
-  // Function to get consignments for a customer - will be replaced with API call
-  const getMockConsignmentsForCustomer = (customerName) => {
-    // TODO: Replace with actual API call
-    return [];
+  // Function to get consignments for a customer
+  const getConsignmentsForCustomer = async (customerId) => {
+    try {
+      const response = await apiService.get(`/consignments/customer/${customerId}`);
+      return response.data || [];
+    } catch (error) {
+      console.error('Error fetching consignments for customer:', error);
+      return [];
+    }
   };
 
   const handleFileChange = (fileList) => {
@@ -1159,20 +1254,7 @@ const JobsPage = () => {
 
 
           <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="trackingId"
-                label="Job ID"
-                extra="Job ID will be automatically generated by the system"
-              >
-                <Input 
-                  placeholder="System will generate Job ID automatically" 
-                  disabled 
-                  style={{ backgroundColor: '#f5f5f5' }}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
+            <Col span={24}>
               <Form.Item
                 name="goodsTypes"
                 label="Types of Goods"
@@ -1407,43 +1489,6 @@ const JobsPage = () => {
         }}
         footer={null}
         >
-          {currentJobForStatusUpdate && (
-            <div style={{ marginBottom: '16px' }}>
-              {/* Workflow Progress Indicator */}
-              <div style={{ padding: '8px', backgroundColor: '#fafafa', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
-                <Text type="secondary" style={{ fontSize: '12px', marginBottom: '8px', display: 'block' }}>
-                  <strong>Workflow Progress:</strong>
-                </Text>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  {Object.entries(STATUS_HIERARCHY).map(([status, level]) => {
-                    const isCurrent = status === currentJobForStatusUpdate.status;
-                    const isAvailable = getAvailableStatuses(currentJobForStatusUpdate.status).includes(status);
-                    const isPast = level < STATUS_HIERARCHY[currentJobForStatusUpdate.status];
-                    
-                    return (
-                      <div key={status} style={{ display: 'flex', alignItems: 'center' }}>
-                        <Tag 
-                          color={isCurrent ? 'blue' : isPast ? 'green' : isAvailable ? 'orange' : 'default'}
-                          style={{ fontSize: '11px' }}
-                        >
-                          {STATUS_LABELS[status]}
-                        </Tag>
-                        {level < 7 && (
-                          <span style={{ color: '#d9d9d9', fontSize: '12px' }}>→</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <Text type="secondary" style={{ fontSize: '10px', marginTop: '4px', display: 'block' }}>
-                  <span style={{ color: '#52c41a' }}>●</span> Completed &nbsp;
-                  <span style={{ color: '#1890ff' }}>●</span> Current &nbsp;
-                  <span style={{ color: '#fa8c16' }}>●</span> Available &nbsp;
-                  <span style={{ color: '#d9d9d9' }}>●</span> Locked
-                </Text>
-              </div>
-            </div>
-          )}
           
           <Form
             form={statusUpdateForm}
@@ -1465,12 +1510,24 @@ const JobsPage = () => {
             </Form.Item>
 
             <Form.Item
-              name="comment"
-              label="Comment"
-            rules={[{ required: true, message: 'Please add a comment for this status update' }]}
-          >
-            <TextArea rows={4} placeholder="Describe why the status is being updated..." />
-          </Form.Item>
+              name="assignedToId"
+              label="Assigned To"
+              rules={[{ required: true, message: 'Please select who to assign this job to' }]}
+            >
+              <Select placeholder="Select team member">
+                {staffMembers.length > 0 ? (
+                  staffMembers.map(member => (
+                    <Option key={member.id} value={member.id}>
+                      {member.name} ({member.email})
+                    </Option>
+                  ))
+                ) : (
+                  <Option disabled value="no-users">
+                    No team members available
+                  </Option>
+                )}
+              </Select>
+            </Form.Item>
 
           <Form.Item
             noStyle
@@ -1480,22 +1537,142 @@ const JobsPage = () => {
           >
             {({ getFieldValue }) => {
               const status = getFieldValue('status');
-              return status === 'RELEASE' ? (
-                <Form.Item
-                  name="eta"
-                  label="ETA"
-                  rules={[{ required: true, message: 'ETA is required for Release status' }]}
-                  help="Select the expected delivery time"
-                >
-                  <DatePicker 
-                    showTime 
-                    format="YYYY-MM-DD HH:mm"
-                    placeholder="Select ETA"
-                    style={{ width: '100%' }}
-                  />
-                </Form.Item>
-              ) : null;
+              if (status === 'RELEASED') {
+                return (
+                  <>
+                    <Form.Item
+                      name="terminalName"
+                      label="Terminal Name"
+                      rules={[{ required: true, message: 'Terminal name is required for Release status' }]}
+                      help="Type to enter a new terminal name or select from previously used terminals"
+                    >
+                      <Select
+                        placeholder="Type terminal name or select from list"
+                        mode="combobox"
+                        allowClear
+                        showSearch
+                        filterOption={(input, option) =>
+                          (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                        }
+                        onSearch={(value) => {
+                          // Add new terminal to the list when user types
+                          if (value && !terminalOptions.some(opt => opt.value === value)) {
+                            const newTerminal = { value, label: value };
+                            setTerminalOptions(prev => [...prev, newTerminal]);
+                            
+                            // Save to localStorage for persistence
+                            const savedTerminals = JSON.parse(localStorage.getItem('terminalOptions') || '[]');
+                            if (!savedTerminals.some(opt => opt.value === value)) {
+                              savedTerminals.push(newTerminal);
+                              localStorage.setItem('terminalOptions', JSON.stringify(savedTerminals));
+                            }
+                          }
+                        }}
+                        options={terminalOptions}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name="scheduleTime"
+                      label="Schedule Time"
+                      rules={[{ required: true, message: 'Schedule time is required for Release status' }]}
+                      help="Select the scheduled release time"
+                    >
+                      <DatePicker
+                        showTime
+                        format="YYYY-MM-DD HH:mm"
+                        placeholder="Select schedule time"
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name="driverName"
+                      label="Driver Name"
+                      rules={[{ required: true, message: 'Driver name is required for Release status' }]}
+                      help="Enter the driver's full name"
+                    >
+                      <Input 
+                        placeholder="Enter driver name"
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name="driverContact"
+                      label="Driver Contact"
+                      rules={[
+                        { required: true, message: 'Driver contact is required for Release status' },
+                        { pattern: /^[0-9+\-\s()]+$/, message: 'Please enter a valid phone number' }
+                      ]}
+                      help="Enter the driver's contact number"
+                    >
+                      <Input 
+                        placeholder="Enter driver contact (e.g., +233 24 123 4567)"
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name="demurrageFreeDays"
+                      label="Demurrage/Free Days"
+                      rules={[{ required: true, message: 'Demurrage/Free days is required for Release status' }]}
+                      help="Enter the number of demurrage/free days"
+                    >
+                      <Input 
+                        type="number"
+                        placeholder="Enter number of days"
+                        style={{ width: '100%' }}
+                        min={0}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name="releaseMoneyReceived"
+                      label="Release Money Received"
+                      rules={[{ required: true, message: 'Please specify if release money was received' }]}
+                      help="Confirm if the release money has been received"
+                    >
+                      <Select placeholder="Select option">
+                        <Option value={true}>Yes - Money Received</Option>
+                        <Option value={false}>No - Money Not Received</Option>
+                      </Select>
+                    </Form.Item>
+                  </>
+                );
+              } else if (status === 'INVOICED') {
+                return (
+                  <>
+                    <Form.Item
+                      name="shipperName"
+                      label="Shipper Name"
+                      rules={[{ required: true, message: 'Shipper name is required for Invoiced status' }]}
+                      help="Enter the name of the shipper for this invoice"
+                    >
+                      <Input 
+                        placeholder="Enter shipper name"
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name="invoiceNumber"
+                      label="Invoice Number"
+                      rules={[{ required: true, message: 'Invoice number is required for Invoiced status' }]}
+                      help="Enter the invoice number (not auto-generated)"
+                    >
+                      <Input 
+                        placeholder="Enter invoice number"
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                  </>
+                );
+              }
+              return null;
             }}
+          </Form.Item>
+
+          <Form.Item
+            name="comment"
+            label="Comment"
+            rules={[{ required: true, message: 'Please add a comment for this status update' }]}
+          >
+            <TextArea rows={4} placeholder="Describe why the status is being updated..." />
           </Form.Item>
 
           <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>
@@ -1658,7 +1835,12 @@ const JobsPage = () => {
               icon={<EditOutlined />}
               onClick={() => {
                 setCurrentJobForStatusUpdate(selectedJob);
-                statusUpdateForm.setFieldsValue({ status: selectedJob.status });
+                statusUpdateForm.setFieldsValue({ 
+                  status: selectedJob.status,
+                  assignedToId: selectedJob.assignedToId,
+                  demurrageFreeDays: selectedJob.demurrageFreeDays,
+                  releaseMoneyReceived: selectedJob.releaseMoneyReceived
+                });
                 setIsStatusUpdateModalVisible(true);
               }}
             >
@@ -1717,8 +1899,8 @@ const JobsPage = () => {
                     {selectedJob.statusHistory.map((entry, index) => (
                            <Timeline.Item 
                              key={index} 
-                        color={getStatusColor(entry.status)}
-                        dot={<UserOutlined style={{ color: getStatusColor(entry.status) }} />}
+                        color={getJobStatusColor(entry.status)}
+                        dot={<UserOutlined style={{ color: getJobStatusColor(entry.status) }} />}
                            >
                              <div>
                           <Text strong>{entry.status}</Text>
@@ -1757,7 +1939,7 @@ const JobsPage = () => {
                            {selectedJob.statusHistory.map((entry, index) => (
                              <Timeline.Item 
                                key={index}
-                               color={getStatusColor(entry.status)}
+                               color={getJobStatusColor(entry.status)}
                                dot={getStatusIcon(entry.status)}
                              >
                                <div>
@@ -1793,7 +1975,7 @@ const JobsPage = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
                 <div>
                   <Title level={3}>{selectedJob.trackingId}</Title>
-                  <Tag color={getStatusColor(selectedJob.status)} size="large">
+                  <Tag color={getJobStatusColor(selectedJob.status)} size="large">
                     {selectedJob.status}
                                   </Tag>
                 </div>
@@ -1840,6 +2022,110 @@ const JobsPage = () => {
                     )}
                   </div>
                 </div>
+                {(selectedJob.status === 'RELEASED' || selectedJob.status === 'CLEARED' || selectedJob.status === 'DELIVERED') && (
+                  <>
+                    <div style={{ marginBottom: '16px', display: 'flex' }}>
+                      <div style={{ width: '140px', fontWeight: 'bold' }}>Terminal Name:</div>
+                      <div>
+                        {selectedJob.terminalName ? (
+                          <Tag color="blue">
+                            {selectedJob.terminalName}
+                          </Tag>
+                        ) : (
+                          <Text type="secondary">Not specified</Text>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: '16px', display: 'flex' }}>
+                      <div style={{ width: '140px', fontWeight: 'bold' }}>Schedule Time:</div>
+                      <div>
+                        {selectedJob.scheduleTime ? (
+                          <Tag color="purple">
+                            {new Date(selectedJob.scheduleTime).toLocaleString()}
+                          </Tag>
+                        ) : (
+                          <Text type="secondary">Not specified</Text>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: '16px', display: 'flex' }}>
+                      <div style={{ width: '140px', fontWeight: 'bold' }}>Driver Name:</div>
+                      <div>
+                        {selectedJob.driverName ? (
+                          <Tag color="green">
+                            {selectedJob.driverName}
+                          </Tag>
+                        ) : (
+                          <Text type="secondary">Not specified</Text>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: '16px', display: 'flex' }}>
+                      <div style={{ width: '140px', fontWeight: 'bold' }}>Driver Contact:</div>
+                      <div>
+                        {selectedJob.driverContact ? (
+                          <Tag color="cyan">
+                            {selectedJob.driverContact}
+                          </Tag>
+                        ) : (
+                          <Text type="secondary">Not specified</Text>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: '16px', display: 'flex' }}>
+                      <div style={{ width: '140px', fontWeight: 'bold' }}>Demurrage/Free Days:</div>
+                      <div>
+                        {selectedJob.demurrageFreeDays !== undefined && selectedJob.demurrageFreeDays !== null ? (
+                          <Tag color="orange">
+                            {selectedJob.demurrageFreeDays} days
+                          </Tag>
+                        ) : (
+                          <Text type="secondary">Not specified</Text>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: '16px', display: 'flex' }}>
+                      <div style={{ width: '140px', fontWeight: 'bold' }}>Release Money:</div>
+                      <div>
+                        {selectedJob.releaseMoneyReceived !== undefined && selectedJob.releaseMoneyReceived !== null ? (
+                          <Tag color={selectedJob.releaseMoneyReceived ? 'green' : 'red'}>
+                            {selectedJob.releaseMoneyReceived ? 'Received' : 'Not Received'}
+                          </Tag>
+                        ) : (
+                          <Text type="secondary">Not specified</Text>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+                {(selectedJob.status === 'INVOICED' || selectedJob.status === 'ENTRY' || selectedJob.status === 'RELEASED' || selectedJob.status === 'CLEARED' || selectedJob.status === 'DELIVERED') && (
+                  <>
+                    <div style={{ marginBottom: '16px', display: 'flex' }}>
+                      <div style={{ width: '140px', fontWeight: 'bold' }}>Shipper Name:</div>
+                      <div>
+                        {selectedJob.shipperName ? (
+                          <Tag color="purple">
+                            {selectedJob.shipperName}
+                          </Tag>
+                        ) : (
+                          <Text type="secondary">Not specified</Text>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: '16px', display: 'flex' }}>
+                      <div style={{ width: '140px', fontWeight: 'bold' }}>Invoice Number:</div>
+                      <div>
+                        {selectedJob.invoiceNumber ? (
+                          <Tag color="blue">
+                            {selectedJob.invoiceNumber}
+                          </Tag>
+                        ) : (
+                          <Text type="secondary">Not specified</Text>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Client Information */}

@@ -1,6 +1,9 @@
 import React from 'react';
 import { Layout, Menu } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS, hasPermission } from '../../utils/permissions';
+import PermissionGate from '../common/PermissionGate';
 import {
   DashboardOutlined,
   FileAddOutlined,
@@ -13,6 +16,7 @@ import {
   FileTextOutlined,
   CheckCircleOutlined,
   GlobalOutlined,
+  CalculatorOutlined,
 } from '@ant-design/icons';
 import './Sidebar.css';
 
@@ -21,6 +25,7 @@ const { Sider } = Layout;
 const Sidebar = ({ collapsed }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { currentUser } = useAuth();
 
   const handleMenuClick = (e) => {
     navigate(e.key);
@@ -31,31 +36,49 @@ const Sidebar = ({ collapsed }) => {
       key: '/dashboard',
       icon: <DashboardOutlined />,
       label: 'Dashboard',
+      permission: PERMISSIONS.DASHBOARD_VIEW,
     },
     {
       key: '/enquiries',
       icon: <FileAddOutlined />,
       label: 'Jobs',
+      permission: PERMISSIONS.JOB_VIEW,
     },
     {
       key: '/clients',
       icon: <UserOutlined />,
       label: 'Clients',
+      permission: PERMISSIONS.CUSTOMER_VIEW,
     },
     {
       key: '/invoices',
       icon: <FileTextOutlined />,
       label: 'Invoices',
+      permission: PERMISSIONS.INVOICE_VIEW,
+    },
+    {
+      key: '/accounting',
+      icon: <CalculatorOutlined />,
+      label: 'Accounting',
+      permission: PERMISSIONS.EXPENSE_APPROVE, // Only admin and invoice officer can see full accounting
+    },
+    {
+      key: '/requests',
+      icon: <FileAddOutlined />,
+      label: 'Requests',
+      permission: PERMISSIONS.EXPENSE_CREATE, // Other roles can see requests tab
     },
     {
       key: '/reports',
       icon: <BarChartOutlined />,
       label: 'Reports',
+      permission: PERMISSIONS.REPORTS_VIEW,
     },
     {
-      key: '/admin',
+      key: '/settings',
       icon: <SettingOutlined />,
       label: 'Settings',
+      permission: PERMISSIONS.SETTINGS_VIEW,
     },
     {
       key: '/configuration',
@@ -63,6 +86,12 @@ const Sidebar = ({ collapsed }) => {
       label: 'Configuration',
     },
   ];
+
+  // Filter menu items based on user permissions
+  const filteredMenuItems = menuItems.filter(item => {
+    if (!item.permission) return true; // Show items without permission requirements
+    return hasPermission(currentUser?.role, item.permission);
+  });
 
   return (
     <Sider
@@ -115,7 +144,7 @@ const Sidebar = ({ collapsed }) => {
           theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
-          items={menuItems}
+          items={filteredMenuItems}
           onClick={handleMenuClick}
           className="sidebar-menu"
         />

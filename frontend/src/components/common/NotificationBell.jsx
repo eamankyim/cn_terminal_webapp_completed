@@ -63,7 +63,13 @@ const NotificationBell = () => {
   };
 
   const handleMarkAllRead = async () => {
-    await markAllAsRead();
+    try {
+      console.log('🔄 Marking all notifications as read...');
+      await markAllAsRead();
+      console.log('✅ All notifications marked as read');
+    } catch (error) {
+      console.error('❌ Error marking all notifications as read:', error);
+    }
   };
 
   const handleDelete = async (notificationId, e) => {

@@ -40,6 +40,7 @@ import {
 } from '@ant-design/icons';
 import { useCustomers } from '../contexts/CustomerContext';
 import { useConsignments } from '../contexts/ConsignmentContext';
+import { getCustomerStatusColor } from '../utils/statusUtils';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -72,14 +73,7 @@ const ClientsPage = () => {
   // Use customers from context instead of local state
   const clients = customers;
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'active': return 'green';
-      case 'pending': return 'orange';
-      case 'inactive': return 'red';
-      default: return 'default';
-    }
-  };
+  // Using centralized status color utilities
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -231,7 +225,7 @@ const ClientsPage = () => {
       title: 'Status',
       key: 'status',
       render: (_, record) => (
-        <Tag color={record.status === 'ACTIVE' ? 'green' : 'red'}>
+        <Tag color={getCustomerStatusColor(record.status)}>
           {record.status === 'ACTIVE' ? '✓ Active' : '✗ Inactive'}
         </Tag>
       ),
@@ -397,7 +391,7 @@ const ClientsPage = () => {
              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
                <div>
                 <Title level={3}>{selectedClient.name || selectedClient.companyName || 'N/A'}</Title>
-                <Tag color={selectedClient.status === 'ACTIVE' ? 'green' : 'red'} size="large">
+                <Tag color={getCustomerStatusColor(selectedClient.status)} size="large">
                   {selectedClient.status === 'ACTIVE' ? '✓ Active' : '✗ Inactive'}
                 </Tag>
                </div>

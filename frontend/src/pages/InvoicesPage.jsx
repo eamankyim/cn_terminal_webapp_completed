@@ -54,6 +54,7 @@ import invoiceService from '../services/invoiceService';
 import jobService from '../services/jobService';
 import configurationService from '../services/configurationService';
 import { calculateVAT, calculateTotalVAT, getVATExplanation } from '../utils/vatCalculator';
+import { getJobStatusColor, getInvoiceStatusColor } from '../utils/statusUtils';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -236,9 +237,9 @@ const InvoicesPage = () => {
       // Set all jobs for display in table (status comes from database)
       setAllJobs(allJobsData);
       
-      // Filter jobs available for invoice creation (only PREINVOICED jobs without invoices)
+      // Filter jobs available for invoice creation (any job without invoices, excluding drafts)
       const jobsForInvoicing = allJobsData.filter(job => 
-        job.status === 'PREINVOICED' && 
+        !job.isDraft &&
         !invoices.some(invoice => invoice.jobId === job.id)
       );
       
@@ -265,17 +266,25 @@ const InvoicesPage = () => {
 
   // Calculate VAT based on current form values and configuration
   const calculateVATForForm = (formValues) => {
-    if (!configurations.TAX || !formValues) return 0;
+    if (!formValues) return 0;
 
-    const charges = {
-      serviceCharge: parseFloat(formValues.serviceCharge || 0),
-      clearanceCharges: parseFloat(formValues.clearanceCharges || 0),
-      terminalCharges: parseFloat(formValues.terminalCharges || 0),
-      shippingCharges: parseFloat(formValues.shippingCharges || 0),
-      miscellaneous: parseFloat(formValues.miscellaneous || 0)
-    };
-
-    return calculateTotalVAT(charges, configurations);
+    const customDuty = parseFloat(formValues.customDuty || 0);
+    const shippingCharges = parseFloat(formValues.shippingCharges || 0);
+    const terminalCharges = parseFloat(formValues.terminalCharges || 0);
+    const miscellaneous = parseFloat(formValues.miscellaneous || 0);
+    const clearanceCharges = parseFloat(formValues.clearanceCharges || 0);
+    const serviceCharge = parseFloat(formValues.serviceCharge || 0);
+    
+    // Calculate total of all charges (excluding VAT)
+    const totalCharges = customDuty + shippingCharges + terminalCharges + miscellaneous + clearanceCharges + serviceCharge;
+    
+    // Get VAT rate from configuration (default 15%)
+    const vatRate = parseFloat(configurations.VAT_RATE?.value || '15') / 100;
+    
+    // Calculate VAT on total charges
+    const vatAmount = totalCharges * vatRate;
+    
+    return Math.round(vatAmount * 100) / 100; // Round to 2 decimal places
   };
 
   // Update VAT when other charges change
@@ -308,15 +317,7 @@ const InvoicesPage = () => {
     });
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'PAID': return 'green';
-      case 'PENDING': return 'orange';
-      case 'OVERDUE': return 'red';
-      case 'DRAFT': return 'default';
-      default: return 'default';
-    }
-  };
+  // Using centralized status color utilities
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -655,18 +656,7 @@ const InvoicesPage = () => {
         console.log('📄 Creating invoice with data:', invoiceData);
         await invoiceService.createInvoice(invoiceData);
         
-        // Update job status to INVOICED
-        if (selectedJob) {
-          try {
-            console.log('🔄 Updating job status to INVOICED for job:', selectedJob.id);
-            const statusResponse = await jobService.updateJobStatus(selectedJob.id, 'INVOICED', 'Invoice created', null);
-            console.log('✅ Job status updated to INVOICED:', statusResponse);
-          } catch (statusError) {
-            console.error('⚠️ Failed to update job status:', statusError);
-            message.error('Invoice created but failed to update job status');
-            // Don't fail the entire operation if status update fails
-          }
-        }
+        // Invoice creation is now independent - no automatic status update
         
         message.success('Invoice created successfully');
       }
@@ -683,11 +673,13 @@ const InvoicesPage = () => {
   const handleCreateInvoiceFromJob = (job) => {
     console.log('📄 Creating invoice for job:', job);
     
-    // Check if job is in PREINVOICED status
-    if (job.status !== 'PREINVOICED') {
-      message.warning('Only jobs with PREINVOICED status can be used to create invoices');
+    // Check if job is a draft
+    if (job.isDraft) {
+      message.warning('Draft jobs cannot be used to create invoices');
       return;
     }
+    
+    // Invoice creation is now independent - any job can have an invoice created
     
     // Check if job already has an invoice
     const existingInvoice = invoices.find(invoice => invoice.jobId === job.id);
@@ -785,7 +777,14 @@ const InvoicesPage = () => {
       title: 'Created',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (date) => date ? new Date(date).toLocaleDateString() : 'N/A'
+      render: (date) => date ? new Date(date).toLocaleString('en-GB', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }) : 'N/A'
     },
     {
       title: 'Actions',
@@ -796,15 +795,15 @@ const InvoicesPage = () => {
             type="primary" 
             icon={<PlusOutlined />} 
             onClick={() => handleCreateInvoiceFromJob(record)}
-            disabled={record.status !== 'PREINVOICED' || invoices.some(invoice => invoice.jobId === record.id)}
+            disabled={record.isDraft || invoices.some(invoice => invoice.jobId === record.id)}
             size="small"
-            title={
-              record.status !== 'PREINVOICED' 
-                ? 'Only PREINVOICED jobs can be used to create invoices' 
-                : invoices.some(invoice => invoice.jobId === record.id)
-                ? 'Invoice already exists for this job'
-                : 'Create Invoice'
-            }
+              title={
+                record.isDraft
+                  ? 'Draft jobs cannot be used to create invoices'
+                  : invoices.some(invoice => invoice.jobId === record.id)
+                  ? 'Invoice already exists for this job'
+                  : 'Create Invoice'
+              }
           >
             Create Invoice
           </Button>
@@ -864,7 +863,7 @@ const InvoicesPage = () => {
       title: 'Status',
       key: 'status',
       render: (_, record) => (
-        <Tag color={getStatusColor(record.status)}>
+        <Tag color={getInvoiceStatusColor(record.status)}>
           {record.status}
         </Tag>
       ),
@@ -1116,7 +1115,7 @@ const InvoicesPage = () => {
                       pageSize: 10,
                       showSizeChanger: true,
                       showQuickJumper: true,
-                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} PREINVOICED jobs`
+                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} jobs available for invoicing`
                     }}
                     locale={{
                       emptyText: (
@@ -1125,10 +1124,10 @@ const InvoicesPage = () => {
                           description={
                             <div>
                               <Text type="secondary" style={{ fontSize: '16px', marginBottom: '8px' }}>
-                                No PREINVOICED jobs found
+                                No jobs available for invoicing
                               </Text>
                               <Text type="secondary" style={{ fontSize: '14px' }}>
-                                PREINVOICED jobs will appear here for invoice creation
+                                Jobs without existing invoices will appear here
                               </Text>
                             </div>
                           }
@@ -1150,7 +1149,7 @@ const InvoicesPage = () => {
             <FileTextOutlined style={{ fontSize: '20px', color: '#1890ff' }} />
             <span>Invoice Details</span>
             {selectedInvoice && (
-              <Tag color={getStatusColor(selectedInvoice.status)} style={{ marginLeft: 'auto' }}>
+              <Tag color={getInvoiceStatusColor(selectedInvoice.status)} style={{ marginLeft: 'auto' }}>
                 {selectedInvoice.status}
               </Tag>
             )}
@@ -1383,7 +1382,7 @@ const InvoicesPage = () => {
                         }) : 'N/A'}
                       </Descriptions.Item>
                       <Descriptions.Item label="Status">
-                        <Tag color={getStatusColor(selectedInvoice.status || 'PENDING')}>
+                        <Tag color={getInvoiceStatusColor(selectedInvoice.status || 'PENDING')}>
                           {selectedInvoice.status || 'PENDING'}
                         </Tag>
                       </Descriptions.Item>
@@ -1572,6 +1571,11 @@ const InvoicesPage = () => {
         }}
         footer={null}
         width={800}
+        bodyStyle={{
+          maxHeight: '70vh',
+          overflowY: 'auto',
+          padding: '24px'
+        }}
       >
         <Form
           form={form}
@@ -1583,7 +1587,7 @@ const InvoicesPage = () => {
           {!editingInvoice && (
             <Card size="small" title="Job Selection" style={{ marginBottom: 16 }}>
               <div style={{ marginBottom: '12px', fontSize: '12px', color: '#666' }}>
-                Only jobs with PREINVOICED status are available for invoice creation
+                Choose a job to create invoice for
               </div>
             <Form.Item
               name="jobId"
@@ -1600,7 +1604,7 @@ const InvoicesPage = () => {
                   return searchText.indexOf(input.toLowerCase()) >= 0;
                 }}
                 loading={jobsLoading}
-                notFoundContent={jobsLoading ? 'Loading jobs...' : 'No PREINVOICED jobs available for invoicing'}
+                notFoundContent={jobsLoading ? 'Loading jobs...' : 'No jobs available for invoicing'}
                 onChange={(jobId) => {
                   console.log('🔍 Job selected:', jobId);
                   setSelectedJobId(jobId);
@@ -1965,7 +1969,7 @@ const InvoicesPage = () => {
                 </Form.Item>
                 <div style={{ marginTop: -16, marginBottom: 16, fontSize: '12px', color: '#666' }}>
                   <Text type="secondary">
-                    Total = Custom Duty + Shipping + Terminal + Miscellaneous + Clearance + Service + VAT
+                    Total = Custom Duty + Shipping + Terminal + Miscellaneous + Clearance + Service + VAT (Auto-calculated)
                   </Text>
                 </div>
               </Col>
@@ -2037,6 +2041,11 @@ const InvoicesPage = () => {
           </Button>
         ]}
         style={{ top: 20 }}
+        bodyStyle={{
+          maxHeight: '80vh',
+          overflowY: 'auto',
+          padding: '0'
+        }}
       >
         {selectedInvoice && (
           <div id="invoice-print" style={{ 

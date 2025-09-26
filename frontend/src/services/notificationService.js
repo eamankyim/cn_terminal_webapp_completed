@@ -28,10 +28,12 @@ const notificationService = {
   // Mark all notifications as read
   async markAllAsRead() {
     try {
+      console.log('🔄 NotificationService: Calling API to mark all as read...');
       const response = await api.patch('/notifications/read-all');
+      console.log('📡 NotificationService: API response:', response);
       return response;
     } catch (error) {
-      console.error('Error marking all notifications as read:', error);
+      console.error('❌ NotificationService: Error marking all notifications as read:', error);
       throw error;
     }
   },

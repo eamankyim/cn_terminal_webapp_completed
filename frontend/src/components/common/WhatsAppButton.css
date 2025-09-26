@@ -1,0 +1,53 @@
+/* WhatsApp Floating Button Styles */
+.whatsapp-button {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  animation: pulse 2s infinite;
+}
+
+.whatsapp-button:hover {
+  animation: none;
+  transform: scale(1.1);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(37, 211, 102, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 211, 102, 0);
+  }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .whatsapp-button {
+    bottom: 20px;
+    right: 20px;
+  }
+}
+
+/* WhatsApp Modal Styles */
+.whatsapp-modal .ant-modal-header {
+  background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+  border-bottom: none;
+}
+
+.whatsapp-modal .ant-modal-title {
+  color: white;
+}
+
+.whatsapp-modal .ant-modal-close {
+  color: white;
+}
+
+.whatsapp-modal .ant-modal-close:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+

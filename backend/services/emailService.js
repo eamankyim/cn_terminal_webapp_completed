@@ -503,8 +503,12 @@ CN Terminal Team
     switch (role) {
       case 'ADMIN': return 'Administrator';
       case 'STAFF': return 'Staff';
-      case 'DRIVER': return 'Driver';
-      case 'WAREHOUSE': return 'Warehouse';
+      case 'IT_CONSULTANT': return 'IT Consultant';
+      case 'ENQUIRY_OFFICER': return 'Enquiry Officer';
+      case 'RELEASE_OFFICER': return 'Release Officer';
+      case 'REVIEW_OFFICER': return 'Review Officer';
+      case 'INVOICE_OFFICER': return 'Invoice Officer';
+      case 'CLEARING_OFFICER': return 'Clearing Officer';
       case 'admin': return 'Administrator';
       case 'staff1': return 'Staff Level 1';
       case 'staff2': return 'Staff Level 2';

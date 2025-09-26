@@ -19,21 +19,32 @@ import {
   Avatar,
   Upload,
   InputNumber,
-  Alert
+  Alert,
+  Drawer,
+  Descriptions
 } from 'antd';
 import { useAuth } from '../contexts/AuthContext';
 import userService from '../services/userService';
+import { getCustomerStatusColor } from '../utils/statusUtils';
+import { ROLE_INFO, PERMISSIONS } from '../utils/permissions';
+import RolePermissionManager from '../components/settings/RolePermissionManager';
+import UserRoleAssignment from '../components/settings/UserRoleAssignment';
+import PermissionGate from '../components/common/PermissionGate';
+import InviteManagement from '../components/admin/InviteManagement';
 import { 
   SettingOutlined, 
   UserOutlined, 
   SecurityScanOutlined, 
   BellOutlined,
   GlobalOutlined,
-  PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   UploadOutlined,
-  SaveOutlined
+  SaveOutlined,
+  EyeOutlined,
+  TeamOutlined,
+  MailOutlined,
+  WhatsAppOutlined
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -45,6 +56,8 @@ const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [isUserModalVisible, setIsUserModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [form] = Form.useForm();
   const [profileForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
@@ -60,31 +73,13 @@ const SettingsPage = () => {
   // Users data - loaded from API
   const [users, setUsers] = useState([]);
 
-  const getRoleColor = (role) => {
-    switch (role) {
-      case 'ADMIN': return 'red';
-      case 'STAFF': return 'blue';
-      case 'DRIVER': return 'green';
-      case 'WAREHOUSE': return 'purple';
-      default: return 'default';
-    }
-  };
+  // Using centralized role utilities
+  const getRoleColor = (role) => ROLE_INFO[role]?.color || 'default';
+  const getRoleLabel = (role) => ROLE_INFO[role]?.name || role;
 
-  const getRoleLabel = (role) => {
-    switch (role) {
-      case 'ADMIN': return 'Administrator';
-      case 'STAFF': return 'Staff';
-      case 'DRIVER': return 'Driver';
-      case 'WAREHOUSE': return 'Warehouse';
-      default: return role;
-    }
-  };
+  // Using centralized status color utilities
 
-  const getStatusColor = (status) => {
-    return status ? 'green' : 'red';
-  };
-
-  const handleCreateUser = async (values) => {
+  const handleUpdateUser = async (values) => {
     setUsersLoading(true);
     try {
       const userData = {
@@ -93,20 +88,15 @@ const SettingsPage = () => {
       };
       delete userData.status;
 
-      if (editingUser) {
-        await userService.updateUser(editingUser.id, userData);
-        message.success('User updated successfully');
-      } else {
-        await userService.createUser(userData);
-        message.success('User created successfully');
-      }
+      await userService.updateUser(editingUser.id, userData);
+      message.success('User updated successfully');
       
       await loadUsers();
       setIsUserModalVisible(false);
       setEditingUser(null);
       form.resetFields();
     } catch (error) {
-      message.error(error.response?.data?.error || 'Failed to save user');
+      message.error(error.response?.data?.error || 'Failed to update user');
     } finally {
       setUsersLoading(false);
     }
@@ -243,7 +233,7 @@ const SettingsPage = () => {
       title: 'Status',
       key: 'status',
       render: (_, record) => (
-        <Tag color={getStatusColor(record.isActive)}>
+        <Tag color={record.isActive ? 'green' : 'red'}>
           {record.isActive ? 'ACTIVE' : 'INACTIVE'}
         </Tag>
       ),
@@ -360,7 +350,7 @@ const SettingsPage = () => {
                     <Col span={24}>
                       <Text strong>Status:</Text>
                       <br />
-                      <Tag color={getStatusColor(currentUser?.isActive)}>
+                      <Tag color={currentUser?.isActive ? 'green' : 'red'}>
                         {currentUser?.isActive ? 'ACTIVE' : 'INACTIVE'}
                       </Tag>
                     </Col>
@@ -478,82 +468,211 @@ const SettingsPage = () => {
     ),
   };
 
-  const usersTab = {
-    key: 'users',
-    label: 'User Management',
+
+  const rolesTab = {
+    key: 'roles',
+    label: 'Roles & Permissions',
     children: (
       <div>
-        <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <Title level={4}>System Users</Title>
-            <Text type="secondary">Manage user accounts, roles, and permissions</Text>
+        {/* Permissions Overview */}
+        <Card title="Available Permissions" style={{ marginBottom: '24px' }}>
+          <div style={{ marginBottom: '16px' }}>
+            <Text type="secondary">
+              This system has {Object.keys(PERMISSIONS).length} available permissions across different modules.
+            </Text>
           </div>
-          <Button 
-            type="primary" 
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setEditingUser(null);
-              form.resetFields();
-              setIsUserModalVisible(true);
+          <Row gutter={[16, 16]}>
+            {Object.entries(
+              Object.entries(PERMISSIONS).reduce((acc, [key, permission]) => {
+                const category = permission.split(':')[0];
+                if (!acc[category]) acc[category] = [];
+                acc[category].push({ key, permission });
+                return acc;
+              }, {})
+            ).map(([category, permissions]) => (
+              <Col xs={24} sm={12} lg={8} key={category}>
+                <Card size="small" title={category.charAt(0).toUpperCase() + category.slice(1)}>
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    {permissions.map(({ key, permission }) => (
+                      <Tag key={key} color="blue" style={{ marginBottom: '4px' }}>
+                        {permission}
+                      </Tag>
+                    ))}
+                  </Space>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        </Card>
+
+        {/* System Roles & Custom Role Management */}
+        <PermissionGate
+          userRole={currentUser?.role}
+          permissions={PERMISSIONS.USER_MANAGE_ROLES}
+          fallback={
+            <Alert
+              message="Access Denied"
+              description="You do not have permission to manage roles and permissions."
+              type="warning"
+              showIcon
+            />
+          }
+          showFallback={true}
+        >
+          <RolePermissionManager
+            currentUserRole={currentUser?.role}
+            onRoleUpdate={() => {
+              // Refresh data if needed
+              console.log('Role updated');
             }}
-          >
-            Add User
-          </Button>
+          />
+        </PermissionGate>
+      </div>
+    ),
+  };
+
+
+  const invitesTab = {
+    key: 'invites',
+    label: 'Invite Users',
+    children: (
+      <PermissionGate
+        userRole={currentUser?.role}
+        permissions={PERMISSIONS.USER_CREATE}
+        fallback={
+          <Alert
+            message="Access Denied"
+            description="You do not have permission to manage invitations."
+            type="warning"
+            showIcon
+          />
+        }
+        showFallback={true}
+      >
+        <InviteManagement />
+      </PermissionGate>
+    ),
+  };
+
+  const teamMembersTab = {
+    key: 'team-members',
+    label: 'Team Members',
+    children: (
+      <PermissionGate
+        userRole={currentUser?.role}
+        permissions={PERMISSIONS.USER_VIEW}
+        fallback={
+          <Alert
+            message="Access Denied"
+            description="You do not have permission to view team members."
+            type="warning"
+            showIcon
+          />
+        }
+        showFallback={true}
+      >
+        <div>
+          <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Title level={4}>Team Members</Title>
+            <Alert
+              message="Note"
+              description="To add new team members, use the 'Invite Users' tab to send invitations."
+              type="info"
+              showIcon
+              style={{ maxWidth: '400px' }}
+            />
         </div>
-        
-        <Row gutter={16} style={{ marginBottom: '24px' }}>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
-              <Statistic
-                title="Total Users"
-                value={users.length}
-                valueStyle={{ color: '#2FA2EE' }}
-                prefix={<UserOutlined />}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
-              <Statistic
-                title="Active Users"
-                value={users.filter(u => u.isActive).length}
-                valueStyle={{ color: '#52c41a' }}
-                prefix={<UserOutlined />}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
-              <Statistic
-                title="Admin Users"
-                value={users.filter(u => u.role === 'ADMIN').length}
-                valueStyle={{ color: '#f5222d' }}
-                prefix={<UserOutlined />}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
-              <Statistic
-                title="Staff Users"
-                value={users.filter(u => u.role === 'STAFF').length}
-                valueStyle={{ color: '#722ed1' }}
-                prefix={<UserOutlined />}
-              />
-            </Card>
-          </Col>
-        </Row>
 
         <Table
-          columns={userColumns}
+            columns={[
+              {
+                title: 'Name',
+                dataIndex: 'name',
+                key: 'name',
+                render: (name, record) => (
+                  <Space>
+                    <Avatar size="small" icon={<UserOutlined />} />
+                    <div>
+                      <Text strong>{name}</Text>
+                      <br />
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        {record.email}
+                      </Text>
+                    </div>
+                  </Space>
+                ),
+              },
+              {
+                title: 'Role',
+                dataIndex: 'role',
+                key: 'role',
+                render: (role) => (
+                  <Tag color={getRoleColor(role)}>
+                    {getRoleLabel(role)}
+                  </Tag>
+                ),
+              },
+              {
+                title: 'Department',
+                dataIndex: 'department',
+                key: 'department',
+                render: (department) => {
+                  const departmentMap = {
+                    'ADMIN': 'Management',
+                    'STAFF': 'Client Engagement',
+                    'DRIVER': 'Logistics',
+                    'WAREHOUSE': 'Operations'
+                  };
+                  return departmentMap[department] || 'General';
+                }
+              },
+              {
+                title: 'Status',
+                key: 'status',
+                render: (_, record) => (
+                  <Tag color={record.isActive ? 'green' : 'red'}>
+                    {record.isActive ? 'ACTIVE' : 'INACTIVE'}
+                  </Tag>
+                ),
+              },
+              {
+                title: 'Actions',
+                key: 'actions',
+                render: (_, record) => (
+                  <Space>
+                    <Button
+                      type="text"
+                      icon={<EyeOutlined />}
+                      onClick={() => {
+                        setSelectedUser(record);
+                        setIsDetailsDrawerVisible(true);
+                      }}
+                    >
+                      View
+                    </Button>
+                    <Button
+                      type="text"
+                      icon={<EditOutlined />}
+                      onClick={() => {
+                        setEditingUser(record);
+                        setIsUserModalVisible(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  </Space>
+                ),
+              },
+            ]}
           dataSource={users}
-          rowKey="id"
           pagination={{ pageSize: 10 }}
           loading={usersLoading}
         />
       </div>
+      </PermissionGate>
     ),
   };
+
 
   const preferencesTab = {
     key: 'preferences',
@@ -727,15 +846,118 @@ const SettingsPage = () => {
     ),
   };
 
+  // WhatsApp Web Tab
+  const whatsappTab = {
+    key: 'whatsapp',
+    label: (
+      <Space>
+        <WhatsAppOutlined style={{ color: '#25D366' }} />
+        WhatsApp Web
+      </Space>
+    ),
+    children: (
+      <div>
+        <Alert
+          message="WhatsApp Web Integration"
+          description="Open WhatsApp Web in a popup window to communicate with customers directly."
+          type="info"
+          showIcon
+          style={{ marginBottom: '24px' }}
+        />
+        
+        <Row gutter={24}>
+          <Col xs={24} lg={12}>
+            <Card title="Quick Access" extra={<MailOutlined />}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Button 
+                  type="primary" 
+                  size="large"
+                  icon={<WhatsAppOutlined />}
+                  style={{ 
+                    backgroundColor: '#25D366', 
+                    borderColor: '#25D366',
+                    width: '100%',
+                    height: '50px',
+                    fontSize: '16px'
+                  }}
+                  onClick={() => {
+                    const popup = window.open(
+                      'https://web.whatsapp.com',
+                      'WhatsAppWeb',
+                      'width=1200,height=800,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no'
+                    );
+                    if (popup) {
+                      popup.focus();
+                      message.success('WhatsApp Web opened in popup window');
+                    } else {
+                      message.error('Popup blocked. Please allow popups for this site.');
+                    }
+                  }}
+                >
+                  Open WhatsApp Web
+                </Button>
+                
+                <Text type="secondary" style={{ textAlign: 'center', display: 'block' }}>
+                  Click to open WhatsApp Web in a popup window
+                </Text>
+              </Space>
+            </Card>
+          </Col>
+          
+          <Col xs={24} lg={12}>
+            <Card title="Instructions" extra={<SettingOutlined />}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <div>
+                  <Text strong>1. Click "Open WhatsApp Web"</Text>
+                  <br />
+                  <Text type="secondary">A popup window will open with WhatsApp Web</Text>
+                </div>
+                
+                <div>
+                  <Text strong>2. Scan QR Code</Text>
+                  <br />
+                  <Text type="secondary">Use your phone to scan the QR code in the popup</Text>
+                </div>
+                
+                <div>
+                  <Text strong>3. Start Messaging</Text>
+                  <br />
+                  <Text type="secondary">Send messages to customers directly from your terminal system</Text>
+                </div>
+                
+                <Alert
+                  message="Note"
+                  description="Make sure to allow popups for this site if the popup doesn't open automatically."
+                  type="warning"
+                  showIcon
+                  style={{ marginTop: '16px' }}
+                />
+              </Space>
+            </Card>
+          </Col>
+        </Row>
+      </div>
+    ),
+  };
+
   // Build tabs array based on user role
   const getTabItems = () => {
-    const baseItems = [profileTab, preferencesTab, securityTab];
+    // Core tabs that everyone needs
+    const coreTabs = [profileTab, preferencesTab, securityTab, whatsappTab];
+    
+    // Permission management tabs
+    const permissionTabs = [
+      rolesTab,        // System roles + custom roles + permissions
+      invitesTab,      // Invite users and assign roles
+      teamMembersTab   // View onboarded users
+    ];
     
     if (currentUser?.role === 'ADMIN') {
-      return [profileTab, usersTab, preferencesTab, securityTab];
+      return [...coreTabs, ...permissionTabs];
     }
     
-    return baseItems;
+    // Show permission tabs to all users, but content will be permission-gated
+    return [...coreTabs, ...permissionTabs];
   };
 
   return (
@@ -754,9 +976,9 @@ const SettingsPage = () => {
         />
       </Card>
 
-      {/* Create/Edit User Modal */}
+      {/* Edit User Modal */}
       <Modal
-        title={editingUser ? 'Edit User' : 'Add New User'}
+        title="Edit User"
         open={isUserModalVisible}
         onCancel={() => {
           setIsUserModalVisible(false);
@@ -769,7 +991,7 @@ const SettingsPage = () => {
         <Form
           form={form}
           layout="vertical"
-          onFinish={handleCreateUser}
+          onFinish={handleUpdateUser}
         >
           <Row gutter={16}>
             <Col span={12}>
@@ -803,10 +1025,14 @@ const SettingsPage = () => {
                 rules={[{ required: true, message: 'Please select role' }]}
               >
                 <Select placeholder="Select role">
-                  <Option value="ADMIN">Administrator</Option>
-                  <Option value="STAFF">Staff</Option>
-                  <Option value="DRIVER">Driver</Option>
-                  <Option value="WAREHOUSE">Warehouse</Option>
+                  {Object.entries(ROLE_INFO).map(([role, info]) => (
+                    <Option key={role} value={role}>
+                      <Space>
+                        <span>{info.icon}</span>
+                        <span>{info.name}</span>
+                      </Space>
+                    </Option>
+                  ))}
                 </Select>
               </Form.Item>
             </Col>
@@ -847,7 +1073,7 @@ const SettingsPage = () => {
                 Cancel
               </Button>
               <Button type="primary" htmlType="submit" loading={usersLoading}>
-                {editingUser ? 'Update User' : 'Create User'}
+                Update User
               </Button>
             </Space>
           </Form.Item>

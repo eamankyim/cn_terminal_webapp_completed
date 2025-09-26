@@ -127,8 +127,21 @@ router.post('/super-admin', async (req, res) => {
       }
     });
 
+    // Set up permissions and roles for the admin user
+    console.log('🔧 Setting up permissions and roles for admin user...');
+    
+    try {
+      // Import and run the permissions setup
+      const setupPermissions = require('../scripts/setup-permissions');
+      await setupPermissions();
+      console.log('✅ Permissions and roles set up successfully');
+    } catch (permissionError) {
+      console.error('⚠️ Warning: Failed to set up permissions:', permissionError.message);
+      // Don't fail the admin creation if permissions setup fails
+    }
+
     res.status(201).json({
-      message: 'Super admin created successfully',
+      message: 'Super admin created successfully with full permissions',
       user: superAdmin
     });
 

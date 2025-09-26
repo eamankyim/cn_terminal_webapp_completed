@@ -2,9 +2,87 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { prisma } = require('../config/database');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, requireAdminOrIT, PERMISSIONS } = require('../middleware/auth');
+const { validatePassword } = require('../utils/passwordValidation');
 
 const router = express.Router();
+
+/**
+ * @swagger
+ * /api/invitations/{id}:
+ *   get:
+ *     summary: Get invitation details by ID
+ *     tags: [Invitations]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Invitation ID
+ *     responses:
+ *       200:
+ *         description: Invitation details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 invitation:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                     expiresAt:
+ *                       type: string
+ *                       format: date-time
+ *       404:
+ *         description: Invitation not found
+ */
+// Get invitation details
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log('📧 GET /api/invitations/:id - Getting invitation details for ID:', id);
+    
+    const invitation = await prisma.invitation.findUnique({
+      where: { id },
+      include: {
+        invitedByUser: {
+          select: {
+            name: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    if (!invitation) {
+      console.log('📧 Invitation not found for ID:', id);
+      return res.status(404).json({ error: 'Invitation not found' });
+    }
+
+    console.log('📧 Found invitation:', {
+      id: invitation.id,
+      email: invitation.email,
+      role: invitation.role,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt
+    });
+
+    res.json({ invitation });
+  } catch (error) {
+    console.error('📧 Get invitation error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 /**
  * @swagger
@@ -35,7 +113,7 @@ const router = express.Router();
  *                         format: email
  *                       role:
  *                         type: string
- *                         enum: [ADMIN, STAFF, DRIVER, WAREHOUSE]
+ *                         enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, RELEASE_OFFICER, REVIEW_OFFICER, INVOICE_OFFICER, CLEARING_OFFICER, STAFF]
  *                       invitedBy:
  *                         type: string
  *                       invitedAt:
@@ -173,7 +251,7 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
  *                 example: john.doe@cnterminal.com
  *               role:
  *                 type: string
- *                 enum: [ADMIN, STAFF, DRIVER, WAREHOUSE]
+ *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, RELEASE_OFFICER, REVIEW_OFFICER, INVOICE_OFFICER, CLEARING_OFFICER, STAFF]
  *                 description: Role for the new user
  *                 example: STAFF
  *     responses:
@@ -227,6 +305,13 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
     if (!email || !role) {
       console.log('📧 Validation failed: Missing email or role');
       return res.status(400).json({ error: 'Email and role are required' });
+    }
+
+    // Validate role
+    const validRoles = ['ADMIN', 'IT_CONSULTANT', 'ENQUIRY_OFFICER', 'RELEASE_OFFICER', 'REVIEW_OFFICER', 'INVOICE_OFFICER', 'CLEARING_OFFICER', 'STAFF'];
+    if (!validRoles.includes(role)) {
+      console.log('📧 Validation failed: Invalid role:', role);
+      return res.status(400).json({ error: 'Invalid role specified' });
     }
 
     console.log('📧 Checking if user already exists for email:', email);
@@ -286,19 +371,47 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
 
     console.log('📧 Invitation created successfully:', invitation.id);
 
+    // Generate invite link
+    const inviteLink = `${process.env.CORS_ORIGIN || 'http://localhost:3000'}/accept-invitation/${invitation.id}`;
+    
     // Send email notification
     console.log('📧 Starting email send process for invitation:', invitation.id);
     try {
       const emailService = require('../services/emailService');
-      const inviteLink = `${process.env.CORS_ORIGIN || 'http://localhost:3000'}/accept-invitation/${invitation.id}`;
       
       console.log('📧 Generated invite link:', inviteLink);
-      console.log('📧 === NEW INVITATION LINK ===');
-      console.log('📧 🔗 INVITATION LINK:', inviteLink);
+      console.log('\n' + '='.repeat(80));
+      console.log('📧 🎉 NEW INVITATION CREATED - COPY LINK BELOW 🎉');
+      console.log('='.repeat(80));
+      console.log('📧 🔗 INVITATION LINK (COPY THIS):');
+      console.log('📧 ' + inviteLink);
       console.log('📧 📧 Email:', invitation.email);
       console.log('📧 👤 Role:', invitation.role);
       console.log('📧 ⏰ Expires:', invitation.expiresAt);
-      console.log('📧 === END NEW INVITATION LINK ===');
+      console.log('📧 🆔 Invitation ID:', invitation.id);
+      console.log('='.repeat(80));
+      console.log('📧 💡 TIP: Copy the link above and paste it in your browser to accept the invitation');
+      console.log('='.repeat(80) + '\n');
+      
+      // Also write to a simple text file for easy access
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const logFile = path.join(__dirname, '..', 'invitation-links.txt');
+        
+        // Create header if file doesn't exist
+        if (!fs.existsSync(logFile)) {
+          const header = `CN TERMINAL - INVITATION LINKS LOG\nCreated: ${new Date().toISOString()}\n${'='.repeat(80)}\n\n`;
+          fs.writeFileSync(logFile, header);
+        }
+        
+        const logEntry = `🎉 NEW INVITATION CREATED - ${new Date().toISOString()}\n${'='.repeat(60)}\n🔗 INVITATION LINK: ${inviteLink}\n📧 Email: ${invitation.email}\n👤 Role: ${invitation.role}\n⏰ Expires: ${invitation.expiresAt}\n🆔 ID: ${invitation.id}\n${'='.repeat(60)}\n\n`;
+        fs.appendFileSync(logFile, logEntry);
+        console.log('📧 💾 Invitation link saved to: invitation-links.txt');
+        console.log('📧 📁 File location:', logFile);
+      } catch (fileError) {
+        console.log('📧 ⚠️ Could not save to file:', fileError.message);
+      }
       console.log('📧 Invitation data:', {
         id: invitation.id,
         email: invitation.email,
@@ -326,7 +439,13 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
 
     res.status(201).json({
       message: 'Invitation sent successfully',
-      invitation
+      invitation,
+      inviteLink: inviteLink,
+      instructions: {
+        copyLink: inviteLink,
+        expiresAt: invitation.expiresAt,
+        note: 'Copy the inviteLink above and paste it in your browser to accept the invitation'
+      }
     });
   } catch (error) {
     console.error('📧 Send invitation error:', error);
@@ -394,12 +513,7 @@ router.get('/:id', async (req, res) => {
     }
 
     if (new Date() > invitation.expiresAt) {
-      // Mark as expired
-      await prisma.invitation.update({
-        where: { id },
-        data: { status: 'EXPIRED' }
-      });
-
+      console.log('📧 Invitation expired:', invitation.expiresAt);
       return res.status(410).json({ error: 'Invitation has expired' });
     }
 
@@ -570,6 +684,16 @@ router.post('/:id/accept', async (req, res) => {
       return res.status(400).json({ error: 'Name and password are required' });
     }
 
+    // Validate password strength
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      console.log('📧 Password validation failed:', passwordValidation.errors);
+      return res.status(400).json({ 
+        error: 'Password validation failed',
+        details: passwordValidation.errors
+      });
+    }
+
     const invitation = await prisma.invitation.findUnique({
       where: { id }
     });
@@ -596,12 +720,6 @@ router.post('/:id/accept', async (req, res) => {
 
     if (new Date() > invitation.expiresAt) {
       console.log('📧 Invitation expired:', invitation.expiresAt);
-      // Mark as expired
-      await prisma.invitation.update({
-        where: { id },
-        data: { status: 'EXPIRED' }
-      });
-
       return res.status(410).json({ error: 'Invitation has expired' });
     }
 
@@ -616,12 +734,22 @@ router.post('/:id/accept', async (req, res) => {
     }
 
     console.log('📧 Creating user account for:', invitation.email);
+    console.log('🔐 Password details:', {
+      length: password.length,
+      preview: password.substring(0, 3) + '...',
+      meetsRequirements: password.length >= 8 && /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)
+    });
+    
     // Hash password
+    console.log('🔐 Hashing password with bcrypt...');
     const hashedPassword = await bcrypt.hash(password, 12);
+    console.log('🔐 Password hashed successfully, hash length:', hashedPassword.length);
 
     // Create user and update invitation in a transaction
+    console.log('💾 Starting database transaction...');
     const result = await prisma.$transaction(async (tx) => {
       // Create user
+      console.log('👤 Creating user in database...');
       const user = await tx.user.create({
         data: {
           name,
@@ -639,6 +767,14 @@ router.post('/:id/accept', async (req, res) => {
           createdAt: true,
           updatedAt: true
         }
+      });
+      
+      console.log('✅ User created successfully:', {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive
       });
 
       // Update invitation status
@@ -689,9 +825,19 @@ router.post('/:id/accept', async (req, res) => {
       // Don't fail the account creation if email fails
     }
 
-    console.log('📧 Account created successfully for:', result.email);
-    console.log('📧 User ID:', result.id);
-    console.log('📧 Role:', result.role);
+    console.log('\n' + '='.repeat(80));
+    console.log('📧 🎉 INVITATION ACCEPTED SUCCESSFULLY! 🎉');
+    console.log('='.repeat(80));
+    console.log('📧 👤 New User Created:');
+    console.log('📧 📧 Email:', result.email);
+    console.log('📧 👤 Name:', result.name);
+    console.log('📧 🎭 Role:', result.role);
+    console.log('📧 🆔 User ID:', result.id);
+    console.log('📧 ✅ Status: ACTIVE');
+    console.log('📧 🔑 JWT Token: Generated');
+    console.log('='.repeat(80));
+    console.log('📧 💡 User can now log in with their email and password');
+    console.log('='.repeat(80) + '\n');
     
     res.status(201).json({
       message: 'Account created successfully',
@@ -888,6 +1034,55 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
       message: error.message,
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
+  }
+});
+
+/**
+ * @swagger
+ * /api/invitations/logs/file:
+ *   get:
+ *     summary: Get invitation links from log file
+ *     tags: [Invitations]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Invitation links log file content
+ *         content:
+ *           text/plain:
+ *             schema:
+ *               type: string
+ *       404:
+ *         description: Log file not found
+ *       500:
+ *         description: Internal server error
+ */
+// Get invitation links from log file
+router.get('/logs/file', authenticateToken, requireAdminOrIT, async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const logFile = path.join(__dirname, '..', 'invitation-links.txt');
+    
+    console.log('📧 GET /api/invitations/logs/file - Reading invitation links file');
+    console.log('📧 File path:', logFile);
+    
+    if (!fs.existsSync(logFile)) {
+      console.log('📧 Log file does not exist yet');
+      return res.status(404).json({ 
+        error: 'No invitation links found',
+        message: 'No invitations have been created yet'
+      });
+    }
+    
+    const fileContent = fs.readFileSync(logFile, 'utf8');
+    console.log('📧 File content length:', fileContent.length);
+    
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(fileContent);
+  } catch (error) {
+    console.error('📧 Error reading invitation links file:', error);
+    res.status(500).json({ error: 'Failed to read invitation links file' });
   }
 });
 

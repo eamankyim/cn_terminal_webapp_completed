@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import IntegrationTest from '../components/IntegrationTest';
+import PermissionGate from '../components/common/PermissionGate';
+import { PERMISSIONS } from '../utils/permissions';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   Card, 
   Row, 
@@ -40,11 +43,13 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../services/api';
+import { getJobStatusColor } from '../utils/statusUtils';
 
 const { Title, Text } = Typography;
 
 const DashboardPage = () => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState({
@@ -132,21 +137,7 @@ const DashboardPage = () => {
   const recentActivities = dashboardData.recentActivities;
  
 
-  const getStatusColor = (status, isDraft) => {
-    if (isDraft) {
-      return 'default';
-    }
-    const statusColors = {
-      'NEW': 'green',
-      'PREINVOICED': 'blue',
-      'INVOICED': 'purple',
-      'ENTRY': 'orange',
-      'RELEASE': 'cyan',
-      'CLEARED': 'green',
-      'DELIVERED': 'green'
-    };
-    return statusColors[status] || 'default';
-  };
+  // Using centralized status color utilities
 
   const getStatusIcon = (status, isDraft) => {
     if (isDraft) {
@@ -205,11 +196,12 @@ const DashboardPage = () => {
   }
 
   return (
-    <div style={{ padding: '24px' }}>
-      <div style={{ marginBottom: '24px' }}>
-        <Title level={2}>Clearing Agent Dashboard</Title>
-        <Text type="secondary">Monitor shipments, track status, and manage operations</Text>
-      </div>
+    <PermissionGate userRole={currentUser?.role} permissions={PERMISSIONS.DASHBOARD_VIEW}>
+      <div style={{ padding: '24px' }}>
+        <div style={{ marginBottom: '24px' }}>
+          <Title level={2}>Clearing Agent Dashboard</Title>
+          <Text type="secondary">Monitor shipments, track status, and manage operations</Text>
+        </div>
 
       {/* Statistics Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
@@ -266,7 +258,7 @@ const DashboardPage = () => {
                   render: (status, record) => {
                     const displayStatus = record.isDraft ? 'DRAFT' : status.replace(/_/g, ' ');
                     return (
-                      <Tag color={getStatusColor(status, record.isDraft)} icon={getStatusIcon(status, record.isDraft)}>
+                      <Tag color={getJobStatusColor(status, record.isDraft)} icon={getStatusIcon(status, record.isDraft)}>
                         {displayStatus}
                       </Tag>
                     );
@@ -341,7 +333,7 @@ const DashboardPage = () => {
                   render: (status, record) => {
                     const displayStatus = record.isDraft ? 'DRAFT' : status.replace(/_/g, ' ');
                     return (
-                      <Tag color={getStatusColor(status, record.isDraft)} icon={getStatusIcon(status, record.isDraft)}>
+                      <Tag color={getJobStatusColor(status, record.isDraft)} icon={getStatusIcon(status, record.isDraft)}>
                         {displayStatus}
                       </Tag>
                     );
@@ -399,7 +391,8 @@ const DashboardPage = () => {
           <IntegrationTest />
         </Col>
       </Row>
-    </div>
+      </div>
+    </PermissionGate>
   );
 };
 

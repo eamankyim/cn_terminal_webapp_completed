@@ -151,8 +151,6 @@ Authorization: Bearer <your-jwt-token>
 
 - **ADMIN**: Full access to all features and user management
 - **STAFF**: Access to all operational features
-- **DRIVER**: Limited access for delivery tracking
-- **WAREHOUSE**: Limited access for warehouse operations
 
 ## 🗄️ Database Schema
 

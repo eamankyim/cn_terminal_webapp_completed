@@ -1,6 +1,6 @@
 const express = require('express');
 const { prisma } = require('../config/database');
-const { authenticateToken, requireStaff } = require('../middleware/auth');
+const { authenticateToken, requirePermission, PERMISSIONS } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -47,7 +47,7 @@ const router = express.Router();
  */
 
 // Get dashboard statistics
-router.get('/stats', authenticateToken, requireStaff, async (req, res) => {
+router.get('/stats', authenticateToken, requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req, res) => {
   try {
     const currentDate = new Date();
     const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -236,7 +236,7 @@ router.get('/stats', authenticateToken, requireStaff, async (req, res) => {
  */
 
 // Get recent shipments
-router.get('/recent-shipments', authenticateToken, requireStaff, async (req, res) => {
+router.get('/recent-shipments', authenticateToken, requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
@@ -304,7 +304,7 @@ router.get('/recent-shipments', authenticateToken, requireStaff, async (req, res
  */
 
 // Get jobs in progress (excludes REJECTED, ON_HOLD, DELIVERED, CLOSED)
-router.get('/recent-jobs', authenticateToken, requireStaff, async (req, res) => {
+router.get('/recent-jobs', authenticateToken, requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
@@ -383,7 +383,7 @@ router.get('/recent-jobs', authenticateToken, requireStaff, async (req, res) => 
  */
 
 // Get jobs assigned to current user
-router.get('/assigned-jobs', authenticateToken, requireStaff, async (req, res) => {
+router.get('/assigned-jobs', authenticateToken, requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 

@@ -111,7 +111,7 @@ class NotificationService {
       'PREINVOICED': 'Job is ready for invoicing',
       'INVOICED': 'Invoice has been generated',
       'ENTRY': 'Job is being processed for entry',
-      'RELEASE': 'Job is ready for release',
+      'RELEASED': 'Job has been released',
       'CLEARED': 'Job has been cleared',
       'DELIVERED': 'Job has been delivered'
     };

@@ -6,22 +6,21 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting database seeding...');
 
-  // Create admin user
-  const hashedPassword = await bcrypt.hash('admin123', 12);
-  
-  const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@cnterminal.com' },
-    update: {},
-    create: {
-      email: 'admin@cnterminal.com',
-      password: hashedPassword,
-      name: 'Admin User',
-      role: 'ADMIN',
-      isActive: true
-    }
+  // Note: Admin user will be created through the /api/init endpoint
+  // This ensures secure password creation and proper permission setup
+
+  // Get the admin user for creating sample data
+  const adminUser = await prisma.user.findFirst({
+    where: { role: 'ADMIN' }
   });
 
-  console.log('✅ Admin user created:', adminUser.email);
+  if (!adminUser) {
+    console.log('⚠️ No admin user found. Sample data will not be created.');
+    console.log('💡 Please create an admin user first via /api/init/super-admin');
+    return;
+  }
+
+  console.log('✅ Using admin user for sample data creation:', adminUser.email);
 
   // Create sample customers
   const customers = await Promise.all([
@@ -35,7 +34,7 @@ async function main() {
         address: '123 Main Street, Accra',
         city: 'Accra',
         country: 'Ghana',
-        customerType: 'REGULAR',
+        customerType: 'COMPANY',
         status: 'ACTIVE'
       }
     }),
@@ -49,7 +48,7 @@ async function main() {
         address: '456 Oak Avenue, Kumasi',
         city: 'Kumasi',
         country: 'Ghana',
-        customerType: 'PREMIUM',
+        customerType: 'INDIVIDUAL',
         status: 'ACTIVE'
       }
     }),
@@ -63,7 +62,7 @@ async function main() {
         address: '789 Pine Road, Tema',
         city: 'Tema',
         country: 'Ghana',
-        customerType: 'VIP',
+        customerType: 'COMPANY',
         status: 'ACTIVE'
       }
     })
@@ -85,7 +84,7 @@ async function main() {
         ghanaCard: 'GHA-123456789-0',
         tin: '123456789',
         goodsType: 'Electronics',
-        status: 'RELEASE',
+        status: 'RELEASED',
         value: 25000,
         date: new Date('2024-01-20')
       }

@@ -50,9 +50,8 @@ Authenticate user and get JWT token.
   "message": "Login successful",
   "user": {
     "id": "uuid",
+    "name": "Super Administrator",
     "email": "admin@cnterminal.com",
-    "firstName": "Admin",
-    "lastName": "User",
     "role": "ADMIN",
     "isActive": true,
     "createdAt": "2025-08-28T17:00:00.000Z",
@@ -364,10 +363,9 @@ Create a new payment.
 ```json
 {
   "id": "uuid",
+  "name": "string",
   "email": "string",
-  "firstName": "string",
-  "lastName": "string",
-  "role": "ADMIN | STAFF | DRIVER | WAREHOUSE",
+  "role": "ADMIN | IT_CONSULTANT | ENQUIRY_OFFICER | RELEASE_OFFICER | REVIEW_OFFICER | INVOICE_OFFICER | CLEARING_OFFICER | STAFF",
   "isActive": "boolean",
   "createdAt": "date-time",
   "updatedAt": "date-time"

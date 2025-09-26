@@ -11,6 +11,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Sidebar from './Sidebar';
 import NotificationBell from '../common/NotificationBell';
+import WhatsAppButton from '../common/WhatsAppButton';
 import './MainLayout.css';
 
 const { Header, Content } = Layout;
@@ -42,7 +43,7 @@ const MainLayout = () => {
       <Menu.Item key="profile" icon={<UserOutlined />} onClick={() => navigate('/admin')}>
         Profile
       </Menu.Item>
-      <Menu.Item key="settings" icon={<SettingOutlined />} onClick={() => navigate('/admin')}>
+      <Menu.Item key="settings" icon={<SettingOutlined />} onClick={() => navigate('/settings')}>
         Settings
       </Menu.Item>
       <Menu.Divider />
@@ -103,6 +104,9 @@ const MainLayout = () => {
           <Outlet />
         </Content>
       </Layout>
+      
+      {/* WhatsApp Floating Button */}
+      <WhatsAppButton />
     </Layout>
   );
 };

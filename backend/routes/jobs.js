@@ -234,8 +234,17 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
           updatedById: true,
           assignedToId: true,
           status: true,
+          isDraft: true,
           submittedDate: true,
           eta: true,
+          demurrageFreeDays: true,
+          releaseMoneyReceived: true,
+          shipperName: true,
+          invoiceNumber: true,
+          terminalName: true,
+          scheduleTime: true,
+          driverName: true,
+          driverContact: true,
           createdAt: true,
           updatedAt: true,
           goodsTypes: true,
@@ -364,8 +373,13 @@ router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
         updatedById: true,
         assignedToId: true,
         status: true,
+        isDraft: true,
         submittedDate: true,
         eta: true,
+        demurrageFreeDays: true,
+        releaseMoneyReceived: true,
+        shipperName: true,
+        invoiceNumber: true,
         createdAt: true,
         updatedAt: true,
         goodsTypes: true,
@@ -718,6 +732,8 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
       isDraft,
       goodsTypes,
       eta,
+      demurrageFreeDays,
+      releaseMoneyReceived,
       mediumOfEnquiry,
       documentsBrought,
       containerNumber,
@@ -750,11 +766,18 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
       }
     }
 
-    // Validate ETA is required for RELEASE status
-    if (status === 'RELEASE' && !eta) {
-      return res.status(400).json({ 
-        error: 'ETA is required when status is RELEASE' 
-      });
+    // Validate demurrage/free days and release money are required for RELEASED status
+    if (status === 'RELEASED') {
+      if (demurrageFreeDays === undefined || demurrageFreeDays === null) {
+        return res.status(400).json({ 
+          error: 'Demurrage/Free days is required when status is RELEASED' 
+        });
+      }
+      if (releaseMoneyReceived === undefined || releaseMoneyReceived === null) {
+        return res.status(400).json({ 
+          error: 'Release money status is required when status is RELEASED' 
+        });
+      }
     }
 
     // Validate ETA is in the future if provided
@@ -789,6 +812,16 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
     // Add ETA if provided
     if (eta !== undefined) {
       updateData.eta = eta ? new Date(eta) : null;
+    }
+
+    // Add demurrage/free days if provided
+    if (demurrageFreeDays !== undefined) {
+      updateData.demurrageFreeDays = parseInt(demurrageFreeDays);
+    }
+
+    // Add release money status if provided
+    if (releaseMoneyReceived !== undefined) {
+      updateData.releaseMoneyReceived = releaseMoneyReceived;
     }
 
     // Add medium of enquiry if provided
@@ -887,24 +920,83 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
 router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, comment, eta } = req.body;
+    const { status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact } = req.body;
 
     console.log('🔍 Status update request:');
     console.log('  - Job ID:', id);
     console.log('  - Status:', status);
-    console.log('  - Comment:', comment);
-    console.log('  - ETA:', eta);
-    console.log('  - ETA type:', typeof eta);
+    console.log('  - Demurrage/Free Days:', demurrageFreeDays);
+    console.log('  - Release Money Received:', releaseMoneyReceived);
 
     if (!status) {
       return res.status(400).json({ error: 'Status is required' });
     }
 
-    // Validate ETA is required for RELEASE status
-    if (status === 'RELEASE' && !eta) {
-      return res.status(400).json({ 
-        error: 'ETA is required when status is RELEASE' 
-      });
+    // Validate demurrage/free days and release money are required for RELEASED status
+    if (status === 'RELEASED') {
+      if (demurrageFreeDays === undefined || demurrageFreeDays === null || demurrageFreeDays === '') {
+        return res.status(400).json({ 
+          error: 'Demurrage/Free days is required when status is RELEASED' 
+        });
+      }
+      if (isNaN(parseInt(demurrageFreeDays)) || parseInt(demurrageFreeDays) < 0) {
+        return res.status(400).json({ 
+          error: 'Demurrage/Free days must be a valid positive number' 
+        });
+      }
+      if (releaseMoneyReceived === undefined || releaseMoneyReceived === null) {
+        return res.status(400).json({ 
+          error: 'Release money status is required when status is RELEASED' 
+        });
+      }
+    }
+
+    // Validate shipper name and invoice number are required for INVOICED status
+    if (status === 'INVOICED') {
+      if (!shipperName || shipperName.trim() === '') {
+        return res.status(400).json({ 
+          error: 'Shipper name is required when status is INVOICED' 
+        });
+      }
+      if (!invoiceNumber || invoiceNumber.trim() === '') {
+        return res.status(400).json({ 
+          error: 'Invoice number is required when status is INVOICED' 
+        });
+      }
+    }
+
+    // Validate RELEASED status fields are required
+    if (status === 'RELEASED') {
+      if (!terminalName || terminalName.trim() === '') {
+        return res.status(400).json({ 
+          error: 'Terminal name is required when status is RELEASED' 
+        });
+      }
+      if (!scheduleTime) {
+        return res.status(400).json({ 
+          error: 'Schedule time is required when status is RELEASED' 
+        });
+      }
+      if (!driverName || driverName.trim() === '') {
+        return res.status(400).json({ 
+          error: 'Driver name is required when status is RELEASED' 
+        });
+      }
+      if (!driverContact || driverContact.trim() === '') {
+        return res.status(400).json({ 
+          error: 'Driver contact is required when status is RELEASED' 
+        });
+      }
+      if (demurrageFreeDays === undefined || demurrageFreeDays === null) {
+        return res.status(400).json({ 
+          error: 'Demurrage/Free days is required when status is RELEASED' 
+        });
+      }
+      if (releaseMoneyReceived === undefined || releaseMoneyReceived === null) {
+        return res.status(400).json({ 
+          error: 'Release money received status is required when status is RELEASED' 
+        });
+      }
     }
 
     // Validate ETA is in the future if provided
@@ -929,7 +1021,7 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
       'PREINVOICED': 2,
       'INVOICED': 3,      // Auto-set only when invoice is created
       'ENTRY': 4,
-      'RELEASE': 5,
+      'RELEASED': 5,
       'CLEARED': 6,
       'DELIVERED': 7      // Final status - no further changes
     };
@@ -951,12 +1043,7 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
       });
     }
 
-    // INVOICED can only be set automatically (not manually)
-    if (status === 'INVOICED') {
-      return res.status(400).json({ 
-        error: 'INVOICED status can only be set automatically when an invoice is created' 
-      });
-    }
+    // INVOICED is now a regular status that can be set manually
 
     // DELIVERED is final status - no further changes allowed
     if (existingJob.status === 'DELIVERED') {
@@ -977,7 +1064,43 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
       console.log('🔍 ETA being saved:', updateData.eta);
     }
 
-    console.log('🔍 Update data:', updateData);
+    // Add assignedToId if provided
+    if (assignedToId !== undefined) {
+      updateData.assignedToId = assignedToId;
+      console.log('🔍 AssignedToId being updated:', assignedToId);
+    }
+
+    // Add demurrage/free days if provided
+    if (demurrageFreeDays !== undefined) {
+      updateData.demurrageFreeDays = parseInt(demurrageFreeDays);
+    }
+
+    // Add release money status if provided
+    if (releaseMoneyReceived !== undefined) {
+      updateData.releaseMoneyReceived = releaseMoneyReceived;
+    }
+
+    // Add shipper name and invoice number if provided (for INVOICED status)
+    if (shipperName !== undefined) {
+      updateData.shipperName = shipperName.trim();
+    }
+    if (invoiceNumber !== undefined) {
+      updateData.invoiceNumber = invoiceNumber.trim();
+    }
+
+    // Add RELEASED status fields if provided
+    if (terminalName !== undefined) {
+      updateData.terminalName = terminalName.trim();
+    }
+    if (scheduleTime !== undefined) {
+      updateData.scheduleTime = new Date(scheduleTime);
+    }
+    if (driverName !== undefined) {
+      updateData.driverName = driverName.trim();
+    }
+    if (driverContact !== undefined) {
+      updateData.driverContact = driverContact.trim();
+    }
 
     // Update job status
     const updatedJob = await prisma.job.update({
@@ -986,6 +1109,8 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
     });
 
     console.log('🔍 Updated job ETA:', updatedJob.eta);
+    console.log('🔍 Updated job shipperName:', updatedJob.shipperName);
+    console.log('🔍 Updated job invoiceNumber:', updatedJob.invoiceNumber);
 
     // Create status history entry
     await prisma.jobStatusHistory.create({
@@ -1009,8 +1134,13 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
         updatedById: true,
         assignedToId: true,
         status: true,
+        isDraft: true,
         submittedDate: true,
         eta: true,
+        demurrageFreeDays: true,
+        releaseMoneyReceived: true,
+        shipperName: true,
+        invoiceNumber: true,
         createdAt: true,
         updatedAt: true,
         goodsTypes: true,
@@ -1067,6 +1197,8 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
     });
 
     console.log('🔍 Complete job ETA:', completeJob?.eta);
+    console.log('🔍 Complete job shipperName:', completeJob?.shipperName);
+    console.log('🔍 Complete job invoiceNumber:', completeJob?.invoiceNumber);
 
     // Create notification for job status change
     try {
@@ -1088,7 +1220,14 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
     });
   } catch (error) {
     console.error('Update job status error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error stack:', error.stack);
+    console.error('Error message:', error.message);
+    console.error('Error details:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: error.message,
+      stack: error.stack
+    });
   }
 });
 

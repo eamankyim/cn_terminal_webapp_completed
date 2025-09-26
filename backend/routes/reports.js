@@ -1,14 +1,14 @@
 const express = require('express');
-const { prisma } = require('../config/database');
 const { authenticateToken, requireStaff } = require('../middleware/auth');
+const ReportService = require('../services/reportService');
 
 const router = express.Router();
 
 /**
  * @swagger
- * /api/reports/overview:
+ * /api/reports/summary:
  *   get:
- *     summary: Get reports overview statistics
+ *     summary: Get summary statistics for reports
  *     tags: [Reports]
  *     security:
  *       - bearerAuth: []
@@ -18,338 +18,86 @@ const router = express.Router();
  *         schema:
  *           type: string
  *           format: date
- *         description: Start date for the report period
+ *         description: Start date for the report
  *       - in: query
  *         name: endDate
  *         schema:
  *           type: string
  *           format: date
- *         description: End date for the report period
+ *         description: End date for the report
  *     responses:
  *       200:
- *         description: Reports overview retrieved successfully
+ *         description: Summary statistics retrieved successfully
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 overview:
- *                   type: object
- *                   properties:
- *                     totalReports:
- *                       type: integer
- *                     thisMonth:
- *                       type: integer
- *                     readyForDownload:
- *                       type: integer
- *                     processing:
- *                       type: integer
+ *                 totalJobs:
+ *                   type: integer
+ *                 completedJobs:
+ *                   type: integer
+ *                 pendingJobs:
+ *                   type: integer
+ *                 totalRevenue:
+ *                   type: number
+ *                 activeCustomers:
+ *                   type: integer
+ *                 avgProcessingTime:
+ *                   type: number
  *       401:
- *         description: Unauthorized - Invalid or missing token
+ *         description: Unauthorized
  *       500:
  *         description: Internal server error
  */
-
-// Get reports overview
-router.get('/overview', authenticateToken, requireStaff, async (req, res) => {
+router.get('/summary', authenticateToken, requireStaff, async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
-    const currentDate = new Date();
-    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-
-    // Build date filter
-    const dateFilter = {};
-    if (startDate && endDate) {
-      dateFilter.createdAt = {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      };
+    console.log('\n' + '='.repeat(80));
+    console.log('📊 REPORTS SUMMARY REQUEST');
+    console.log('='.repeat(80));
+    console.log('📅 Raw startDate:', startDate);
+    console.log('📅 Raw endDate:', endDate);
+    console.log('⏰ Request time:', new Date().toISOString());
+    
+    if (!startDate || !endDate) {
+      console.log('❌ Missing date parameters');
+      console.log('='.repeat(80) + '\n');
+      return res.status(400).json({ error: 'Start date and end date are required' });
     }
 
-    // Get report statistics
-    const [
-      totalReports,
-      thisMonthReports,
-      readyForDownload,
-      processing
-    ] = await Promise.all([
-      prisma.report.count({ where: dateFilter }),
-      prisma.report.count({
-        where: {
-          createdAt: {
-            gte: startOfMonth,
-            lte: endOfMonth
-          }
-        }
-      }),
-      prisma.report.count({
-        where: {
-          status: 'READY',
-          ...dateFilter
-        }
-      }),
-      prisma.report.count({
-        where: {
-          status: 'PROCESSING',
-          ...dateFilter
-        }
-      })
-    ]);
-
-    res.json({
-      overview: {
-        totalReports,
-        thisMonth: thisMonthReports,
-        readyForDownload,
-        processing
-      }
-    });
-  } catch (error) {
-    console.error('Get reports overview error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-/**
- * @swagger
- * /api/reports/shipment-volume:
- *   get:
- *     summary: Get shipment volume trends
- *     tags: [Reports]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: period
- *         schema:
- *           type: string
- *           enum: [daily, weekly, monthly, yearly]
- *           default: monthly
- *         description: Time period for the report
- *       - in: query
- *         name: months
- *         schema:
- *           type: integer
- *           default: 12
- *         description: Number of months to include
- *     responses:
- *       200:
- *         description: Shipment volume data retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       period:
- *                         type: string
- *                       count:
- *                         type: integer
- *                       value:
- *                         type: number
- *       401:
- *         description: Unauthorized - Invalid or missing token
- *       500:
- *         description: Internal server error
- */
-
-// Get shipment volume trends
-router.get('/shipment-volume', authenticateToken, requireStaff, async (req, res) => {
-  try {
-    const { period = 'monthly', months = 12 } = req.query;
+    // Create dates that include the full day (start at 00:00:00, end at 23:59:59.999)
+    const startDateTime = new Date(startDate + 'T00:00:00.000Z');
+    const endDateTime = new Date(endDate + 'T23:59:59.999Z');
     
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setMonth(endDate.getMonth() - parseInt(months));
-
-    // This is a simplified implementation
-    // In a real application, you would use more sophisticated date grouping
-    const shipments = await prisma.shipment.findMany({
-      where: {
-        createdAt: {
-          gte: startDate,
-          lte: endDate
-        }
-      },
-      select: {
-        createdAt: true,
-        packageValue: true
-      },
-      orderBy: { createdAt: 'asc' }
-    });
-
-    // Group by period (simplified)
-    const groupedData = {};
-    shipments.forEach(shipment => {
-      const date = new Date(shipment.createdAt);
-      let key;
-      
-      switch (period) {
-        case 'daily':
-          key = date.toISOString().split('T')[0];
-          break;
-        case 'weekly':
-          const weekStart = new Date(date);
-          weekStart.setDate(date.getDate() - date.getDay());
-          key = weekStart.toISOString().split('T')[0];
-          break;
-        case 'monthly':
-          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          break;
-        case 'yearly':
-          key = date.getFullYear().toString();
-          break;
-        default:
-          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      }
-
-      if (!groupedData[key]) {
-        groupedData[key] = { count: 0, value: 0 };
-      }
-      groupedData[key].count += 1;
-      groupedData[key].value += shipment.packageValue || 0;
-    });
-
-    const data = Object.entries(groupedData).map(([period, stats]) => ({
-      period,
-      count: stats.count,
-      value: stats.value
-    }));
-
-    res.json({ data });
-  } catch (error) {
-    console.error('Get shipment volume error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-/**
- * @swagger
- * /api/reports/revenue-analysis:
- *   get:
- *     summary: Get revenue analysis
- *     tags: [Reports]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: period
- *         schema:
- *           type: string
- *           enum: [daily, weekly, monthly, yearly]
- *           default: monthly
- *         description: Time period for the report
- *       - in: query
- *         name: months
- *         schema:
- *           type: integer
- *           default: 12
- *         description: Number of months to include
- *     responses:
- *       200:
- *         description: Revenue analysis retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       period:
- *                         type: string
- *                       revenue:
- *                         type: number
- *                       payments:
- *                         type: integer
- *       401:
- *         description: Unauthorized - Invalid or missing token
- *       500:
- *         description: Internal server error
- */
-
-// Get revenue analysis
-router.get('/revenue-analysis', authenticateToken, requireStaff, async (req, res) => {
-  try {
-    const { period = 'monthly', months = 12 } = req.query;
+    console.log('🕐 Parsed startDateTime:', startDateTime.toISOString());
+    console.log('🕐 Parsed endDateTime:', endDateTime.toISOString());
+    console.log('📊 Date range span:', Math.ceil((endDateTime - startDateTime) / (1000 * 60 * 60 * 24)), 'days');
     
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setMonth(endDate.getMonth() - parseInt(months));
+    const stats = await ReportService.getSummaryStats(
+      startDateTime,
+      endDateTime
+    );
 
-    const payments = await prisma.payment.findMany({
-      where: {
-        status: 'COMPLETED',
-        createdAt: {
-          gte: startDate,
-          lte: endDate
-        }
-      },
-      select: {
-        createdAt: true,
-        amount: true
-      },
-      orderBy: { createdAt: 'asc' }
-    });
+    console.log('📈 Summary stats result:', JSON.stringify(stats, null, 2));
+    console.log('='.repeat(80));
+    console.log('✅ REPORTS SUMMARY SUCCESS');
+    console.log('='.repeat(80) + '\n');
 
-    // Group by period
-    const groupedData = {};
-    payments.forEach(payment => {
-      const date = new Date(payment.createdAt);
-      let key;
-      
-      switch (period) {
-        case 'daily':
-          key = date.toISOString().split('T')[0];
-          break;
-        case 'weekly':
-          const weekStart = new Date(date);
-          weekStart.setDate(date.getDate() - date.getDay());
-          key = weekStart.toISOString().split('T')[0];
-          break;
-        case 'monthly':
-          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          break;
-        case 'yearly':
-          key = date.getFullYear().toString();
-          break;
-        default:
-          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      }
-
-      if (!groupedData[key]) {
-        groupedData[key] = { revenue: 0, payments: 0 };
-      }
-      groupedData[key].revenue += payment.amount;
-      groupedData[key].payments += 1;
-    });
-
-    const data = Object.entries(groupedData).map(([period, stats]) => ({
-      period,
-      revenue: stats.revenue,
-      payments: stats.payments
-    }));
-
-    res.json({ data });
+    res.json(stats);
   } catch (error) {
-    console.error('Get revenue analysis error:', error);
+    console.error('❌ Error getting summary stats:', error);
+    console.log('='.repeat(80) + '\n');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 /**
  * @swagger
- * /api/reports/performance-metrics:
+ * /api/reports/job-status:
  *   get:
- *     summary: Get performance metrics
+ *     summary: Get job status summary report
  *     tags: [Reports]
  *     security:
  *       - bearerAuth: []
@@ -359,331 +107,451 @@ router.get('/revenue-analysis', authenticateToken, requireStaff, async (req, res
  *         schema:
  *           type: string
  *           format: date
- *         description: Start date for the report period
+ *         description: Start date for the report
  *       - in: query
  *         name: endDate
  *         schema:
  *           type: string
  *           format: date
- *         description: End date for the report period
+ *         description: End date for the report
  *     responses:
  *       200:
- *         description: Performance metrics retrieved successfully
+ *         description: Job status summary retrieved successfully
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 metrics:
- *                   type: object
- *                   properties:
- *                     onTimeDelivery:
- *                       type: number
- *                       description: Percentage of on-time deliveries
- *                     averageProcessingTime:
- *                       type: number
- *                       description: Average processing time in days
- *                     customerSatisfaction:
- *                       type: number
- *                       description: Customer satisfaction score
- *       401:
- *         description: Unauthorized - Invalid or missing token
- *       500:
- *         description: Internal server error
- */
-
-// Get performance metrics
-router.get('/performance-metrics', authenticateToken, requireStaff, async (req, res) => {
-  try {
-    const { startDate, endDate } = req.query;
-    
-    const dateFilter = {};
-    if (startDate && endDate) {
-      dateFilter.createdAt = {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      };
-    }
-
-    // Get delivery performance
-    const totalDeliveries = await prisma.shipment.count({
-      where: {
-        status: 'DELIVERED',
-        ...dateFilter
-      }
-    });
-
-    const onTimeDeliveries = await prisma.shipment.count({
-      where: {
-        status: 'DELIVERED',
-        deliveredAt: {
-          lte: prisma.shipment.fields.estimatedDeliveryDate
-        },
-        ...dateFilter
-      }
-    });
-
-    // Calculate average processing time
-    const jobs = await prisma.job.findMany({
-      where: {
-        status: 'COMPLETED',
-        ...dateFilter
-      },
-      select: {
-        createdAt: true,
-        updatedAt: true
-      }
-    });
-
-    const totalProcessingTime = jobs.reduce((sum, job) => {
-      const processingTime = new Date(job.updatedAt) - new Date(job.createdAt);
-      return sum + processingTime;
-    }, 0);
-
-    const averageProcessingTime = jobs.length > 0 ? totalProcessingTime / jobs.length / (1000 * 60 * 60 * 24) : 0;
-
-    // Mock customer satisfaction (in real app, this would come from surveys/ratings)
-    const customerSatisfaction = 4.2; // Mock value
-
-    res.json({
-      metrics: {
-        onTimeDelivery: totalDeliveries > 0 ? (onTimeDeliveries / totalDeliveries) * 100 : 0,
-        averageProcessingTime: Math.round(averageProcessingTime * 10) / 10,
-        customerSatisfaction
-      }
-    });
-  } catch (error) {
-    console.error('Get performance metrics error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-/**
- * @swagger
- * /api/reports/generate:
- *   post:
- *     summary: Generate a new report
- *     tags: [Reports]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - type
- *               - name
- *             properties:
- *               type:
- *                 type: string
- *                 enum: [shipment_volume, revenue_analysis, performance_metrics, customer_satisfaction]
- *                 description: Type of report to generate
- *               name:
- *                 type: string
- *                 description: Name of the report
- *               startDate:
- *                 type: string
- *                 format: date
- *                 description: Start date for the report
- *               endDate:
- *                 type: string
- *                 format: date
- *                 description: End date for the report
- *               parameters:
+ *               type: array
+ *               items:
  *                 type: object
- *                 description: Additional parameters for the report
- *     responses:
- *       201:
- *         description: Report generation started successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: Report generation started successfully
- *                 report:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                       format: uuid
- *                     name:
- *                       type: string
- *                     type:
- *                       type: string
- *                     status:
- *                       type: string
- *                     createdAt:
- *                       type: string
- *                       format: date-time
- *       400:
- *         description: Missing required fields
+ *                 properties:
+ *                   status:
+ *                     type: string
+ *                   count:
+ *                     type: integer
+ *                   percentage:
+ *                     type: number
  *       401:
- *         description: Unauthorized - Invalid or missing token
+ *         description: Unauthorized
  *       500:
  *         description: Internal server error
  */
-
-// Generate new report
-router.post('/generate', authenticateToken, requireStaff, async (req, res) => {
+router.get('/job-status', authenticateToken, requireStaff, async (req, res) => {
   try {
-    const { type, name, startDate, endDate, parameters = {} } = req.body;
-
-    if (!type || !name) {
-      return res.status(400).json({ error: 'Type and name are required' });
+    const { startDate, endDate } = req.query;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Start date and end date are required' });
     }
 
-    // Create report record
-    const report = await prisma.report.create({
-      data: {
-        name,
-        type,
-        status: 'PROCESSING',
-        parameters: JSON.stringify(parameters),
-        startDate: startDate ? new Date(startDate) : null,
-        endDate: endDate ? new Date(endDate) : null,
-        createdById: req.user.id
-      }
-    });
+    // Create dates that include the full day
+    const startDateTime = new Date(startDate + 'T00:00:00.000Z');
+    const endDateTime = new Date(endDate + 'T23:59:59.999Z');
+    
+    const data = await ReportService.getJobStatusSummary(
+      startDateTime,
+      endDateTime
+    );
 
-    // In a real application, you would queue the report generation job here
-    // For now, we'll simulate immediate completion
-    setTimeout(async () => {
-      await prisma.report.update({
-        where: { id: report.id },
-        data: { 
-          status: 'READY',
-          fileUrl: `/reports/${report.id}.pdf` // Mock file URL
-        }
-      });
-    }, 2000);
-
-    res.status(201).json({
-      message: 'Report generation started successfully',
-      report
-    });
+    res.json(data);
   } catch (error) {
-    console.error('Generate report error:', error);
+    console.error('Error getting job status summary:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 /**
  * @swagger
- * /api/reports:
+ * /api/reports/daily-activity:
  *   get:
- *     summary: Get all generated reports
+ *     summary: Get daily activity report
  *     tags: [Reports]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *         description: Page number for pagination
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 10
- *         description: Number of items per page
- *       - in: query
- *         name: status
+ *         name: startDate
  *         schema:
  *           type: string
- *           enum: [PROCESSING, READY, FAILED]
- *         description: Filter by report status
+ *           format: date
+ *         description: Start date for the report
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for the report
  *     responses:
  *       200:
- *         description: List of reports retrieved successfully
+ *         description: Daily activity report retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   date:
+ *                     type: string
+ *                     format: date
+ *                   newJobs:
+ *                     type: integer
+ *                   completedJobs:
+ *                     type: integer
+ *                   revenue:
+ *                     type: number
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/daily-activity', authenticateToken, requireStaff, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Start date and end date are required' });
+    }
+
+    // Create dates that include the full day
+    const startDateTime = new Date(startDate + 'T00:00:00.000Z');
+    const endDateTime = new Date(endDate + 'T23:59:59.999Z');
+    
+    const data = await ReportService.getDailyActivity(
+      startDateTime,
+      endDateTime
+    );
+
+    res.json(data);
+  } catch (error) {
+    console.error('Error getting daily activity:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/reports/revenue:
+ *   get:
+ *     summary: Get revenue summary report
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date for the report
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for the report
+ *     responses:
+ *       200:
+ *         description: Revenue summary retrieved successfully
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 reports:
+ *                 totalRevenue:
+ *                   type: number
+ *                 paidRevenue:
+ *                   type: number
+ *                 pendingRevenue:
+ *                   type: number
+ *                 revenueByStatus:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       id:
- *                         type: string
- *                         format: uuid
- *                       name:
- *                         type: string
- *                       type:
- *                         type: string
  *                       status:
  *                         type: string
- *                       createdAt:
- *                         type: string
- *                         format: date-time
- *                       fileUrl:
- *                         type: string
- *                 pagination:
- *                   type: object
- *                   properties:
- *                     currentPage:
- *                       type: integer
- *                     totalPages:
- *                       type: integer
- *                     totalCount:
- *                       type: integer
- *                     limit:
- *                       type: integer
+ *                       amount:
+ *                         type: number
+ *                       percentage:
+ *                         type: number
  *       401:
- *         description: Unauthorized - Invalid or missing token
+ *         description: Unauthorized
  *       500:
  *         description: Internal server error
  */
-
-// Get all reports
-router.get('/', authenticateToken, requireStaff, async (req, res) => {
+router.get('/revenue', authenticateToken, requireStaff, async (req, res) => {
   try {
-    const { page = 1, limit = 10, status } = req.query;
-    const skip = (page - 1) * limit;
-
-    const where = {};
-    if (status) {
-      where.status = status;
+    const { startDate, endDate } = req.query;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Start date and end date are required' });
     }
 
-    const [reports, totalCount] = await Promise.all([
-      prisma.report.findMany({
-        where,
-        include: {
-          createdBy: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
-        },
-        orderBy: { createdAt: 'desc' },
-        skip: parseInt(skip),
-        take: parseInt(limit)
-      }),
-      prisma.report.count({ where })
-    ]);
+    // Create dates that include the full day
+    const startDateTime = new Date(startDate + 'T00:00:00.000Z');
+    const endDateTime = new Date(endDate + 'T23:59:59.999Z');
+    
+    const data = await ReportService.getRevenueSummary(
+      startDateTime,
+      endDateTime
+    );
+
+    res.json(data);
+  } catch (error) {
+    console.error('Error getting revenue summary:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/reports/invoices:
+ *   get:
+ *     summary: Get invoice reports
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date for the report
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for the report
+ *     responses:
+ *       200:
+ *         description: Invoice reports retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   customer:
+ *                     type: string
+ *                   amount:
+ *                     type: number
+ *                   status:
+ *                     type: string
+ *                   date:
+ *                     type: string
+ *                     format: date
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/invoices', authenticateToken, requireStaff, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Start date and end date are required' });
+    }
+
+    // Create dates that include the full day
+    const startDateTime = new Date(startDate + 'T00:00:00.000Z');
+    const endDateTime = new Date(endDate + 'T23:59:59.999Z');
+    
+    const data = await ReportService.getInvoiceReports(
+      startDateTime,
+      endDateTime
+    );
+
+    res.json(data);
+  } catch (error) {
+    console.error('Error getting invoice reports:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/reports/customers:
+ *   get:
+ *     summary: Get customer activity report
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date for the report
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for the report
+ *     responses:
+ *       200:
+ *         description: Customer activity report retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   name:
+ *                     type: string
+ *                   jobs:
+ *                     type: integer
+ *                   revenue:
+ *                     type: number
+ *                   lastActivity:
+ *                     type: string
+ *                     format: date
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/customers', authenticateToken, requireStaff, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Start date and end date are required' });
+    }
+
+    // Create dates that include the full day
+    const startDateTime = new Date(startDate + 'T00:00:00.000Z');
+    const endDateTime = new Date(endDate + 'T23:59:59.999Z');
+    
+    const data = await ReportService.getCustomerActivity(
+      startDateTime,
+      endDateTime
+    );
+
+    res.json(data);
+  } catch (error) {
+    console.error('Error getting customer activity:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/reports/processing-time:
+ *   get:
+ *     summary: Get processing time report
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date for the report
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for the report
+ *     responses:
+ *       200:
+ *         description: Processing time report retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/processing-time', authenticateToken, requireStaff, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Start date and end date are required' });
+    }
+
+    // Create dates that include the full day
+    const startDateTime = new Date(startDate + 'T00:00:00.000Z');
+    const endDateTime = new Date(endDate + 'T23:59:59.999Z');
+    
+    const data = await ReportService.getProcessingTimeReport(
+      startDateTime,
+      endDateTime
+    );
 
     res.json({
-      reports,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(totalCount / limit),
-        totalCount,
-        limit: parseInt(limit)
-      }
+      success: true,
+      data
     });
   } catch (error) {
-    console.error('Get reports error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error fetching processing time report:', error);
+    res.status(500).json({ error: 'Failed to fetch processing time report' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/reports/monthly-trends:
+ *   get:
+ *     summary: Get monthly trends report
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date for the report
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for the report
+ *     responses:
+ *       200:
+ *         description: Monthly trends report retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/monthly-trends', authenticateToken, requireStaff, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Start date and end date are required' });
+    }
+
+    // Create dates that include the full day
+    const startDateTime = new Date(startDate + 'T00:00:00.000Z');
+    const endDateTime = new Date(endDate + 'T23:59:59.999Z');
+    
+    const data = await ReportService.getMonthlyTrendsReport(
+      startDateTime,
+      endDateTime
+    );
+
+    res.json({
+      success: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error fetching monthly trends report:', error);
+    res.status(500).json({ error: 'Failed to fetch monthly trends report' });
   }
 });
 

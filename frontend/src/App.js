@@ -14,9 +14,12 @@ import ReportsPage from './pages/ReportsPage';
 import InvoicesPage from './pages/InvoicesPage';
 
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import SettingsPage from './pages/SettingsPage';
 import ConfigurationPage from './pages/ConfigurationPage';
 import SetupPage from './pages/SetupPage';
 import AcceptInvitationPage from './pages/AcceptInvitationPage';
+import AccountingPage from './pages/AccountingPage';
+import RequestsPage from './pages/RequestsPage';
 
 // Auth Components
 import { AuthProvider } from './contexts/AuthContext';
@@ -24,6 +27,7 @@ import { CustomerProvider } from './contexts/CustomerContext';
 import { ConsignmentProvider } from './contexts/ConsignmentContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import './utils/apiTest'; // Import API test utilities
 
 const { defaultAlgorithm } = theme;
 
@@ -67,7 +71,10 @@ function App() {
                   <Route path="invoices" element={<InvoicesPage />} />
 
                   <Route path="reports" element={<ReportsPage />} />
+                  <Route path="accounting" element={<AccountingPage />} />
+                  <Route path="requests" element={<RequestsPage />} />
                   <Route path="admin" element={<AdminDashboardPage />} />
+                  <Route path="settings" element={<SettingsPage />} />
                   <Route path="configuration" element={<ConfigurationPage />} />
                 </Route>
                 

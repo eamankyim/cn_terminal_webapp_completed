@@ -22,10 +22,12 @@ import {
   UserOutlined, 
   ClockCircleOutlined,
   CheckCircleOutlined,
-  CloseCircleOutlined
+  CloseCircleOutlined,
+  CopyOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import invitationService from '../../services/invitationService';
+import { ROLE_INFO } from '../../utils/permissions';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -34,6 +36,17 @@ const InviteManagement = () => {
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [inviteForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [inviteLink, setInviteLink] = useState(() => {
+    // Load from localStorage on component mount
+    return localStorage.getItem('lastInviteLink') || null;
+  });
+  const [showInviteLink, setShowInviteLink] = useState(() => {
+    // Show if we have a stored link
+    return !!localStorage.getItem('lastInviteLink');
+  });
+  const [showLogs, setShowLogs] = useState(false);
+  const [logsContent, setLogsContent] = useState('');
+  const [logsLoading, setLogsLoading] = useState(false);
   
   const { sendInvite, pendingInvites, loadPendingInvitations } = useAuth();
 
@@ -43,20 +56,33 @@ const InviteManagement = () => {
   }, [loadPendingInvitations]);
 
 
-  const roleOptions = [
-    { value: 'ADMIN', label: 'Administrator' },
-    { value: 'STAFF', label: 'Staff' },
-    { value: 'DRIVER', label: 'Driver' },
-    { value: 'WAREHOUSE', label: 'Warehouse' }
-  ];
+  // Use the centralized role information
+  const roleOptions = Object.entries(ROLE_INFO).map(([role, info]) => ({
+    value: role,
+    label: info.name,
+    description: info.description
+  }));
 
   const handleSendInvite = async (values) => {
     setLoading(true);
     try {
-      await sendInvite(values);
-      message.success('Invitation sent successfully!');
+      const response = await sendInvite(values);
+      
+        // Extract invitation link from response
+        if (response && response.inviteLink) {
+          setInviteLink(response.inviteLink);
+          setShowInviteLink(true);
+          // Save to localStorage to survive page refreshes
+          localStorage.setItem('lastInviteLink', response.inviteLink);
+          localStorage.setItem('lastInviteTimestamp', new Date().toISOString());
+          message.success('Invitation sent successfully! Check the link below.');
+        } else {
+          message.success('Invitation sent successfully!');
+        }
+      
       setInviteModalVisible(false);
       inviteForm.resetFields();
+      loadPendingInvitations(); // Refresh the list
     } catch (error) {
       message.error(error.message || 'Failed to send invitation');
     } finally {
@@ -67,10 +93,13 @@ const InviteManagement = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending':
+      case 'PENDING':
         return 'processing';
       case 'accepted':
+      case 'ACCEPTED':
         return 'success';
       case 'expired':
+      case 'EXPIRED':
         return 'error';
       default:
         return 'default';
@@ -80,10 +109,13 @@ const InviteManagement = () => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'pending':
+      case 'PENDING':
         return <ClockCircleOutlined />;
       case 'accepted':
+      case 'ACCEPTED':
         return <CheckCircleOutlined />;
       case 'expired':
+      case 'EXPIRED':
         return <CloseCircleOutlined />;
       default:
         return <ClockCircleOutlined />;
@@ -92,6 +124,24 @@ const InviteManagement = () => {
 
   const isExpired = (expiresAt) => {
     return new Date(expiresAt) < new Date();
+  };
+
+  const handleViewLogs = async () => {
+    setLogsLoading(true);
+    try {
+      const response = await invitationService.getInvitationLogs();
+      setLogsContent(response);
+      setShowLogs(true);
+    } catch (error) {
+      if (error.response?.status === 404) {
+        setLogsContent('No invitation or password reset links found yet. Create an invitation or request a password reset to see the log file.');
+        setShowLogs(true);
+      } else {
+        message.error('Failed to load links log');
+      }
+    } finally {
+      setLogsLoading(false);
+    }
   };
 
   const inviteColumns = [
@@ -156,8 +206,10 @@ const InviteManagement = () => {
         const status = expired ? 'expired' : record.status;
         return (
           <Tag color={getStatusColor(status)} icon={getStatusIcon(status)}>
-            {status === 'pending' && !expired ? 'Pending' : 
-             status === 'accepted' ? 'Accepted' : 'Expired'}
+            {status === 'PENDING' && !expired ? 'Pending' : 
+             status === 'ACCEPTED' ? 'Accepted' : 
+             status === 'EXPIRED' ? 'Expired' :
+             expired ? 'Expired' : 'Pending'}
           </Tag>
         );
       },
@@ -286,6 +338,70 @@ const InviteManagement = () => {
         </Col>
       </Row>
 
+      {/* Invitation Link Display */}
+      {showInviteLink && inviteLink && (
+        <Card 
+          style={{ 
+            marginBottom: '24px', 
+            border: '2px solid #52c41a',
+            backgroundColor: '#f6ffed',
+            position: 'sticky',
+            top: '20px',
+            zIndex: 1000
+          }}
+        >
+          <div style={{ textAlign: 'center' }}>
+            <Title level={4} style={{ color: '#52c41a', marginBottom: '8px' }}>
+              🎉 Invitation Created Successfully!
+            </Title>
+            {localStorage.getItem('lastInviteTimestamp') && (
+              <Text type="secondary" style={{ fontSize: '12px', marginBottom: '16px', display: 'block' }}>
+                Created: {new Date(localStorage.getItem('lastInviteTimestamp')).toLocaleString()}
+              </Text>
+            )}
+            <Text strong style={{ fontSize: '16px', marginBottom: '8px', display: 'block' }}>
+              Copy the link below and share it with the user:
+            </Text>
+            <Input
+              value={inviteLink}
+              readOnly
+              style={{ 
+                fontSize: '14px',
+                backgroundColor: '#fff',
+                border: '2px solid #52c41a',
+                marginBottom: '12px'
+              }}
+              addonAfter={
+                <Button 
+                  type="primary" 
+                  size="small"
+                  onClick={() => {
+                    navigator.clipboard.writeText(inviteLink);
+                    message.success('Link copied to clipboard!');
+                  }}
+                >
+                  Copy
+                </Button>
+              }
+            />
+            <div>
+              <Button 
+                type="link" 
+                onClick={() => {
+                  setShowInviteLink(false);
+                  setInviteLink(null);
+                  // Clear from localStorage
+                  localStorage.removeItem('lastInviteLink');
+                  localStorage.removeItem('lastInviteTimestamp');
+                }}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Actions */}
       <Card style={{ marginBottom: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -297,13 +413,34 @@ const InviteManagement = () => {
               Manage user invitations and track their status
             </Text>
           </div>
-          <Button 
-            type="primary" 
-            icon={<PlusOutlined />}
-            onClick={() => setInviteModalVisible(true)}
-          >
-            Send New Invite
-          </Button>
+          <Space>
+            {inviteLink && (
+              <Button 
+                icon={<CopyOutlined />}
+                onClick={() => {
+                  navigator.clipboard.writeText(inviteLink);
+                  message.success('Invitation link copied to clipboard!');
+                }}
+                style={{ backgroundColor: '#52c41a', borderColor: '#52c41a', color: 'white' }}
+              >
+                Copy Last Link
+              </Button>
+            )}
+            <Button 
+              icon={<MailOutlined />}
+              onClick={handleViewLogs}
+              loading={logsLoading}
+            >
+              View All Links
+            </Button>
+            <Button 
+              type="primary" 
+              icon={<PlusOutlined />}
+              onClick={() => setInviteModalVisible(true)}
+            >
+              Send New Invite
+            </Button>
+          </Space>
         </div>
       </Card>
 
@@ -391,6 +528,34 @@ const InviteManagement = () => {
             </Space>
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Invitation & Password Reset Logs Modal */}
+      <Modal
+        title="Invitation & Password Reset Links Log"
+        open={showLogs}
+        onCancel={() => setShowLogs(false)}
+        footer={[
+          <Button key="close" onClick={() => setShowLogs(false)}>
+            Close
+          </Button>
+        ]}
+        width={800}
+      >
+        <div style={{ maxHeight: '500px', overflow: 'auto' }}>
+          <pre style={{ 
+            whiteSpace: 'pre-wrap', 
+            wordBreak: 'break-word',
+            fontSize: '12px',
+            lineHeight: '1.4',
+            backgroundColor: '#f5f5f5',
+            padding: '16px',
+            borderRadius: '4px',
+            border: '1px solid #d9d9d9'
+          }}>
+            {logsContent}
+          </pre>
+        </div>
       </Modal>
     </div>
   );

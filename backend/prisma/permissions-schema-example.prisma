@@ -1,0 +1,82 @@
+// Example of how we could implement database-based permissions
+// This would replace the current file-based system
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g., "user:view", "job:create"
+  description String
+  module      String   // e.g., "User", "Job", "Invoice"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  rolePermissions RolePermission[]
+  userPermissions UserPermission[]
+  
+  @@map("permissions")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g., "ADMIN", "ENQUIRY_OFFICER"
+  displayName String   // e.g., "Administrator", "Enquiry Officer"
+  description String
+  isSystem    Boolean  @default(false) // System roles can't be deleted
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  rolePermissions RolePermission[]
+  users           User[]
+  
+  @@map("roles")
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime   @default(now())
+  createdBy    String     // Who granted this permission
+  
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  creator    User       @relation(fields: [createdBy], references: [id])
+  
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserPermission {
+  id           String     @id @default(cuid())
+  userId       String
+  permissionId String
+  grantedBy    String     // Who granted this permission
+  grantedAt    DateTime   @default(now())
+  expiresAt    DateTime?  // Optional expiration
+  isActive     Boolean    @default(true)
+  
+  // Relations
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  granter    User       @relation(fields: [grantedBy], references: [id])
+  
+  @@unique([userId, permissionId])
+  @@map("user_permissions")
+}
+
+// Update User model to include relations
+model User {
+  // ... existing fields ...
+  
+  // Relations
+  rolePermissions RolePermission[] @relation("RolePermissionCreator")
+  userPermissions UserPermission[] @relation("UserPermissionUser")
+  grantedPermissions UserPermission[] @relation("UserPermissionGranter")
+  
+  // ... rest of existing relations ...
+}
+
+

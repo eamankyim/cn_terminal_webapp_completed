@@ -110,9 +110,11 @@ class ApiService {
   }
 
   // GET request
-  async get(endpoint, params = {}) {
+  async get(endpoint, options = {}) {
+    const { params = {} } = options;
     const queryString = new URLSearchParams(params).toString();
     const url = queryString ? `${endpoint}?${queryString}` : endpoint;
+    console.log('🔍 FRONTEND GET REQUEST:', { endpoint, params, queryString, url });
     return this.request(url, { method: 'GET' });
   }
 
@@ -245,11 +247,49 @@ class ApiService {
     return this.put(`/jobs/${id}`, data);
   }
 
-  async updateJobStatus(id, status, comment, eta) {
+  async updateJobStatus(id, status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact) {
     const data = { status, comment };
     if (eta) {
       data.eta = eta;
     }
+    if (assignedToId) {
+      data.assignedToId = assignedToId;
+    }
+    if (demurrageFreeDays !== undefined) {
+      data.demurrageFreeDays = demurrageFreeDays;
+    }
+    if (releaseMoneyReceived !== undefined) {
+      data.releaseMoneyReceived = releaseMoneyReceived;
+    }
+    if (shipperName !== undefined) {
+      data.shipperName = shipperName;
+    }
+    if (invoiceNumber !== undefined) {
+      data.invoiceNumber = invoiceNumber;
+    }
+    if (terminalName !== undefined) {
+      data.terminalName = terminalName;
+    }
+    if (scheduleTime !== undefined) {
+      data.scheduleTime = scheduleTime;
+    }
+    if (driverName !== undefined) {
+      data.driverName = driverName;
+    }
+    if (driverContact !== undefined) {
+      data.driverContact = driverContact;
+    }
+    
+    console.log('🔍 updateJobStatus data being sent:', data);
+    console.log('🔍 demurrageFreeDays type:', typeof demurrageFreeDays, 'value:', demurrageFreeDays);
+    console.log('🔍 releaseMoneyReceived type:', typeof releaseMoneyReceived, 'value:', releaseMoneyReceived);
+    console.log('🔍 shipperName type:', typeof shipperName, 'value:', shipperName);
+    console.log('🔍 invoiceNumber type:', typeof invoiceNumber, 'value:', invoiceNumber);
+    console.log('🔍 terminalName type:', typeof terminalName, 'value:', terminalName);
+    console.log('🔍 scheduleTime type:', typeof scheduleTime, 'value:', scheduleTime);
+    console.log('🔍 driverName type:', typeof driverName, 'value:', driverName);
+    console.log('🔍 driverContact type:', typeof driverContact, 'value:', driverContact);
+    
     return this.put(`/jobs/${id}/status`, data);
   }
 

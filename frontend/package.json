@@ -3,16 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@ant-design/charts": "^2.6.4",
     "@ant-design/icons": "^5.2.6",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
     "antd": "^5.12.8",
+    "chart.js": "^4.5.0",
+    "dayjs": "^1.11.18",
+    "jszip": "^3.10.1",
+    "moment": "^2.30.1",
     "react": "^18.2.0",
+    "react-chartjs-2": "^5.3.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.1",
     "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4"
+    "recharts": "^3.2.1",
+    "web-vitals": "^2.1.4",
+    "xlsx": "^0.18.5"
   },
   "scripts": {
     "start": "react-scripts start",

@@ -301,14 +301,25 @@ const InvoiceManagementPage = () => {
       const shippingCost = calculateShippingCost(values.weight, values.service);
       const totalAmount = shippingCost + (values.value * 0.01); // 1% insurance on declared value
       
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Create invoice via API
+      const invoiceData = {
+        ...values,
+        shippingCost,
+        totalAmount,
+        status: 'PENDING'
+      };
+      
+      await apiService.post('/invoices', invoiceData);
       
       message.success(`Invoice generated successfully! Total amount: £${totalAmount.toFixed(2)}`);
       setInvoiceModalVisible(false);
       invoiceForm.resetFields();
       setSelectedInvoice(null);
+      
+      // Refresh invoices list
+      loadInvoices();
     } catch (error) {
+      console.error('Error creating invoice:', error);
       message.error('Failed to generate invoice. Please try again.');
     }
   };
@@ -466,6 +477,11 @@ const InvoiceManagementPage = () => {
         onCancel={() => setInvoiceModalVisible(false)}
         footer={null}
         width={800}
+        bodyStyle={{
+          maxHeight: '70vh',
+          overflowY: 'auto',
+          padding: '24px'
+        }}
       >
         <Form
           form={invoiceForm}

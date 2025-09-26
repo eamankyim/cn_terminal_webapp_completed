@@ -37,6 +37,7 @@ import { useNavigate } from 'react-router-dom';
 import CustomerSelector from '../components/common/CustomerSelector';
 import { useCustomers } from '../contexts/CustomerContext';
 import apiService from '../services/api';
+import { getEnquiryStatusColor } from '../utils/statusUtils';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -54,21 +55,7 @@ const EnquiriesPage = () => {
   const { customers } = useCustomers();
   const [enquiries, setEnquiries] = useState([]);
 
-  const getStatusColor = (status) => {
-    const statusColors = {
-      'Submitted': 'blue',
-      'Under Review': 'orange',
-      'Quoted': 'purple',
-      'Awaiting Payment': 'magenta',
-      'Paid': 'green',
-      'Clearing': 'green',
-      'Cleared': 'green',
-      'Out for Delivery': 'cyan',
-      'Delivered': 'green',
-      'Closed': 'default'
-    };
-    return statusColors[status] || 'default';
-  };
+  // Using centralized status color utilities
 
   const getStatusIcon = (status) => {
     const statusIcons = {
@@ -139,7 +126,7 @@ const EnquiriesPage = () => {
       dataIndex: 'status',
       key: 'status',
       render: (status) => (
-        <Tag color={getStatusColor(status)} icon={getStatusIcon(status)}>
+        <Tag color={getEnquiryStatusColor(status)} icon={getStatusIcon(status)}>
           {status}
         </Tag>
       )

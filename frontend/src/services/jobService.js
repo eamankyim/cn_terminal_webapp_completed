@@ -41,10 +41,10 @@ class JobService {
     }
   }
 
-  async updateJobStatus(id, status, comment, eta) {
+  async updateJobStatus(id, status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact) {
     try {
-      const response = await apiService.updateJobStatus(id, status, comment, eta);
-      return response.job;
+      const response = await apiService.updateJobStatus(id, status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact);
+      return response; // Return the full response object
     } catch (error) {
       console.error('Error updating job status:', error);
       throw error;
