@@ -9,6 +9,9 @@
 **/node_modules/.cache
 **/.cache
 **/cache
+*.pack
+frontend/node_modules/.cache/
+backend/node_modules/.cache/
 
 # testing
 /coverage
