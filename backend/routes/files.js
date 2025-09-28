@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
 const { authenticateToken } = require('../middleware/auth');
+const { hasPermission, PERMISSIONS } = require('../utils/permissions');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -105,7 +106,7 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
         size: req.file.size,
         folder: folder,
         category: category,
-        entityId: entityId ? parseInt(entityId) : null,
+        entityId: entityId || null,  // Keep as string to match database schema
         entityType: entityType,
         uploadedBy: req.user.id,
         uploadedAt: new Date()
@@ -181,7 +182,7 @@ router.post('/upload-multiple', authenticateToken, upload.array('files', 5), asy
           size: file.size,
           folder: folder,
           category: category,
-          entityId: entityId ? parseInt(entityId) : null,
+          entityId: entityId || null,  // Keep as string to match database schema
           entityType: entityType,
           uploadedBy: req.user.id,
           uploadedAt: new Date()
@@ -274,18 +275,16 @@ router.get('/entity/:entityType/:entityId', authenticateToken, async (req, res) 
     console.log('='.repeat(80));
     
     const { entityType, entityId } = req.params;
-    const entityIdInt = parseInt(entityId);
     
     console.log('🔍 Request params:');
     console.log('  - entityType:', entityType);
     console.log('  - entityId (string):', entityId);
-    console.log('  - entityId (int):', entityIdInt);
     console.log('  - user ID:', req.user.id);
 
     const files = await prisma.file.findMany({
       where: {
         entityType: entityType,
-        entityId: entityIdInt
+        entityId: entityId  // Keep as string to match database schema
       },
       orderBy: { uploadedAt: 'desc' }
     });
@@ -370,6 +369,14 @@ router.get('/download/:id', authenticateToken, async (req, res) => {
 // Delete file
 router.delete('/delete', authenticateToken, async (req, res) => {
   try {
+    // Check if user has permission to delete files
+    if (!hasPermission(req.user.role, PERMISSIONS.FILE_DELETE)) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Insufficient permissions to delete files' 
+      });
+    }
+
     const { fileUrl } = req.body;
 
     if (!fileUrl) {

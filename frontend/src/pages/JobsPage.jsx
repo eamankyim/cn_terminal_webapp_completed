@@ -28,6 +28,7 @@ import {
   Empty,
   Alert
 } from 'antd';
+import dayjs from 'dayjs';
 import { 
   PlusOutlined, 
   UploadOutlined,
@@ -129,12 +130,15 @@ const JobsPage = () => {
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
   const [selectedJobDocuments, setSelectedJobDocuments] = useState([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
   const [isStatusUpdateModalVisible, setIsStatusUpdateModalVisible] = useState(false);
   const [statusUpdateForm] = Form.useForm();
   const [currentJobForStatusUpdate, setCurrentJobForStatusUpdate] = useState(null);
   const [isDocumentViewerVisible, setIsDocumentViewerVisible] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [selectedCustomerConsignments, setSelectedCustomerConsignments] = useState([]);
+  const [consignmentsLoading, setConsignmentsLoading] = useState(false);
+  const [hasSelectedClient, setHasSelectedClient] = useState(false);
   const [jobs, setJobs] = useState([]);
   const [draftJobs, setDraftJobs] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
@@ -526,7 +530,7 @@ const JobsPage = () => {
       consignmentId: job.consignmentId,
       goodsTypes: job.goodsTypes || [],
       assignedToId: job.assignedToId,
-      eta: job.eta,
+      eta: job.eta ? dayjs(job.eta) : null,
       mediumOfEnquiry: job.mediumOfEnquiry,
       documentsBrought: job.documentsBrought || [],
       containerNumber: job.containerNumber,
@@ -552,6 +556,10 @@ const JobsPage = () => {
     setSelectedJob(job);
     setIsDetailsDrawerVisible(true);
     
+    // Set loading state and clear previous documents
+    setDocumentsLoading(true);
+    setSelectedJobDocuments([]);
+    
     // Fetch documents for this job
     try {
       console.log('📁 Loading documents for job:', job.id);
@@ -567,6 +575,8 @@ const JobsPage = () => {
     } catch (error) {
       console.error('❌ Error loading documents:', error);
       setSelectedJobDocuments([]);
+    } finally {
+      setDocumentsLoading(false);
     }
   };
 
@@ -743,6 +753,23 @@ const JobsPage = () => {
       customerId: customerId
     });
     
+    // Clear previously selected consignment
+    form.setFieldsValue({ consignmentId: undefined });
+    
+    // Update client selection state
+    setHasSelectedClient(!!customerId);
+    
+    // If no customer selected, clear consignments and stop loading
+    if (!customerId) {
+      setConsignmentsLoading(false);
+      setSelectedCustomerConsignments([]);
+      return;
+    }
+    
+    // Set loading state and clear previous consignments
+    setConsignmentsLoading(true);
+    setSelectedCustomerConsignments([]);
+    
     // Get consignments for the selected customer
     try {
       console.log('🔄 JobsPage: Loading consignments for customer:', customerId);
@@ -752,10 +779,9 @@ const JobsPage = () => {
     } catch (error) {
       console.error('💥 JobsPage: Error loading customer consignments:', error);
       setSelectedCustomerConsignments([]);
+    } finally {
+      setConsignmentsLoading(false);
     }
-    
-    // Clear previously selected consignment
-    form.setFieldsValue({ consignmentId: undefined });
   };
 
   const handleConsignmentSelect = (consignmentId) => {
@@ -1267,10 +1293,27 @@ const JobsPage = () => {
                 rules={[{ required: true, message: 'Please select a consignment' }]}
               >
                 <Select 
-                  placeholder={selectedCustomerConsignments.length === 0 ? "No consignments found for this client" : "Select a consignment for this client"}
+                  placeholder={
+                    !hasSelectedClient
+                      ? "Select a client to view consignees"
+                      : consignmentsLoading 
+                        ? "Loading consignees..." 
+                        : selectedCustomerConsignments.length === 0 
+                          ? "No consignments found for this client" 
+                          : "Select a consignment for this client"
+                  }
                   onChange={handleConsignmentSelect}
-                  disabled={selectedCustomerConsignments.length === 0}
-                  notFoundContent={selectedCustomerConsignments.length === 0 ? "No consignments found for this client" : "No consignments"}
+                  disabled={!hasSelectedClient || consignmentsLoading || selectedCustomerConsignments.length === 0}
+                  loading={consignmentsLoading}
+                  notFoundContent={
+                    !hasSelectedClient
+                      ? "Select a client to view consignees"
+                      : consignmentsLoading 
+                        ? "Loading consignees..." 
+                        : selectedCustomerConsignments.length === 0 
+                          ? "No consignments found for this client" 
+                          : "No consignments"
+                  }
                 >
                   {selectedCustomerConsignments.map(consignment => (
                     <Option key={consignment.id} value={consignment.id}>
@@ -1745,126 +1788,68 @@ const JobsPage = () => {
 
         {/* Document Viewer Modal */}
         <Modal
-          title={
-            <div>
-              <Title level={4} style={{ margin: 0 }}>Document Viewer</Title>
-              <Text type="secondary">{selectedDocument}</Text>
-            </div>
-          }
+          title={selectedDocument?.originalName || 'Document Preview'}
           open={isDocumentViewerVisible}
           onCancel={() => setIsDocumentViewerVisible(false)}
           footer={null}
-          width={800}
+          width="90%"
+          style={{ top: 20 }}
+          bodyStyle={{ padding: 0, height: '80vh' }}
         >
           {selectedDocument && (
-            <div>
-              {/* Document Header */}
-              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col span={8}>
-                  <div style={{ textAlign: 'center' }}>
-                    {getDocumentIcon(selectedDocument)}
-                    <br />
-                    <Text strong style={{ fontSize: '16px' }}>
-                      {selectedDocument}
-                    </Text>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div style={{ textAlign: 'center' }}>
-                    <Text strong>File Type</Text>
-                    <br />
-                    <Tag color="blue" style={{ marginTop: '8px' }}>
-                      {(typeof selectedDocument === 'string' ? selectedDocument : selectedDocument.originalName).split('.').pop()?.toUpperCase()}
-                    </Tag>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div style={{ textAlign: 'center' }}>
-                    <Text strong>Job</Text>
-                    <br />
-                    <Text style={{ fontSize: '16px', color: '#1890ff' }}>
-                      {selectedJob?.trackingId}
-                    </Text>
-                  </div>
-                </Col>
-              </Row>
-
-              <Divider />
-
-              {/* Document Actions */}
-              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col span={8}>
-                  <Button 
-                    type="primary" 
-                    icon={<EyeOutlined />} 
-                    block
-                    size="large"
-                  >
-                    Preview Document
-                  </Button>
-                </Col>
-                <Col span={8}>
-                  <Button 
-                    icon={<DownloadOutlined />} 
-                    block
-                    size="large"
-                  >
-                    Download
-                  </Button>
-                </Col>
-                <Col span={8}>
-                  <Button 
-                    icon={<ShareAltOutlined />} 
-                    block
-                    size="large"
-                  >
-                    Share
-                  </Button>
-                </Col>
-              </Row>
-
-              {/* Document Information */}
-              <Card size="small" title="Document Information">
-                <Descriptions column={1} size="small">
-                  <Descriptions.Item label="File Name">
-                    {typeof selectedDocument === 'string' ? selectedDocument : selectedDocument.originalName}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="File Extension">
-                    <Tag color="blue">{(typeof selectedDocument === 'string' ? selectedDocument : selectedDocument.originalName).split('.').pop()?.toUpperCase()}</Tag>
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Job ID">
-                    {selectedJob?.trackingId}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Client">
-                    {selectedJob?.clientName}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Upload Date">
-                    {selectedJob?.submittedDate}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Document Type">
-                    {getDocumentTypeLabel(selectedDocument)}
-                  </Descriptions.Item>
-                </Descriptions>
-              </Card>
-
-              {/* Document Preview Placeholder */}
-              <Card size="small" title="Document Preview" style={{ marginTop: 16 }}>
-                <div style={{ 
-                  textAlign: 'center', 
-                  padding: '40px', 
-                  background: '#fafafa', 
-                  border: '2px dashed #d9d9d9',
-                  borderRadius: '8px'
-                }}>
-                  <FileTextOutlined style={{ fontSize: '48px', color: '#d9d9d9', marginBottom: '16px' }} />
-                  <br />
-                  <Text type="secondary">Document preview will be displayed here</Text>
-                  <br />
-                  <Text type="secondary" style={{ fontSize: '12px' }}>
-                    PDF, images, and other supported formats will show actual content
-                  </Text>
-                </div>
-              </Card>
+            <div style={{ height: '100%' }}>
+              {selectedDocument?.url ? (
+                <iframe
+                  src={selectedDocument.url.startsWith('http') ? selectedDocument.url : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${selectedDocument.url}`}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none',
+                    borderRadius: '8px'
+                  }}
+                  title={`Preview of ${selectedDocument.originalName}`}
+                  onError={(e) => {
+                    console.error('Error loading document:', e);
+                    // Show fallback content if preview fails
+                    e.target.style.display = 'none';
+                    const fallback = e.target.nextElementSibling;
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              
+              {/* Fallback content for unsupported files or if preview fails */}
+              <div style={{ 
+                display: selectedDocument?.url ? 'none' : 'flex',
+                textAlign: 'center', 
+                padding: '40px',
+                backgroundColor: '#fafafa',
+                border: '2px dashed #d9d9d9',
+                height: '100%',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <FileTextOutlined style={{ fontSize: '48px', color: '#d9d9d9', marginBottom: '16px' }} />
+                <br />
+                <Text type="secondary">Document preview not available</Text>
+                <br />
+                <Text type="secondary" style={{ fontSize: '12px', marginBottom: '16px' }}>
+                  This file type cannot be previewed in the browser
+                </Text>
+                <Button 
+                  type="primary" 
+                  icon={<DownloadOutlined />}
+                  onClick={() => {
+                    if (selectedDocument?.url) {
+                      const url = selectedDocument.url.startsWith('http') ? selectedDocument.url : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${selectedDocument.url}`;
+                      window.open(url, '_blank');
+                    }
+                  }}
+                >
+                  Download Document
+                </Button>
+              </div>
             </div>
           )}
         </Modal>
@@ -2312,7 +2297,15 @@ const JobsPage = () => {
                 }}>
                   Attached Documents
                 </Title>
-                {selectedJobDocuments && selectedJobDocuments.length > 0 ? (
+                {documentsLoading ? (
+                  <div style={{ textAlign: 'center', padding: '40px' }}>
+                    <Spin size="large" />
+                    <br />
+                    <Text type="secondary" style={{ marginTop: '16px', display: 'block' }}>
+                      Loading documents...
+                    </Text>
+                  </div>
+                ) : selectedJobDocuments && selectedJobDocuments.length > 0 ? (
                   <div>
                     {selectedJobDocuments.map((doc, index) => (
                       <div key={doc.id || index} style={{ 
