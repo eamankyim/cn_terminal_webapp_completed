@@ -39,6 +39,8 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true);
         apiService.setToken(savedToken);
         
+        // Note: User permissions will be auto-refreshed in a separate useEffect
+        
         // Load pending invitations if user is admin
         if (user.role === 'ADMIN') {
           console.log('🔐 Auth Check - User is ADMIN, loading invitations...');
@@ -56,6 +58,9 @@ export const AuthProvider = ({ children }) => {
     }
     setLoading(false);
   }, []);
+
+  // Auto-refresh user permissions when app starts (if user is logged in)
+  // This will be handled after the refreshUserPermissions function is defined
 
   // Load pending invitations from API
   const loadPendingInvitations = async () => {
@@ -233,6 +238,20 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
   };
+
+  // Auto-refresh user permissions when app starts (if user is logged in)
+  useEffect(() => {
+    if (isAuthenticated && currentUser) {
+      console.log('🔄 Auto-refreshing user permissions on app start...');
+      refreshUserPermissions().then(success => {
+        if (success) {
+          console.log('✅ User permissions auto-refreshed successfully');
+        } else {
+          console.log('⚠️ Failed to auto-refresh user permissions');
+        }
+      });
+    }
+  }, [isAuthenticated, currentUser]);
 
   const value = {
     currentUser,
