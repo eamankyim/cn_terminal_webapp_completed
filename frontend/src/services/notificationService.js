@@ -25,15 +25,15 @@ const notificationService = {
     }
   },
 
-  // Mark all notifications as read
+  // Delete all notifications (clear all)
   async markAllAsRead() {
     try {
-      console.log('🔄 NotificationService: Calling API to mark all as read...');
+      console.log('🔄 NotificationService: Calling API to delete all notifications...');
       const response = await api.patch('/notifications/read-all');
       console.log('📡 NotificationService: API response:', response);
       return response;
     } catch (error) {
-      console.error('❌ NotificationService: Error marking all notifications as read:', error);
+      console.error('❌ NotificationService: Error deleting all notifications:', error);
       throw error;
     }
   },

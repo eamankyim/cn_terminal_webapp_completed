@@ -5,20 +5,21 @@ import {
   MenuUnfoldOutlined, 
   LogoutOutlined,
   UserOutlined,
-  SettingOutlined
+  SettingOutlined,
+  ReloadOutlined
 } from '@ant-design/icons';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Sidebar from './Sidebar';
 import NotificationBell from '../common/NotificationBell';
-import WhatsAppButton from '../common/WhatsAppButton';
+// import WhatsAppButton from '../common/WhatsAppButton';
 import './MainLayout.css';
 
 const { Header, Content } = Layout;
 
 const MainLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, refreshUserPermissions } = useAuth();
   const navigate = useNavigate();
 
   // Function to generate initials from user name
@@ -38,13 +39,24 @@ const MainLayout = () => {
     navigate('/login');
   };
 
+  const handleRefreshPermissions = async () => {
+    const success = await refreshUserPermissions();
+    if (success) {
+      // Show success message and reload the page to reflect changes
+      window.location.reload();
+    }
+  };
+
   const userMenu = (
     <Menu>
-      <Menu.Item key="profile" icon={<UserOutlined />} onClick={() => navigate('/admin')}>
+      <Menu.Item key="profile" icon={<UserOutlined />} onClick={() => navigate('/settings?tab=profile')}>
         Profile
       </Menu.Item>
       <Menu.Item key="settings" icon={<SettingOutlined />} onClick={() => navigate('/settings')}>
         Settings
+      </Menu.Item>
+      <Menu.Item key="refresh" icon={<ReloadOutlined />} onClick={handleRefreshPermissions}>
+        Refresh Permissions
       </Menu.Item>
       <Menu.Divider />
       <Menu.Item key="logout" icon={<LogoutOutlined />} onClick={handleLogout}>
@@ -106,7 +118,7 @@ const MainLayout = () => {
       </Layout>
       
       {/* WhatsApp Floating Button */}
-      <WhatsAppButton />
+      {/* <WhatsAppButton /> */}
     </Layout>
   );
 };

@@ -1,5 +1,6 @@
 const express = require('express');
-const { authenticateToken, requireStaff } = require('../middleware/auth');
+const { authenticateToken, requirePermission } = require('../middleware/auth');
+const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 const ReportService = require('../services/reportService');
 
 const router = express.Router();
@@ -50,7 +51,7 @@ const router = express.Router();
  *       500:
  *         description: Internal server error
  */
-router.get('/summary', authenticateToken, requireStaff, async (req, res) => {
+router.get('/summary', authenticateToken, requirePermission(UI_PERMISSIONS.REPORTS), async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
@@ -135,7 +136,7 @@ router.get('/summary', authenticateToken, requireStaff, async (req, res) => {
  *       500:
  *         description: Internal server error
  */
-router.get('/job-status', authenticateToken, requireStaff, async (req, res) => {
+router.get('/job-status', authenticateToken, requirePermission(UI_PERMISSIONS.REPORTS), async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
@@ -204,7 +205,7 @@ router.get('/job-status', authenticateToken, requireStaff, async (req, res) => {
  *       500:
  *         description: Internal server error
  */
-router.get('/daily-activity', authenticateToken, requireStaff, async (req, res) => {
+router.get('/daily-activity', authenticateToken, requirePermission(UI_PERMISSIONS.REPORTS), async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
@@ -279,7 +280,7 @@ router.get('/daily-activity', authenticateToken, requireStaff, async (req, res) 
  *       500:
  *         description: Internal server error
  */
-router.get('/revenue', authenticateToken, requireStaff, async (req, res) => {
+router.get('/revenue', authenticateToken, requirePermission(UI_PERMISSIONS.REPORTS), async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
@@ -350,7 +351,7 @@ router.get('/revenue', authenticateToken, requireStaff, async (req, res) => {
  *       500:
  *         description: Internal server error
  */
-router.get('/invoices', authenticateToken, requireStaff, async (req, res) => {
+router.get('/invoices', authenticateToken, requirePermission(UI_PERMISSIONS.REPORTS), async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
@@ -419,7 +420,7 @@ router.get('/invoices', authenticateToken, requireStaff, async (req, res) => {
  *       500:
  *         description: Internal server error
  */
-router.get('/customers', authenticateToken, requireStaff, async (req, res) => {
+router.get('/customers', authenticateToken, requirePermission(UI_PERMISSIONS.REPORTS), async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
@@ -472,7 +473,7 @@ router.get('/customers', authenticateToken, requireStaff, async (req, res) => {
  *       500:
  *         description: Internal server error
  */
-router.get('/processing-time', authenticateToken, requireStaff, async (req, res) => {
+router.get('/processing-time', authenticateToken, requirePermission(UI_PERMISSIONS.REPORTS), async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
@@ -528,7 +529,7 @@ router.get('/processing-time', authenticateToken, requireStaff, async (req, res)
  *       500:
  *         description: Internal server error
  */
-router.get('/monthly-trends', authenticateToken, requireStaff, async (req, res) => {
+router.get('/monthly-trends', authenticateToken, requirePermission(UI_PERMISSIONS.REPORTS), async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     

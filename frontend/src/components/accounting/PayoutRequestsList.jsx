@@ -195,7 +195,7 @@ const PayoutRecordsList = () => {
         <Space size="small">
           <Tooltip title="View Details">
             <Button
-              type="text"
+              type="default"
               icon={<EyeOutlined />}
               onClick={() => handleViewDetails(record)}
             />

@@ -4,10 +4,12 @@ const roleService = {
   // Get all roles and their permissions
   async getRoles() {
     try {
+      console.log('🔍 ROLE SERVICE - Making API call to /roles...');
       const response = await apiService.get('/roles');
-      return response.data;
+      console.log('🔍 ROLE SERVICE - Raw API response:', JSON.stringify(response, null, 2));
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error fetching roles:', error);
+      console.error('❌ ROLE SERVICE - Error fetching roles:', error);
       throw error;
     }
   },
@@ -16,7 +18,7 @@ const roleService = {
   async getRolePermissions(role) {
     try {
       const response = await apiService.get(`/roles/${role}/permissions`);
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error fetching role permissions:', error);
       throw error;
@@ -26,10 +28,13 @@ const roleService = {
   // Update permissions for a specific role
   async updateRolePermissions(role, permissions) {
     try {
+      console.log(`🔍 ROLE SERVICE - Updating permissions for ${role}:`, permissions);
+      console.log(`🔍 ROLE SERVICE - Permissions type:`, typeof permissions, 'Is array:', Array.isArray(permissions));
+      
       const response = await apiService.put(`/roles/${role}/permissions`, {
         permissions
       });
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error updating role permissions:', error);
       throw error;
@@ -40,7 +45,7 @@ const roleService = {
   async getPermissions() {
     try {
       const response = await apiService.get('/roles/permissions');
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error fetching permissions:', error);
       throw error;
@@ -53,7 +58,7 @@ const roleService = {
       const response = await apiService.put(`/roles/users/${userId}/role`, {
         role
       });
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error updating user role:', error);
       throw error;

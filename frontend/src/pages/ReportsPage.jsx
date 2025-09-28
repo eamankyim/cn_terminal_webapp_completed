@@ -24,6 +24,7 @@ import {
   Checkbox,
   Form
 } from 'antd';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   BarChartOutlined,
   LineChartOutlined,
@@ -56,6 +57,7 @@ const { Option } = Select;
 const { TabPane } = Tabs;
 
 const ReportsPage = () => {
+  const { currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [dateRange, setDateRange] = useState([
     dayjs().subtract(30, 'days'),
@@ -84,6 +86,13 @@ const ReportsPage = () => {
   const [customerData, setCustomerData] = useState([]);
   const [processingTimeData, setProcessingTimeData] = useState([]);
   const [monthlyTrendsData, setMonthlyTrendsData] = useState([]);
+  
+  // Financial reports state
+  const [financialData, setFinancialData] = useState({
+    expenses: [],
+    payouts: [],
+    cashflow: []
+  });
 
   // Summary statistics
   const [summaryStats, setSummaryStats] = useState({
@@ -112,6 +121,11 @@ const ReportsPage = () => {
         reportService.getProcessingTimeReport(dateRange[0], dateRange[1]),
         reportService.getMonthlyTrendsReport(dateRange[0], dateRange[1])
       ]);
+
+    // Load financial data for accountants and IT consultants
+    if (currentUser?.role === 'ACCOUNTANT' || currentUser?.role === 'IT_CONSULTANT') {
+      await loadFinancialData();
+    }
 
       setSummaryStats(summaryStats);
       setJobStatusData(jobStatus);
@@ -179,11 +193,34 @@ const ReportsPage = () => {
     }
   };
 
+  const loadFinancialData = async () => {
+    try {
+      const [expensesResponse, payoutsResponse, cashflowResponse] = await Promise.all([
+        reportService.get('/expenses'),
+        reportService.get('/payouts'),
+        reportService.get('/cashflow/transactions')
+      ]);
+
+      const expenses = expensesResponse.data?.expenses || [];
+      const payouts = payoutsResponse.data?.payouts || [];
+      const cashflow = cashflowResponse.data?.transactions || [];
+
+      setFinancialData({
+        expenses,
+        payouts,
+        cashflow
+      });
+    } catch (error) {
+      console.error('Error loading financial data:', error);
+      message.error('Failed to load financial data');
+    }
+  };
+
   // Using centralized status color utilities
 
   // Chart data preparation functions
   const prepareJobStatusChartData = () => {
-    const data = jobStatusData || [];
+    const data = Array.isArray(jobStatusData) ? jobStatusData : [];
     return {
       labels: data.map(item => item.status),
       datasets: [{
@@ -201,7 +238,7 @@ const ReportsPage = () => {
   };
 
   const prepareDailyActivityChartData = () => {
-    const data = dailyActivityData || [];
+    const data = Array.isArray(dailyActivityData) ? dailyActivityData : [];
     const labels = data.map(item => dayjs(item.date).format('MMM DD'));
     return {
       labels,
@@ -225,7 +262,7 @@ const ReportsPage = () => {
   };
 
   const prepareRevenueChartData = () => {
-    const data = dailyActivityData || [];
+    const data = Array.isArray(dailyActivityData) ? dailyActivityData : [];
     const labels = data.map(item => dayjs(item.date).format('MMM DD'));
     return {
       labels,
@@ -241,7 +278,7 @@ const ReportsPage = () => {
   };
 
   const prepareCustomerRevenueData = () => {
-    const data = customerData || [];
+    const data = Array.isArray(customerData) ? customerData : [];
     return {
       labels: data.slice(0, 10).map(item => item.name),
       datasets: [{
@@ -256,7 +293,7 @@ const ReportsPage = () => {
   };
 
   const prepareProcessingTimeData = () => {
-    if (!processingTimeData || processingTimeData.length === 0) {
+    if (!processingTimeData || !Array.isArray(processingTimeData) || processingTimeData.length === 0) {
       return {
         labels: ['0-2 days', '3-5 days', '6-10 days', '11-15 days', '15+ days'],
         datasets: [{
@@ -285,7 +322,7 @@ const ReportsPage = () => {
   };
 
   const prepareMonthlyTrendData = () => {
-    if (!monthlyTrendsData || monthlyTrendsData.length === 0) {
+    if (!monthlyTrendsData || !Array.isArray(monthlyTrendsData) || monthlyTrendsData.length === 0) {
       return {
         labels: [],
         datasets: [
@@ -1374,6 +1411,145 @@ const ReportsPage = () => {
               dateRange={dateRange}
             />
           </TabPane>
+
+          {/* Financial Reports Tab - For Accountants and IT Consultants */}
+          {(currentUser?.role === 'ACCOUNTANT' || currentUser?.role === 'IT_CONSULTANT') && (
+            <TabPane tab="Financial Reports" key="financial">
+              <Row gutter={[16, 16]}>
+                {/* Financial Summary Cards */}
+                <Col xs={24} sm={8}>
+                  <Card>
+                    <Statistic
+                      title="Total Expenses"
+                      value={financialData.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)}
+                      prefix={<DollarOutlined />}
+                      suffix="GHS"
+                      valueStyle={{ color: '#cf1322' }}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={8}>
+                  <Card>
+                    <Statistic
+                      title="Total Payouts"
+                      value={financialData.payouts.reduce((sum, payout) => sum + (payout.amount || 0), 0)}
+                      prefix={<DollarOutlined />}
+                      suffix="GHS"
+                      valueStyle={{ color: '#389e0d' }}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={8}>
+                  <Card>
+                    <Statistic
+                      title="Net Profit"
+                      value={financialData.payouts.reduce((sum, payout) => sum + (payout.amount || 0), 0) - financialData.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)}
+                      prefix={<DollarOutlined />}
+                      suffix="GHS"
+                      valueStyle={{ 
+                        color: (financialData.payouts.reduce((sum, payout) => sum + (payout.amount || 0), 0) - financialData.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)) >= 0 ? '#389e0d' : '#cf1322' 
+                      }}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+
+              <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
+                {/* Recent Expenses */}
+                <Col xs={24} lg={12}>
+                  <Card title="Recent Expenses" size="small">
+                    <Table
+                      dataSource={financialData.expenses.slice(0, 10)}
+                      columns={[
+                        {
+                          title: 'Description',
+                          dataIndex: 'description',
+                          key: 'description',
+                        },
+                        {
+                          title: 'Amount',
+                          dataIndex: 'amount',
+                          key: 'amount',
+                          render: (amount) => `GHS ${amount?.toLocaleString()}`,
+                        },
+                        {
+                          title: 'Status',
+                          dataIndex: 'status',
+                          key: 'status',
+                          render: (status) => (
+                            <Tag color={status === 'APPROVED' ? 'green' : status === 'PENDING' ? 'orange' : 'red'}>
+                              {status}
+                            </Tag>
+                          ),
+                        },
+                        {
+                          title: 'Date',
+                          dataIndex: 'createdAt',
+                          key: 'createdAt',
+                          render: (date) => new Date(date).toLocaleDateString(),
+                        },
+                      ]}
+                      pagination={false}
+                      size="small"
+                      locale={{
+                        emptyText: <Empty description="No expenses found" />
+                      }}
+                    />
+                  </Card>
+                </Col>
+
+                {/* Recent Payouts */}
+                <Col xs={24} lg={12}>
+                  <Card title="Recent Payouts" size="small">
+                    <Table
+                      dataSource={financialData.payouts.slice(0, 10)}
+                      columns={[
+                        {
+                          title: 'Description',
+                          dataIndex: 'description',
+                          key: 'description',
+                        },
+                        {
+                          title: 'Amount',
+                          dataIndex: 'amount',
+                          key: 'amount',
+                          render: (amount) => `GHS ${amount?.toLocaleString()}`,
+                        },
+                        {
+                          title: 'Type',
+                          dataIndex: 'type',
+                          key: 'type',
+                          render: (type) => <Tag color="blue">{type}</Tag>,
+                        },
+                        {
+                          title: 'Status',
+                          dataIndex: 'status',
+                          key: 'status',
+                          render: (status) => (
+                            <Tag color={status === 'PROCESSED' ? 'green' : status === 'PENDING' ? 'orange' : 'red'}>
+                              {status}
+                            </Tag>
+                          ),
+                        },
+                        {
+                          title: 'Date',
+                          dataIndex: 'createdAt',
+                          key: 'createdAt',
+                          render: (date) => new Date(date).toLocaleDateString(),
+                        },
+                      ]}
+                      pagination={false}
+                      size="small"
+                      locale={{
+                        emptyText: <Empty description="No payouts found" />
+                      }}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+
+            </TabPane>
+          )}
         </Tabs>
       </Card>
 

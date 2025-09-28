@@ -92,10 +92,19 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // Find user by email
+    // Find user by email with permissions
     console.log('🔍 Searching for user with email:', email);
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: { email },
+      include: {
+        assignedRole: {
+          include: {
+            rolePermissions: {
+              include: { permission: true }
+            }
+          }
+        }
+      }
     });
 
     if (!user) {
@@ -157,11 +166,17 @@ router.post('/login', async (req, res) => {
     console.log('🎉 LOGIN SUCCESSFUL');
     console.log('='.repeat(80) + '\n');
 
+    // Extract permissions from the role
+    const permissions = user.assignedRole?.rolePermissions?.map(rp => rp.permission.name) || [];
+    
     // Return user data (without password) and token
-    const { password: _, ...userData } = user;
+    const { password: _, assignedRole, ...userData } = user;
     res.json({
       message: 'Login successful',
-      user: userData,
+      user: {
+        ...userData,
+        permissions
+      },
       token
     });
   } catch (error) {
@@ -437,6 +452,94 @@ router.put('/profile', authenticateToken, async (req, res) => {
 
 /**
  * @swagger
+ * /api/auth/me:
+ *   get:
+ *     summary: Get current user information with permissions
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current user information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                     permissions:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *       401:
+ *         description: Unauthorized - Invalid or missing token
+ *       500:
+ *         description: Internal server error
+ */
+// Get current user with permissions
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get user's permissions from their assigned role
+    const userWithRole = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: {
+        assignedRole: {
+          include: {
+            rolePermissions: {
+              include: {
+                permission: {
+                  select: { name: true }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const permissions = userWithRole?.assignedRole?.rolePermissions?.map(rp => rp.permission.name) || [];
+
+    res.json({
+      user: {
+        ...user,
+        permissions
+      }
+    });
+  } catch (error) {
+    console.error('Get current user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * @swagger
  * /api/auth/change-password:
  *   put:
  *     summary: Change user password
@@ -573,6 +676,73 @@ router.get('/users', authenticateToken, requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Get users error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/assignable-users:
+ *   get:
+ *     summary: Get assignable users for job assignment
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of assignable users
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 users:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       email:
+ *                         type: string
+ *                       role:
+ *                         type: string
+ *                       isActive:
+ *                         type: boolean
+ *       401:
+ *         description: Unauthorized - Invalid or missing token
+ *       500:
+ *         description: Internal server error
+ */
+// Get assignable users for job assignment (excludes IT_CONSULTANT)
+router.get('/assignable-users', authenticateToken, async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        role: {
+          not: 'IT_CONSULTANT' // Exclude IT consultants from job assignment
+        }
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true
+      },
+      orderBy: {
+        name: 'asc'
+      }
+    });
+
+    res.json({ users });
+  } catch (error) {
+    console.error('Error fetching assignable users:', error);
+    res.status(500).json({ error: 'Failed to fetch assignable users' });
   }
 });
 

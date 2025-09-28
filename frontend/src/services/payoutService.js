@@ -7,7 +7,7 @@ export const payoutService = {
   getPayouts: async (params = {}) => {
     try {
       const response = await api.get(PAYOUT_API_BASE, { params });
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error fetching payouts:', error);
       throw error;
@@ -17,7 +17,7 @@ export const payoutService = {
   getPayout: async (id) => {
     try {
       const response = await api.get(`${PAYOUT_API_BASE}/${id}`);
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error fetching payout:', error);
       throw error;
@@ -27,7 +27,7 @@ export const payoutService = {
   createPayout: async (data) => {
     try {
       const response = await api.post(PAYOUT_API_BASE, data);
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error creating payout:', error);
       throw error;
@@ -40,7 +40,7 @@ export const payoutService = {
         status,
         paymentDate
       });
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error updating payout status:', error);
       throw error;
@@ -50,7 +50,7 @@ export const payoutService = {
   updatePayout: async (id, data) => {
     try {
       const response = await api.patch(`${PAYOUT_API_BASE}/${id}`, data);
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error updating payout:', error);
       throw error;
@@ -60,7 +60,7 @@ export const payoutService = {
   deletePayout: async (id) => {
     try {
       const response = await api.delete(`${PAYOUT_API_BASE}/${id}`);
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error deleting payout:', error);
       throw error;

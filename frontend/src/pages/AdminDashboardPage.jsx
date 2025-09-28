@@ -52,7 +52,7 @@ const AdminDashboardPage = () => {
   const [generalSettingsForm] = Form.useForm();
   const [notificationForm] = Form.useForm();
   const [securityForm] = Form.useForm();
-  const [whatsappForm] = Form.useForm();
+  // const [whatsappForm] = Form.useForm();
   const [organisationForm] = Form.useForm();
   const [clearingForm] = Form.useForm();
   const [preferences, setPreferences] = useState({
@@ -103,7 +103,8 @@ const AdminDashboardPage = () => {
   });
   const [isEditingSecurity, setIsEditingSecurity] = useState(false);
 
-  // WhatsApp Web settings state
+  // WhatsApp Web settings state - COMMENTED OUT
+  /*
   const [whatsappSettings, setWhatsappSettings] = useState({
     enabled: false,
     phoneNumber: '',
@@ -112,6 +113,7 @@ const AdminDashboardPage = () => {
     webhookUrl: ''
   });
   const [isEditingWhatsapp, setIsEditingWhatsapp] = useState(false);
+  */
 
   // Function to generate initials from user name
   const getUserInitials = (name) => {
@@ -153,7 +155,7 @@ const AdminDashboardPage = () => {
       await loadGeneralSettings();
       await loadNotificationSettings();
       await loadSecuritySettings();
-      await loadWhatsappSettings();
+      // await loadWhatsappSettings();
       await loadOrganisationSettings();
       await loadClearingSettings();
     };
@@ -278,6 +280,7 @@ const AdminDashboardPage = () => {
       render: (_, record) => (
         <Space>
           <Button 
+            type="default"
             size="small"
             icon={<EyeOutlined />}
             onClick={() => handleViewUser(record)}
@@ -429,6 +432,7 @@ const AdminDashboardPage = () => {
     }
   };
 
+  /*
   const loadWhatsappSettings = async () => {
     try {
       // Load from backend configuration service
@@ -465,6 +469,7 @@ const AdminDashboardPage = () => {
       }
     }
   };
+  */
 
   const loadOrganisationSettings = async () => {
     try {
@@ -736,7 +741,8 @@ const AdminDashboardPage = () => {
     setIsEditingSecurity(false);
   };
 
-  // WhatsApp Web settings handlers
+  // WhatsApp Web settings handlers - COMMENTED OUT
+  /*
   const handleWhatsappSave = async (values) => {
     try {
       // Save to backend configuration service
@@ -798,6 +804,7 @@ const AdminDashboardPage = () => {
       }
     }
   };
+  */
 
   // Organisation settings handlers
   const handleOrganisationSave = async (values) => {
@@ -933,9 +940,11 @@ const AdminDashboardPage = () => {
     setIsEditingClearing(false);
   };
 
+  /*
   const handleWhatsappEdit = () => {
     setIsEditingWhatsapp(false);
   };
+  */
 
   const tabItems = [
     {
@@ -1392,6 +1401,7 @@ const AdminDashboardPage = () => {
         </div>
       ),
     },
+    /*
     {
       key: 'whatsapp-web',
       label: 'WhatsApp Web',
@@ -1452,6 +1462,7 @@ const AdminDashboardPage = () => {
         </div>
       ),
     },
+    */
   ];
 
   return (

@@ -49,10 +49,12 @@ import {
   EnvironmentOutlined,
   InfoCircleOutlined
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import CustomerSelector from '../components/common/CustomerSelector';
 import FileUpload from '../components/common/FileUpload';
 import { useCustomers } from '../contexts/CustomerContext';
+import { useAuth } from '../contexts/AuthContext';
+import { PERMISSIONS } from '../utils/permissions';
 import userService from '../services/userService';
 import jobService from '../services/jobService';
 import { fileService } from '../services/fileService';
@@ -116,6 +118,8 @@ const { TabPane } = Tabs;
 
 const JobsPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { currentUser, hasPermission } = useAuth();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
   const [form] = Form.useForm();
@@ -164,6 +168,23 @@ const JobsPage = () => {
     loadStaffMembers();
     loadTerminalOptions();
   }, []);
+
+  // Handle jobId parameter from URL
+  useEffect(() => {
+    const jobId = searchParams.get('jobId');
+    if (jobId && jobs.length > 0) {
+      const job = jobs.find(j => j.id === jobId);
+      if (job) {
+        console.log('🔍 Opening job details from URL parameter:', jobId);
+        setSelectedJob(job);
+        setIsDetailsDrawerVisible(true);
+        // Clear the URL parameter after opening the job details
+        const newSearchParams = new URLSearchParams(searchParams);
+        newSearchParams.delete('jobId');
+        navigate(`/enquiries?${newSearchParams.toString()}`, { replace: true });
+      }
+    }
+  }, [searchParams, jobs, navigate]);
 
   // Sync selectedJob with jobs list when jobs update
   useEffect(() => {
@@ -263,26 +284,37 @@ const JobsPage = () => {
 
   const loadStaffMembers = async () => {
     try {
-      console.log('Loading users for assignment...');
+      console.log('🔍 [JOB ASSIGNMENT] Loading assignable users for job assignment...');
       
-      const response = await userService.getUsers();
-      console.log('API Response:', response);
-      console.log('All users loaded:', response.users);
+      const response = await userService.getAssignableUsers();
+      console.log('📡 [JOB ASSIGNMENT] API Response:', response);
+      console.log('👥 [JOB ASSIGNMENT] All assignable users loaded:', response.users);
+      console.log('📊 [JOB ASSIGNMENT] Total assignable users count:', response.users?.length || 0);
       
       if (!response.users || !Array.isArray(response.users)) {
-        console.error('Invalid response format:', response);
+        console.error('❌ [JOB ASSIGNMENT] Invalid response format:', response);
+        console.log('🔧 [JOB ASSIGNMENT] Setting empty staff members array');
+        setStaffMembers([]);
         return;
       }
       
-      // Filter for active users (staff, admin, etc.) - not just STAFF role
-      const assignableUsers = response.users.filter(user => 
-        user.isActive && (user.role === 'STAFF' || user.role === 'ADMIN')
-      );
-      console.log('Assignable users:', assignableUsers);
-      setStaffMembers(assignableUsers || []);
+      // Log all assignable users with their details
+      console.log('📋 [JOB ASSIGNMENT] Assignable user details:');
+      response.users.forEach((user, index) => {
+        console.log(`  ${index + 1}. ${user.name} (${user.email}) - Role: ${user.role}, Active: ${user.isActive}`);
+      });
+      
+      console.log('✅ [JOB ASSIGNMENT] All assignable users (IT_CONSULTANT excluded by backend):', response.users);
+      console.log('📊 [JOB ASSIGNMENT] Assignable users count:', response.users.length);
+      
+      setStaffMembers(response.users || []);
+      console.log('💾 [JOB ASSIGNMENT] Staff members state updated with:', response.users.length, 'users');
+      
     } catch (error) {
-      console.error('Error loading users for assignment:', error);
-      console.error('Error details:', error.response?.data || error.message);
+      console.error('❌ [JOB ASSIGNMENT] Error loading assignable users:', error);
+      console.error('📄 [JOB ASSIGNMENT] Error details:', error.response?.data || error.message);
+      console.error('🔧 [JOB ASSIGNMENT] Setting empty staff members array due to error');
+      setStaffMembers([]);
       // Don't set error state for staff members as it's not critical
     }
   };
@@ -1016,14 +1048,16 @@ const JobsPage = () => {
         <Title level={2}>Jobs Management</Title>
           <Text type="secondary">Manage client jobs and document submissions</Text>
         </div>
-        <Button 
-          type="primary" 
-          icon={<PlusOutlined />} 
-          size="large"
-          onClick={handleNewJob}
-        >
-          New Job
-        </Button>
+        {hasPermission(PERMISSIONS.JOB_CREATE) && (
+          <Button 
+            type="primary" 
+            icon={<PlusOutlined />} 
+            size="large"
+            onClick={handleNewJob}
+          >
+            New Job
+          </Button>
+        )}
       </div>
 
       {/* Statistics Cards */}
@@ -1112,23 +1146,25 @@ const JobsPage = () => {
                           image={Empty.PRESENTED_IMAGE_SIMPLE}
                           description={
                             <div>
-                              <Text type="secondary" style={{ fontSize: '16px', marginBottom: '8px' }}>
-                                No jobs found
-                              </Text>
-                              <Text type="secondary" style={{ fontSize: '14px' }}>
-                                Get started by creating your first job
+                              <Text type="secondary" style={{ fontSize: '16px' }}>
+                                {hasPermission(PERMISSIONS.JOB_CREATE) 
+                                  ? 'No jobs found - Get started by creating your first job'
+                                  : 'No jobs available to view'
+                                }
                               </Text>
                             </div>
                           }
                         >
-                          <Button 
-                            type="primary" 
-                            icon={<PlusOutlined />}
-                            onClick={() => setIsModalVisible(true)}
-                            size="large"
-                          >
-                            Create First Job
-                          </Button>
+                          {hasPermission(PERMISSIONS.JOB_CREATE) && (
+                            <Button 
+                              type="primary" 
+                              icon={<PlusOutlined />}
+                              onClick={() => setIsModalVisible(true)}
+                              size="large"
+                            >
+                              Create First Job
+                            </Button>
+                          )}
                         </Empty>
                       )
                     }}
@@ -1284,17 +1320,26 @@ const JobsPage = () => {
                 rules={[{ required: true, message: 'Please assign the job' }]}
               >
                 <Select placeholder="Select team member">
-                  {staffMembers.length > 0 ? (
-                    staffMembers.map(member => (
-                      <Option key={member.id} value={member.id}>
-                        {member.name} ({member.email})
-                      </Option>
-                    ))
-                  ) : (
-                    <Option disabled value="no-users">
-                      No team members available
-                    </Option>
-                  )}
+                  {(() => {
+                    console.log('🎯 [STATUS UPDATE] Rendering dropdown - staffMembers:', staffMembers);
+                    console.log('📊 [STATUS UPDATE] staffMembers.length:', staffMembers.length);
+                    
+                    if (staffMembers.length > 0) {
+                      console.log('✅ [STATUS UPDATE] Rendering member options');
+                      return staffMembers.map(member => (
+                        <Option key={member.id} value={member.id}>
+                          {member.name} ({member.email})
+                        </Option>
+                      ));
+                    } else {
+                      console.log('❌ [STATUS UPDATE] No staff members - showing disabled option');
+                      return (
+                        <Option disabled value="no-users">
+                          No team members available
+                        </Option>
+                      );
+                    }
+                  })()}
                 </Select>
               </Form.Item>
             </Col>
@@ -1338,7 +1383,7 @@ const JobsPage = () => {
                   <Option value="Email">Email</Option>
                   <Option value="Dispatch">Dispatch</Option>
                   <Option value="VVIP">VVIP</Option>
-                  <Option value="WhatsApp">WhatsApp</Option>
+                  {/* <Option value="WhatsApp">WhatsApp</Option> */}
                 </Select>
               </Form.Item>
             </Col>
@@ -1515,17 +1560,27 @@ const JobsPage = () => {
               rules={[{ required: true, message: 'Please select who to assign this job to' }]}
             >
               <Select placeholder="Select team member">
-                {staffMembers.length > 0 ? (
-                  staffMembers.map(member => (
-                    <Option key={member.id} value={member.id}>
-                      {member.name} ({member.email})
-                    </Option>
-                  ))
-                ) : (
-                  <Option disabled value="no-users">
-                    No team members available
-                  </Option>
-                )}
+                {(() => {
+                  console.log('🎯 [JOB ASSIGNMENT] Rendering dropdown - staffMembers:', staffMembers);
+                  console.log('📊 [JOB ASSIGNMENT] staffMembers.length:', staffMembers.length);
+                  console.log('🔍 [JOB ASSIGNMENT] staffMembers content:', staffMembers);
+                  
+                  if (staffMembers.length > 0) {
+                    console.log('✅ [JOB ASSIGNMENT] Rendering member options');
+                    return staffMembers.map(member => (
+                      <Option key={member.id} value={member.id}>
+                        {member.name} ({member.email})
+                      </Option>
+                    ));
+                  } else {
+                    console.log('❌ [JOB ASSIGNMENT] No staff members - showing disabled option');
+                    return (
+                      <Option disabled value="no-users">
+                        No team members available
+                      </Option>
+                    );
+                  }
+                })()}
               </Select>
             </Form.Item>
 
@@ -1846,29 +1901,30 @@ const JobsPage = () => {
             >
               Update Status
             </Button>
-           <Dropdown
-             menu={{
-               items: [
-                 {
-                   key: 'edit',
-                    label: 'Edit Job',
-                   icon: <EditOutlined />,
-                   onClick: () => {
-                     setIsDetailsDrawerVisible(false);
-                     handleEditJob(selectedJob);
-                   },
-                 },
-                 {
-                    key: 'delete',
-                    label: 'Delete Job',
-                    icon: <DeleteOutlined />,
-                    danger: true,
-                    onClick: () => {
-                      setIsDetailsDrawerVisible(false);
-                      handleDeleteJob(selectedJob);
-                    },
-                 },
-               ],
+           {hasPermission(PERMISSIONS.JOB_EDIT) || hasPermission(PERMISSIONS.JOB_DELETE) ? (
+             <Dropdown
+               menu={{
+                 items: [
+                   ...(hasPermission(PERMISSIONS.JOB_EDIT) ? [{
+                     key: 'edit',
+                      label: 'Edit Job',
+                     icon: <EditOutlined />,
+                     onClick: () => {
+                       setIsDetailsDrawerVisible(false);
+                       handleEditJob(selectedJob);
+                     },
+                   }] : []),
+                   ...(hasPermission(PERMISSIONS.JOB_DELETE) ? [{
+                      key: 'delete',
+                      label: 'Delete Job',
+                      icon: <DeleteOutlined />,
+                      danger: true,
+                      onClick: () => {
+                        setIsDetailsDrawerVisible(false);
+                        handleDeleteJob(selectedJob);
+                      },
+                   }] : []),
+                 ],
              }}
              placement="bottomRight"
              arrow
@@ -1879,6 +1935,7 @@ const JobsPage = () => {
                 size="large"
               />
             </Dropdown>
+           ) : null}
           </Space>
         }
        >
@@ -1977,7 +2034,7 @@ const JobsPage = () => {
                   <Title level={3}>{selectedJob.trackingId}</Title>
                   <Tag color={getJobStatusColor(selectedJob.status)} size="large">
                     {selectedJob.status}
-                                  </Tag>
+                  </Tag>
                 </div>
               </div>
 
@@ -2274,8 +2331,8 @@ const JobsPage = () => {
                             {formatFileSize(doc.size)} • {doc.mimeType}
                           </Text>
                         </div>
-                        <Button 
-                          type="text" 
+                        <Button
+                          type="default" 
                           size="small"
                           icon={<EyeOutlined />}
                           onClick={() => handleViewDocument(doc)}

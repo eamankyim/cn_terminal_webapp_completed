@@ -16,6 +16,7 @@ import {
   Row,
   Col
 } from 'antd';
+import './ExpenseRequestForm.css';
 import {
   PlusOutlined,
   UploadOutlined,
@@ -31,7 +32,7 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 
-const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null }) => {
+const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, mode = 'request' }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState([]);
@@ -85,9 +86,13 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null }
         message.info('Receipt upload will be implemented with file service');
       }
 
-      await expenseService.createExpenseRequest(formData);
-      
-      message.success('Expense request submitted successfully');
+      if (mode === 'record') {
+        await expenseService.recordExpense(formData);
+        message.success('Expense recorded successfully');
+      } else {
+        await expenseService.createExpenseRequest(formData);
+        message.success('Expense request submitted successfully');
+      }
       form.resetFields();
       setFileList([]);
       onSuccess && onSuccess();
@@ -127,7 +132,10 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null }
       title={
         <Space>
           <DollarOutlined />
-          {initialData ? 'Edit Expense Request' : 'New Expense Request'}
+          {initialData 
+            ? `Edit Expense ${mode === 'record' ? 'Record' : 'Request'}` 
+            : `${mode === 'record' ? 'Record Expense' : 'New Expense Request'}`
+          }
         </Space>
       }
       open={visible}
@@ -198,6 +206,7 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null }
                   style={{ width: '100%' }}
                   placeholder="Select date"
                   format="DD/MM/YYYY"
+                  className="custom-datepicker"
                 />
               </Form.Item>
             </Col>
@@ -253,15 +262,16 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null }
               fileList={fileList}
               onChange={handleFileChange}
               beforeUpload={beforeUpload}
-              listType="picture-card"
+              listType="text"
               maxCount={1}
+              style={{ width: '100%' }}
             >
-              {fileList.length >= 1 ? null : (
-                <div>
-                  <PlusOutlined />
-                  <div style={{ marginTop: 8 }}>Upload Receipt</div>
-                </div>
-              )}
+              <Button 
+                icon={<PlusOutlined />} 
+                style={{ width: '100%', height: '40px' }}
+              >
+                Upload Receipt
+              </Button>
             </Upload>
             <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginTop: 8 }}>
               Supported formats: JPG, PNG, PDF (Max 5MB)
@@ -269,15 +279,17 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null }
           </Form.Item>
 
           <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={loading}>
-                <PlusOutlined />
-                Submit Request
-              </Button>
-              <Button onClick={onCancel}>
-                Cancel
-              </Button>
-            </Space>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Space>
+                <Button onClick={onCancel}>
+                  Cancel
+                </Button>
+                <Button type="primary" htmlType="submit" loading={loading}>
+                  <PlusOutlined />
+                  {mode === 'record' ? 'Save' : 'Submit Request'}
+                </Button>
+              </Space>
+            </div>
           </Form.Item>
         </Form>
       </Card>

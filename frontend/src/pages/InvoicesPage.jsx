@@ -26,7 +26,8 @@ import {
   Alert,
   Tabs,
   Empty,
-  Collapse
+  Collapse,
+  Switch
 } from 'antd';
 import { 
   FileTextOutlined, 
@@ -53,6 +54,8 @@ import {
 import invoiceService from '../services/invoiceService';
 import jobService from '../services/jobService';
 import configurationService from '../services/configurationService';
+import { useAuth } from '../contexts/AuthContext';
+import { PERMISSIONS } from '../utils/permissions';
 import { calculateVAT, calculateTotalVAT, getVATExplanation } from '../utils/vatCalculator';
 import { getJobStatusColor, getInvoiceStatusColor } from '../utils/statusUtils';
 
@@ -160,12 +163,14 @@ const PaymentForm = React.forwardRef(({ invoice, onSuccess }, ref) => {
 });
 
 const InvoicesPage = () => {
+  const { hasPermission } = useAuth();
   const [searchText, setSearchText] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState(null);
   const [isPrintModalVisible, setIsPrintModalVisible] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(true);
   const [form] = Form.useForm();
   const [invoices, setInvoices] = useState([]);
   const [jobs, setJobs] = useState([]); // Jobs available for invoice creation (filtered)
@@ -873,7 +878,7 @@ const InvoicesPage = () => {
       key: 'actions',
       render: (_, record) => (
         <Button 
-          type="text" 
+          type="default" 
           icon={<EyeOutlined />} 
           onClick={() => handleViewInvoice(record)}
           size="small"
@@ -947,18 +952,20 @@ const InvoicesPage = () => {
           <Title level={2}>Invoice Management</Title>
           <Text type="secondary">Create, manage, and track client invoices and payments</Text>
         </div>
-        <Button 
-          type="primary" 
-          icon={<PlusOutlined />} 
-          size="large"
-          onClick={() => {
-            setEditingInvoice(null);
-            form.resetFields();
-            setIsCreateModalVisible(true);
-          }}
-        >
-          New Invoice
-        </Button>
+        {hasPermission(PERMISSIONS.INVOICE_CREATE) && (
+          <Button 
+            type="primary" 
+            icon={<PlusOutlined />} 
+            size="large"
+            onClick={() => {
+              setEditingInvoice(null);
+              form.resetFields();
+              setIsCreateModalVisible(true);
+            }}
+          >
+            New Invoice
+          </Button>
+        )}
       </div>
 
       {/* Statistics Row */}
@@ -2033,6 +2040,14 @@ const InvoicesPage = () => {
         onCancel={() => setIsPrintModalVisible(false)}
         width={800}
         footer={[
+          <div key="toggle" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: 'auto' }}>
+            <Switch 
+              checked={showBreakdown}
+              onChange={setShowBreakdown}
+              size="small"
+            />
+            <span style={{ fontSize: '14px' }}>Show breakdown</span>
+          </div>,
           <Button key="share" icon={<ShareAltOutlined />} onClick={handleShareInvoice}>
             Share via Email
           </Button>,
@@ -2233,142 +2248,163 @@ const InvoicesPage = () => {
 
             {/* Charges Breakdown */}
             <div style={{ marginBottom: '15px' }}>
-              <h3 style={{ 
-                color: '#333', 
-                fontSize: '14px', 
-                margin: '0 0 8px 0',
-                borderBottom: '1px solid #333',
-                paddingBottom: '3px'
-              }}>
-                CHARGES BREAKDOWN
-              </h3>
+              {showBreakdown && (
+                <>
+                  <h3 style={{ 
+                    color: '#333', 
+                    fontSize: '14px', 
+                    margin: '0 0 8px 0',
+                    borderBottom: '1px solid #333',
+                    paddingBottom: '3px'
+                  }}>
+                    CHARGES BREAKDOWN
+                  </h3>
+                  <div style={{ 
+                    border: '1px solid #e0e0e0',
+                    borderRadius: '4px',
+                    overflow: 'hidden'
+                  }}>
+                    <table style={{ 
+                      width: '100%', 
+                      borderCollapse: 'collapse',
+                      fontSize: '12px'
+                    }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f5f5f5' }}>
+                          <th style={{ 
+                            padding: '8px', 
+                            textAlign: 'left', 
+                            borderBottom: '1px solid #e0e0e0',
+                            fontWeight: 'bold'
+                          }}>
+                            Description
+                          </th>
+                          <th style={{ 
+                            padding: '8px', 
+                            textAlign: 'right', 
+                            borderBottom: '1px solid #e0e0e0',
+                            fontWeight: 'bold'
+                          }}>
+                            Amount (GHS)
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                            Custom Duty
+                          </td>
+                          <td style={{ 
+                            padding: '6px 8px', 
+                            textAlign: 'right', 
+                            borderBottom: '1px solid #f0f0f0',
+                            fontWeight: 'bold'
+                          }}>
+                            {(selectedInvoice.charges?.customDuty || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                            Shipping Charges
+                          </td>
+                          <td style={{ 
+                            padding: '6px 8px', 
+                            textAlign: 'right', 
+                            borderBottom: '1px solid #f0f0f0',
+                            fontWeight: 'bold'
+                          }}>
+                            {(selectedInvoice.charges?.shippingCharges || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                            Terminal Charges
+                          </td>
+                          <td style={{ 
+                            padding: '6px 8px', 
+                            textAlign: 'right', 
+                            borderBottom: '1px solid #f0f0f0',
+                            fontWeight: 'bold'
+                          }}>
+                            {(selectedInvoice.charges?.terminalCharges || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                            Miscellaneous
+                          </td>
+                          <td style={{ 
+                            padding: '6px 8px', 
+                            textAlign: 'right', 
+                            borderBottom: '1px solid #f0f0f0',
+                            fontWeight: 'bold'
+                          }}>
+                            {(selectedInvoice.charges?.miscellaneous || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                            Clearance Charges
+                          </td>
+                          <td style={{ 
+                            padding: '6px 8px', 
+                            textAlign: 'right', 
+                            borderBottom: '1px solid #f0f0f0',
+                            fontWeight: 'bold'
+                          }}>
+                            {(selectedInvoice.charges?.clearanceCharges || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                            Service Charge
+                          </td>
+                          <td style={{ 
+                            padding: '6px 8px', 
+                            textAlign: 'right', 
+                            borderBottom: '1px solid #f0f0f0',
+                            fontWeight: 'bold'
+                          }}>
+                            {(selectedInvoice.charges?.serviceCharge || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                        <tr style={{ backgroundColor: '#f9f9f9' }}>
+                          <td style={{ 
+                            padding: '6px 8px', 
+                            borderBottom: '1px solid #e0e0e0',
+                            fontWeight: 'bold'
+                          }}>
+                            VAT (15%)
+                          </td>
+                          <td style={{ 
+                            padding: '6px 8px', 
+                            textAlign: 'right', 
+                            borderBottom: '1px solid #e0e0e0',
+                            fontWeight: 'bold',
+                            color: '#333'
+                          }}>
+                            {(selectedInvoice.charges?.vat || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+              
+              {/* Always show total amount */}
               <div style={{ 
                 border: '1px solid #e0e0e0',
                 borderRadius: '4px',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                marginTop: showBreakdown ? '0' : '8px'
               }}>
                 <table style={{ 
                   width: '100%', 
                   borderCollapse: 'collapse',
                   fontSize: '12px'
                 }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#f5f5f5' }}>
-                      <th style={{ 
-                        padding: '8px', 
-                        textAlign: 'left', 
-                        borderBottom: '1px solid #e0e0e0',
-                        fontWeight: 'bold'
-                      }}>
-                        Description
-                      </th>
-                      <th style={{ 
-                        padding: '8px', 
-                        textAlign: 'right', 
-                        borderBottom: '1px solid #e0e0e0',
-                        fontWeight: 'bold'
-                      }}>
-                        Amount (GHS)
-                      </th>
-                    </tr>
-                  </thead>
                   <tbody>
-                    <tr>
-                      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
-                        Custom Duty
-                      </td>
-                      <td style={{ 
-                        padding: '6px 8px', 
-                        textAlign: 'right', 
-                        borderBottom: '1px solid #f0f0f0',
-                        fontWeight: 'bold'
-                      }}>
-                        {(selectedInvoice.charges?.customDuty || 0).toFixed(2)}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
-                        Shipping Charges
-                      </td>
-                      <td style={{ 
-                        padding: '6px 8px', 
-                        textAlign: 'right', 
-                        borderBottom: '1px solid #f0f0f0',
-                        fontWeight: 'bold'
-                      }}>
-                        {(selectedInvoice.charges?.shippingCharges || 0).toFixed(2)}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
-                        Terminal Charges
-                      </td>
-                      <td style={{ 
-                        padding: '6px 8px', 
-                        textAlign: 'right', 
-                        borderBottom: '1px solid #f0f0f0',
-                        fontWeight: 'bold'
-                      }}>
-                        {(selectedInvoice.charges?.terminalCharges || 0).toFixed(2)}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
-                        Miscellaneous
-                      </td>
-                      <td style={{ 
-                        padding: '6px 8px', 
-                        textAlign: 'right', 
-                        borderBottom: '1px solid #f0f0f0',
-                        fontWeight: 'bold'
-                      }}>
-                        {(selectedInvoice.charges?.miscellaneous || 0).toFixed(2)}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
-                        Clearance Charges
-                      </td>
-                      <td style={{ 
-                        padding: '6px 8px', 
-                        textAlign: 'right', 
-                        borderBottom: '1px solid #f0f0f0',
-                        fontWeight: 'bold'
-                      }}>
-                        {(selectedInvoice.charges?.clearanceCharges || 0).toFixed(2)}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0f0f0' }}>
-                        Service Charge
-                      </td>
-                      <td style={{ 
-                        padding: '6px 8px', 
-                        textAlign: 'right', 
-                        borderBottom: '1px solid #f0f0f0',
-                        fontWeight: 'bold'
-                      }}>
-                        {(selectedInvoice.charges?.serviceCharge || 0).toFixed(2)}
-                      </td>
-                    </tr>
-                    <tr style={{ backgroundColor: '#f9f9f9' }}>
-                      <td style={{ 
-                        padding: '6px 8px', 
-                        borderBottom: '1px solid #e0e0e0',
-                        fontWeight: 'bold'
-                      }}>
-                        VAT (15%)
-                      </td>
-                      <td style={{ 
-                        padding: '6px 8px', 
-                        textAlign: 'right', 
-                        borderBottom: '1px solid #e0e0e0',
-                        fontWeight: 'bold',
-                        color: '#333'
-                      }}>
-                        {(selectedInvoice.charges?.vat || 0).toFixed(2)}
-                      </td>
-                    </tr>
                     <tr style={{ backgroundColor: '#00072D', color: 'white' }}>
                       <td style={{ 
                         padding: '10px 8px', 

@@ -244,6 +244,7 @@ const ExpenseRequestsList = () => {
         <Space>
           <Tooltip title="View Details">
             <Button
+              type="default"
               size="small"
               icon={<EyeOutlined />}
               onClick={() => handleViewDetails(record)}

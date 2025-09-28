@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import IntegrationTest from '../components/IntegrationTest';
 import PermissionGate from '../components/common/PermissionGate';
 import { PERMISSIONS } from '../utils/permissions';
+import { UI_PERMISSIONS } from '../utils/uiPermissions';
 import { useAuth } from '../contexts/AuthContext';
+import AccountingDashboard from './AccountingDashboard';
 import { 
   Card, 
   Row, 
@@ -13,7 +14,6 @@ import {
   Tag, 
   Space, 
   Typography,
-  Timeline,
   Avatar,
   Progress,
   Badge,
@@ -30,10 +30,8 @@ import {
   CarOutlined,
   ContainerOutlined,
   CalculatorOutlined,
-  CreditCardOutlined,
   PlusOutlined,
   EyeOutlined,
-  GlobalOutlined,
   CheckCircleFilled,
   ClockCircleFilled,
   ExclamationCircleFilled,
@@ -60,7 +58,6 @@ const DashboardPage = () => {
       revenueThisMonth: 0,
       workflowStatuses: {}
     },
-    recentActivities: [],
     recentJobs: [],
     assignedJobs: []
   });
@@ -82,7 +79,6 @@ const DashboardPage = () => {
 
       setDashboardData({
         stats: statsResponse.stats,
-        recentActivities: statsResponse.recentActivities || [],
         recentJobs: recentJobsResponse.jobs || [],
         assignedJobs: assignedJobsResponse.jobs || []
       });
@@ -133,8 +129,6 @@ const DashboardPage = () => {
 
 
 
-  // Recent activities
-  const recentActivities = dashboardData.recentActivities;
  
 
   // Using centralized status color utilities
@@ -156,15 +150,6 @@ const DashboardPage = () => {
   };
 
 
-  const getActivityIcon = (type) => {
-    const icons = {
-      'invoice': <FileTextOutlined style={{ color: '#1890ff' }} />,
-      'eta': <GlobalOutlined style={{ color: '#52c41a' }} />,
-      'enquiry': <FileAddOutlined style={{ color: '#00072D' }} />,
-      'payment': <CreditCardOutlined style={{ color: '#52c41a' }} />
-    };
-    return icons[type] || <FileAddOutlined />;
-  };
 
   if (loading) {
     return (
@@ -195,11 +180,18 @@ const DashboardPage = () => {
     );
   }
 
+  // Show accounting dashboard for ACCOUNTANT users
+  console.log('DashboardPage: Current user role:', currentUser?.role);
+  if (currentUser?.role === 'ACCOUNTANT') {
+    console.log('DashboardPage: Rendering AccountingDashboard for ACCOUNTANT user');
+    return <AccountingDashboard />;
+  }
+
   return (
-    <PermissionGate userRole={currentUser?.role} permissions={PERMISSIONS.DASHBOARD_VIEW}>
+    <PermissionGate userRole={currentUser?.role} permissions={UI_PERMISSIONS.DASHBOARD}>
       <div style={{ padding: '24px' }}>
         <div style={{ marginBottom: '24px' }}>
-          <Title level={2}>Clearing Agent Dashboard</Title>
+          <Title level={2}>Welcome to CN Terminal Dashboard</Title>
           <Text type="secondary">Monitor shipments, track status, and manage operations</Text>
         </div>
 
@@ -226,13 +218,18 @@ const DashboardPage = () => {
           <Card 
             title="Jobs in Progress" 
             extra={
-              <Button 
-                type="primary" 
-                icon={<PlusOutlined />}
-                onClick={() => navigate('/enquiries')}
+              <PermissionGate 
+                userPermissions={currentUser?.permissions} 
+                permissions={PERMISSIONS.JOB_CREATE}
               >
-                New Job
-              </Button>
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />}
+                  onClick={() => navigate('/enquiries')}
+                >
+                  New Job
+                </Button>
+              </PermissionGate>
             }
             style={{ marginBottom: '16px' }}
           >
@@ -243,7 +240,15 @@ const DashboardPage = () => {
                   title: 'Job ID',
                   dataIndex: 'trackingId',
                   key: 'trackingId',
-                  render: (text) => <Text strong>{text}</Text>
+                  render: (text, record) => (
+                    <Button 
+                      type="link" 
+                      onClick={() => navigate(`/enquiries?jobId=${record.id}`)}
+                      style={{ padding: 0, height: 'auto' }}
+                    >
+                      <Text strong style={{ color: '#1890ff' }}>{text}</Text>
+                    </Button>
+                  )
                 },
                 {
                   title: 'Client',
@@ -283,10 +288,28 @@ const DashboardPage = () => {
                       <Text type="secondary">Not set</Text>
                     )
                   )
+                },
+                {
+                  title: 'Action',
+                  key: 'action',
+                  render: (_, record) => (
+                    <Button 
+                      type="link" 
+                      icon={<EyeOutlined />}
+                      onClick={() => navigate(`/enquiries?jobId=${record.id}`)}
+                      size="small"
+                    >
+                      View
+                    </Button>
+                  )
                 }
               ]}
               pagination={false}
               size="small"
+              onRow={(record) => ({
+                onClick: () => navigate(`/enquiries?jobId=${record.id}`),
+                style: { cursor: 'pointer' }
+              })}
               locale={{
                 emptyText: (
                   <Empty
@@ -318,7 +341,15 @@ const DashboardPage = () => {
                   title: 'Job ID',
                   dataIndex: 'trackingId',
                   key: 'trackingId',
-                  render: (text) => <Text strong>{text}</Text>
+                  render: (text, record) => (
+                    <Button 
+                      type="link" 
+                      onClick={() => navigate(`/enquiries?jobId=${record.id}`)}
+                      style={{ padding: 0, height: 'auto' }}
+                    >
+                      <Text strong style={{ color: '#1890ff' }}>{text}</Text>
+                    </Button>
+                  )
                 },
                 {
                   title: 'Client',
@@ -338,10 +369,28 @@ const DashboardPage = () => {
                       </Tag>
                     );
                   }
+                },
+                {
+                  title: 'Action',
+                  key: 'action',
+                  render: (_, record) => (
+                    <Button 
+                      type="link" 
+                      icon={<EyeOutlined />}
+                      onClick={() => navigate(`/enquiries?jobId=${record.id}`)}
+                      size="small"
+                    >
+                      View
+                    </Button>
+                  )
                 }
               ]}
               pagination={false}
               size="small"
+              onRow={(record) => ({
+                onClick: () => navigate(`/enquiries?jobId=${record.id}`),
+                style: { cursor: 'pointer' }
+              })}
               locale={{
                 emptyText: (
                   <Empty
@@ -362,35 +411,9 @@ const DashboardPage = () => {
             />
           </Card>
 
-          {/* Recent Activities */}
-          <Card title="Recent Activities">
-            <Timeline size="small">
-              {recentActivities.map((activity, index) => (
-                <Timeline.Item 
-                  key={index} 
-                  dot={getActivityIcon(activity.type)}
-                  color="blue"
-                >
-                  <div>
-                    <Text strong>{activity.action}</Text>
-                    <br />
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      {activity.time} • {activity.user}
-                    </Text>
-                  </div>
-                </Timeline.Item>
-              ))}
-            </Timeline>
-          </Card>
         </Col>
       </Row>
 
-      {/* API Integration Test Section */}
-      <Row gutter={[16, 16]} style={{ marginTop: '24px' }}>
-        <Col span={24}>
-          <IntegrationTest />
-        </Col>
-      </Row>
       </div>
     </PermissionGate>
   );

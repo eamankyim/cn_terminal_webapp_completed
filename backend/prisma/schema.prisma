@@ -16,6 +16,9 @@ model User {
   isActive            Boolean              @default(true)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+  roleId              String?
+  approvedExpenses    ExpenseRequest[]     @relation("ExpenseApprovedBy")
+  expenseRequests     ExpenseRequest[]     @relation("ExpenseRequestedBy")
   uploadedFiles       File[]
   sentInvitations     Invitation[]
   createdInvoices     Invoice[]
@@ -26,20 +29,13 @@ model User {
   notifications       Notification[]
   passwordResetTokens PasswordResetToken[]
   createdPayments     Payment[]
-  
-  // Accounting & Finance relations
-  expenseRequests     ExpenseRequest[] @relation("ExpenseRequestedBy")
-  approvedExpenses    ExpenseRequest[] @relation("ExpenseApprovedBy")
-  processedPayouts    Payout[]         @relation("PayoutProcessedBy")
-  payoutRequests      PayoutRequest[]  @relation("PayoutRequestedBy")
-  approvedPayouts     PayoutRequest[]  @relation("PayoutApprovedBy")
-  
-  // Permission relations
-  rolePermissions RolePermission[] @relation("RolePermissionCreator")
-  userPermissions UserPermission[] @relation("UserPermissionUser")
-  grantedPermissions UserPermission[] @relation("UserPermissionGranter")
-  assignedRole Role? @relation(fields: [roleId], references: [id])
-  roleId String?
+  approvedPayouts     PayoutRequest[]      @relation("PayoutApprovedBy")
+  payoutRequests      PayoutRequest[]      @relation("PayoutRequestedBy")
+  processedPayouts    Payout[]             @relation("PayoutProcessedBy")
+  rolePermissions     RolePermission[]     @relation("RolePermissionCreator")
+  grantedPermissions  UserPermission[]     @relation("UserPermissionGranter")
+  userPermissions     UserPermission[]     @relation("UserPermissionUser")
+  assignedRole        Role?                @relation(fields: [roleId], references: [id])
 
   @@map("users")
 }
@@ -87,51 +83,49 @@ model Consignment {
 }
 
 model Job {
-  id                   String             @id @default(cuid())
-  trackingId           String             @unique
+  id                   String                @id @default(cuid())
+  trackingId           String                @unique
   customerId           String
   consignmentId        String?
   createdById          String
   updatedById          String?
-  status               JobStatus          @default(NEW)
+  status               JobStatus             @default(NEW)
   submittedDate        DateTime?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  goodsTypes           String[]           @default([])
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  goodsTypes           String[]              @default([])
   assignedToId         String
   eta                  DateTime?
   blNumber             String?
   containerNumber      String?
-  documentsBrought     String[]           @default([])
+  documentsBrought     String[]              @default([])
   jobDescription       String?
   line                 String?
   mediumOfEnquiry      String?
   vesselName           String?
-  isDraft              Boolean            @default(false)
+  isDraft              Boolean               @default(false)
   demurrageFreeDays    Int?
   releaseMoneyReceived Boolean?
-  shipperName          String?
-  invoiceNumber        String?
-  terminalName         String?
-  scheduleTime         DateTime?
-  driverName           String?
   driverContact        String?
+  driverName           String?
+  invoiceNumber        String?
+  scheduleTime         DateTime?
+  shipperName          String?
+  terminalName         String?
+  cashflowTransactions CashflowTransaction[]
+  expenseRequests      ExpenseRequest[]
+  expenses             Expense[]
   invoices             Invoice[]
   documents            JobDocument[]
   statusHistory        JobStatusHistory[]
-  assignedTo           User               @relation("AssignedJobs", fields: [assignedToId], references: [id])
-  consignment          Consignment?       @relation(fields: [consignmentId], references: [id])
-  createdBy            User               @relation("CreatedJobs", fields: [createdById], references: [id])
-  customer             Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  updatedBy            User?              @relation("UpdatedJobs", fields: [updatedById], references: [id])
+  assignedTo           User                  @relation("AssignedJobs", fields: [assignedToId], references: [id])
+  consignment          Consignment?          @relation(fields: [consignmentId], references: [id])
+  createdBy            User                  @relation("CreatedJobs", fields: [createdById], references: [id])
+  customer             Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  updatedBy            User?                 @relation("UpdatedJobs", fields: [updatedById], references: [id])
   notifications        Notification[]
-  
-  // Accounting & Finance relations
-  expenseRequests      ExpenseRequest[]
-  expenses             Expense[]
-  payouts              Payout[]
   payoutRequests       PayoutRequest[]
-  cashflowTransactions CashflowTransaction[]
+  payouts              Payout[]
 
   @@map("jobs")
 }
@@ -342,48 +336,31 @@ model Notification {
   @@map("notifications")
 }
 
-enum UserRole {
-  ADMIN
-  STAFF
-  DRIVER
-  WAREHOUSE
-  IT_CONSULTANT
-  ENQUIRY_OFFICER
-  RELEASE_OFFICER
-  REVIEW_OFFICER
-  INVOICE_OFFICER
-  CLEARING_OFFICER
-}
-
 model Permission {
-  id          String   @id @default(cuid())
-  name        String   @unique // e.g., "user:view", "job:create"
-  description String
-  module      String   // e.g., "User", "Job", "Invoice"
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relations
+  id              String           @id @default(cuid())
+  name            String           @unique
+  description     String
+  module          String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   rolePermissions RolePermission[]
   userPermissions UserPermission[]
-  
+
   @@map("permissions")
 }
 
 model Role {
-  id          String   @id @default(cuid())
-  name        String   @unique // e.g., "ADMIN", "ENQUIRY_OFFICER"
-  displayName String   // e.g., "Administrator", "Enquiry Officer"
-  description String
-  isSystem    Boolean  @default(false) // System roles can't be deleted
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relations
+  id              String           @id @default(cuid())
+  name            String           @unique
+  displayName     String
+  description     String
+  isSystem        Boolean          @default(false)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   rolePermissions RolePermission[]
   users           User[]
-  
+
   @@map("roles")
 }
 
@@ -392,13 +369,11 @@ model RolePermission {
   roleId       String
   permissionId String
   createdAt    DateTime   @default(now())
-  createdBy    String     // Who granted this permission
-  
-  // Relations
-  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-  creator    User       @relation("RolePermissionCreator", fields: [createdBy], references: [id])
-  
+  createdBy    String
+  creator      User       @relation("RolePermissionCreator", fields: [createdBy], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
   @@unique([roleId, permissionId])
   @@map("role_permissions")
 }
@@ -407,18 +382,129 @@ model UserPermission {
   id           String     @id @default(cuid())
   userId       String
   permissionId String
-  grantedBy    String     // Who granted this permission
+  grantedBy    String
   grantedAt    DateTime   @default(now())
-  expiresAt    DateTime?  // Optional expiration
+  expiresAt    DateTime?
   isActive     Boolean    @default(true)
-  
-  // Relations
-  user       User       @relation("UserPermissionUser", fields: [userId], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-  granter    User       @relation("UserPermissionGranter", fields: [grantedBy], references: [id])
-  
+  granter      User       @relation("UserPermissionGranter", fields: [grantedBy], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  user         User       @relation("UserPermissionUser", fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([userId, permissionId])
   @@map("user_permissions")
+}
+
+model ExpenseRequest {
+  id              String          @id @default(cuid())
+  amount          Float
+  category        ExpenseCategory
+  description     String
+  expenseDate     DateTime
+  jobId           String?
+  receiptUrl      String?
+  requestedById   String
+  status          ExpenseStatus   @default(PENDING)
+  approvedById    String?
+  approvedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  approvedBy      User?           @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  job             Job?            @relation(fields: [jobId], references: [id])
+  requestedBy     User            @relation("ExpenseRequestedBy", fields: [requestedById], references: [id])
+  expense         Expense?
+
+  @@map("expense_requests")
+}
+
+model PayoutRequest {
+  id               String         @id @default(cuid())
+  userId           String
+  amount           Float
+  category         PayoutCategory
+  recipientName    String
+  recipientAccount String
+  paymentMethod    PaymentMethod
+  description      String
+  payoutDate       DateTime
+  jobId            String?
+  status           PayoutStatus   @default(PENDING)
+  approvedBy       String?
+  approvedAt       DateTime?
+  rejectionReason  String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  approvedByUser   User?          @relation("PayoutApprovedBy", fields: [approvedBy], references: [id])
+  job              Job?           @relation(fields: [jobId], references: [id])
+  user             User           @relation("PayoutRequestedBy", fields: [userId], references: [id])
+
+  @@map("payout_requests")
+}
+
+model Expense {
+  id                   String                @id @default(cuid())
+  requestId            String                @unique
+  amount               Float
+  category             ExpenseCategory
+  description          String
+  expenseDate          DateTime
+  jobId                String?
+  receiptUrl           String?
+  createdAt            DateTime              @default(now())
+  cashflowTransactions CashflowTransaction[]
+  job                  Job?                  @relation(fields: [jobId], references: [id])
+  request              ExpenseRequest        @relation(fields: [requestId], references: [id])
+
+  @@map("expenses")
+}
+
+model Payout {
+  id                   String                @id @default(cuid())
+  payee                String
+  amount               Float
+  paymentMethod        PaymentMethod
+  status               PayoutStatus          @default(PENDING)
+  purpose              String
+  jobId                String?
+  paymentDate          DateTime?
+  processedById        String
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  cashflowTransactions CashflowTransaction[]
+  job                  Job?                  @relation(fields: [jobId], references: [id])
+  processedBy          User                  @relation("PayoutProcessedBy", fields: [processedById], references: [id])
+
+  @@map("payouts")
+}
+
+model CashflowTransaction {
+  id              String             @id @default(cuid())
+  type            CashflowType
+  amount          Float
+  description     String
+  sourceType      CashflowSourceType
+  sourceId        String?
+  jobId           String?
+  transactionDate DateTime           @default(now())
+  createdAt       DateTime           @default(now())
+  expense         Expense?           @relation(fields: [sourceId], references: [id], map: "cashflow_expense_fkey")
+  payout          Payout?            @relation(fields: [sourceId], references: [id], map: "cashflow_payout_fkey")
+  job             Job?               @relation(fields: [jobId], references: [id])
+
+  @@map("cashflow_transactions")
+}
+
+enum UserRole {
+  ADMIN
+  STAFF
+  DRIVER
+  IT_CONSULTANT
+  ENQUIRY_OFFICER
+  RELEASE_OFFICER
+  REVIEW_OFFICER
+  INVOICE_OFFICER
+  CLEARING_OFFICER
+  ACCOUNTANT
 }
 
 enum CustomerType {
@@ -443,9 +529,9 @@ enum JobStatus {
   INVOICED
   ENTRY
   RELEASE
-  RELEASED
   CLEARED
   DELIVERED
+  RELEASED
 }
 
 enum EnquiryStatus {
@@ -537,118 +623,6 @@ enum NotificationCategory {
   PAYOUT_FAILED
 }
 
-// Accounting & Finance Models
-model ExpenseRequest {
-  id              String            @id @default(cuid())
-  amount          Float
-  category        ExpenseCategory
-  description     String
-  expenseDate     DateTime
-  jobId           String?
-  receiptUrl      String?
-  requestedById   String
-  status          ExpenseStatus     @default(PENDING)
-  approvedById    String?
-  approvedAt      DateTime?
-  rejectionReason String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  
-  // Relations
-  requestedBy     User              @relation("ExpenseRequestedBy", fields: [requestedById], references: [id])
-  approvedBy      User?             @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
-  job             Job?              @relation(fields: [jobId], references: [id])
-  expense         Expense?
-  
-  @@map("expense_requests")
-}
-
-model PayoutRequest {
-  id              String            @id @default(cuid())
-  userId          String
-  amount          Float
-  category        PayoutCategory
-  recipientName   String
-  recipientAccount String
-  paymentMethod   PaymentMethod
-  description     String
-  payoutDate      DateTime
-  jobId           String?
-  status          PayoutStatus      @default(PENDING)
-  approvedBy      String?
-  approvedAt      DateTime?
-  rejectionReason String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  
-  // Relations
-  user            User              @relation("PayoutRequestedBy", fields: [userId], references: [id])
-  approvedByUser  User?             @relation("PayoutApprovedBy", fields: [approvedBy], references: [id])
-  job             Job?              @relation(fields: [jobId], references: [id])
-  
-  @@map("payout_requests")
-}
-
-model Expense {
-  id              String            @id @default(cuid())
-  requestId       String            @unique
-  amount          Float
-  category        ExpenseCategory
-  description     String
-  expenseDate     DateTime
-  jobId           String?
-  receiptUrl      String?
-  createdAt       DateTime          @default(now())
-  
-  // Relations
-  request         ExpenseRequest    @relation(fields: [requestId], references: [id])
-  job             Job?              @relation(fields: [jobId], references: [id])
-  cashflowTransactions CashflowTransaction[]
-  
-  @@map("expenses")
-}
-
-model Payout {
-  id              String            @id @default(cuid())
-  payee           String
-  amount          Float
-  paymentMethod   PaymentMethod
-  status          PayoutStatus      @default(PENDING)
-  purpose         String
-  jobId           String?
-  paymentDate     DateTime?
-  processedById   String
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  
-  // Relations
-  processedBy     User              @relation("PayoutProcessedBy", fields: [processedById], references: [id])
-  job             Job?              @relation(fields: [jobId], references: [id])
-  cashflowTransactions CashflowTransaction[]
-  
-  @@map("payouts")
-}
-
-model CashflowTransaction {
-  id              String            @id @default(cuid())
-  type            CashflowType
-  amount          Float
-  description     String
-  sourceType      CashflowSourceType
-  sourceId        String?
-  jobId           String?
-  transactionDate DateTime          @default(now())
-  createdAt       DateTime          @default(now())
-  
-  // Relations
-  job             Job?              @relation(fields: [jobId], references: [id])
-  expense         Expense?          @relation(fields: [sourceId], references: [id], map: "cashflow_expense_fkey")
-  payout          Payout?           @relation(fields: [sourceId], references: [id], map: "cashflow_payout_fkey")
-  
-  @@map("cashflow_transactions")
-}
-
-// Enums for Accounting & Finance
 enum ExpenseCategory {
   FUEL
   MATERIALS

@@ -50,11 +50,6 @@ const ROLE_INFO = {
     description: 'Driver with limited job access',
     isSystem: true
   },
-  WAREHOUSE: {
-    displayName: 'Warehouse Staff',
-    description: 'Warehouse staff with inventory management',
-    isSystem: true
-  }
 };
 
 // Permission module mapping
@@ -70,8 +65,7 @@ const PERMISSION_MODULES = {
   'system:': 'System',
   'file:': 'File',
   'notification:': 'Notification',
-  'driver:': 'Driver',
-  'warehouse:': 'Warehouse'
+  'driver:': 'Driver'
 };
 
 async function migratePermissions() {

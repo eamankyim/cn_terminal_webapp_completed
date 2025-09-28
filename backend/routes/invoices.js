@@ -1,7 +1,9 @@
 const express = require('express');
 const { prisma } = require('../config/database');
-const { authenticateToken, requireStaff } = require('../middleware/auth');
+const { authenticateToken, requirePermission } = require('../middleware/auth');
+const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 const NotificationService = require('../services/notificationService');
+const RealtimeNotificationService = require('../services/realtimeNotificationService');
 
 const router = express.Router();
 
@@ -131,7 +133,7 @@ const router = express.Router();
  */
 
 // Get all invoices
-router.get('/', authenticateToken, requireStaff, async (req, res) => {
+router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), async (req, res) => {
   try {
     console.log('\n' + '='.repeat(80));
     console.log('🧾 GET INVOICES REQUEST - START');
@@ -294,7 +296,7 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
 });
 
 // Get jobs for invoice creation dropdown (only jobs without invoices)
-router.get('/jobs', authenticateToken, requireStaff, async (req, res) => {
+router.get('/jobs', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), async (req, res) => {
   try {
     console.log('\n' + '='.repeat(60));
     console.log('📋 GET JOBS FOR INVOICE CREATION');
@@ -365,7 +367,7 @@ router.get('/jobs', authenticateToken, requireStaff, async (req, res) => {
 });
 
 // Get invoice by ID
-router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
+router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -448,7 +450,7 @@ router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
 });
 
 // Create new invoice
-router.post('/', authenticateToken, requireStaff, async (req, res) => {
+router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), async (req, res) => {
   try {
     const {
       jobId,
@@ -568,10 +570,10 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
     // Invoice creation is now independent - no automatic status update
     console.log('📄 Invoice created independently for job:', jobId);
 
-    // Create notification for invoice creation
+    // Create notification for invoice creation with real-time updates
     try {
-      await NotificationService.notifyInvoiceCreated(invoice.id, req.user.id);
-      console.log('📢 Invoice creation notification created');
+      await RealtimeNotificationService.notifyInvoiceCreatedRealtime(invoice.id, req.user.id);
+      console.log('📢 Invoice creation notification created with real-time updates');
     } catch (notificationError) {
       console.error('⚠️ Failed to create invoice creation notification:', notificationError);
       // Don't fail the invoice creation if notification fails
@@ -588,7 +590,7 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
 });
 
 // Update invoice
-router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
+router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -664,7 +666,7 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
 });
 
 // Update invoice status
-router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
+router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), async (req, res) => {
   try {
     const { id } = req.params;
     const { status, paymentDate, paymentMethod } = req.body;
@@ -717,7 +719,7 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
 });
 
 // Create payment for invoice
-router.post('/:id/payments', authenticateToken, requireStaff, async (req, res) => {
+router.post('/:id/payments', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), async (req, res) => {
   try {
     const { id } = req.params;
     const { amount, paymentMethod, gatewayRef, receiptUrl, payer } = req.body;
@@ -776,10 +778,10 @@ router.post('/:id/payments', authenticateToken, requireStaff, async (req, res) =
       });
     }
 
-    // Create notification for payment received
+    // Create notification for payment received with real-time updates
     try {
-      await NotificationService.notifyPaymentReceived(payment.id, req.user.id);
-      console.log('📢 Payment received notification created');
+      await RealtimeNotificationService.notifyPaymentReceivedRealtime(payment.id, req.user.id);
+      console.log('📢 Payment received notification created with real-time updates');
     } catch (notificationError) {
       console.error('⚠️ Failed to create payment notification:', notificationError);
       // Don't fail the payment creation if notification fails
@@ -796,7 +798,7 @@ router.post('/:id/payments', authenticateToken, requireStaff, async (req, res) =
 });
 
 // Delete invoice
-router.delete('/:id', authenticateToken, requireStaff, async (req, res) => {
+router.delete('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), async (req, res) => {
   try {
     const { id } = req.params;
 

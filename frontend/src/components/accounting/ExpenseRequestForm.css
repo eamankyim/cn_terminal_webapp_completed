@@ -1,0 +1,55 @@
+/* Custom DatePicker Styling - Only selected date has blue background */
+.custom-datepicker .ant-picker-cell {
+  background-color: transparent !important;
+  color: inherit !important;
+}
+
+.custom-datepicker .ant-picker-cell:hover {
+  background-color: #f5f5f5 !important;
+  color: inherit !important;
+}
+
+.custom-datepicker .ant-picker-cell-selected {
+  background-color: #1890ff !important;
+  color: white !important;
+}
+
+.custom-datepicker .ant-picker-cell-selected:hover {
+  background-color: #1890ff !important;
+  color: white !important;
+}
+
+.custom-datepicker .ant-picker-cell-in-range {
+  background-color: transparent !important;
+  color: inherit !important;
+}
+
+.custom-datepicker .ant-picker-cell-in-range:hover {
+  background-color: #f5f5f5 !important;
+  color: inherit !important;
+}
+
+.custom-datepicker .ant-picker-cell-range-start,
+.custom-datepicker .ant-picker-cell-range-end {
+  background-color: transparent !important;
+  color: inherit !important;
+}
+
+.custom-datepicker .ant-picker-cell-today {
+  background-color: transparent !important;
+  color: #1890ff !important;
+  font-weight: bold;
+}
+
+.custom-datepicker .ant-picker-cell-today:hover {
+  background-color: #f5f5f5 !important;
+  color: #1890ff !important;
+}
+
+/* Override any other date styling */
+.custom-datepicker .ant-picker-cell:not(.ant-picker-cell-selected) {
+  background-color: transparent !important;
+  color: inherit !important;
+}
+
+

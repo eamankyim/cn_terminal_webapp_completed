@@ -2,7 +2,7 @@ import React from 'react';
 import { Layout, Menu } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { PERMISSIONS, hasPermission } from '../../utils/permissions';
+import { UI_PERMISSIONS, hasUIPermission } from '../../utils/uiPermissions';
 import PermissionGate from '../common/PermissionGate';
 import {
   DashboardOutlined,
@@ -25,7 +25,7 @@ const { Sider } = Layout;
 const Sidebar = ({ collapsed }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentUser } = useAuth();
+  const { currentUser, hasPermission } = useAuth();
 
   const handleMenuClick = (e) => {
     navigate(e.key);
@@ -36,61 +36,83 @@ const Sidebar = ({ collapsed }) => {
       key: '/dashboard',
       icon: <DashboardOutlined />,
       label: 'Dashboard',
-      permission: PERMISSIONS.DASHBOARD_VIEW,
+      permission: UI_PERMISSIONS.DASHBOARD,
     },
     {
       key: '/enquiries',
       icon: <FileAddOutlined />,
       label: 'Jobs',
-      permission: PERMISSIONS.JOB_VIEW,
+      permission: UI_PERMISSIONS.JOBS,
     },
     {
       key: '/clients',
       icon: <UserOutlined />,
       label: 'Clients',
-      permission: PERMISSIONS.CUSTOMER_VIEW,
+      permission: UI_PERMISSIONS.CLIENTS,
     },
     {
       key: '/invoices',
       icon: <FileTextOutlined />,
       label: 'Invoices',
-      permission: PERMISSIONS.INVOICE_VIEW,
+      permission: UI_PERMISSIONS.INVOICES,
     },
     {
       key: '/accounting',
       icon: <CalculatorOutlined />,
       label: 'Accounting',
-      permission: PERMISSIONS.EXPENSE_APPROVE, // Only admin and invoice officer can see full accounting
+      permission: UI_PERMISSIONS.ACCOUNTING,
     },
     {
       key: '/requests',
       icon: <FileAddOutlined />,
       label: 'Requests',
-      permission: PERMISSIONS.EXPENSE_CREATE, // Other roles can see requests tab
+      permission: UI_PERMISSIONS.REQUESTS,
     },
     {
       key: '/reports',
       icon: <BarChartOutlined />,
       label: 'Reports',
-      permission: PERMISSIONS.REPORTS_VIEW,
+      permission: UI_PERMISSIONS.REPORTS,
     },
     {
       key: '/settings',
       icon: <SettingOutlined />,
       label: 'Settings',
-      permission: PERMISSIONS.SETTINGS_VIEW,
+      permission: UI_PERMISSIONS.SETTINGS,
     },
     {
       key: '/configuration',
       icon: <GlobalOutlined />,
       label: 'Configuration',
+      permission: UI_PERMISSIONS.CONFIGURATION,
     },
   ];
 
   // Filter menu items based on user permissions
   const filteredMenuItems = menuItems.filter(item => {
     if (!item.permission) return true; // Show items without permission requirements
-    return hasPermission(currentUser?.role, item.permission);
+    
+    // Hide Requests tab for admin and IT consultant users since they don't send requests
+    if (item.key === '/requests' && (currentUser?.role === 'ADMIN' || currentUser?.role === 'IT_CONSULTANT')) {
+      return false;
+    }
+    
+    // Hide Accounting tab for employee roles (STAFF, DRIVER, WAREHOUSE, ENQUIRY_OFFICER, RELEASE_OFFICER, REVIEW_OFFICER, INVOICE_OFFICER, CLEARING_OFFICER)
+    if (item.key === '/accounting') {
+      const employeeRoles = ['STAFF', 'DRIVER', 'WAREHOUSE', 'ENQUIRY_OFFICER', 'RELEASE_OFFICER', 'REVIEW_OFFICER', 'INVOICE_OFFICER', 'CLEARING_OFFICER'];
+      if (employeeRoles.includes(currentUser?.role)) {
+        return false;
+      }
+    }
+    
+    // Check if user has the permission in their database permissions
+    if (currentUser?.permissions && Array.isArray(currentUser.permissions)) {
+      return currentUser.permissions.includes(item.permission);
+    }
+    
+    // If no user permissions, don't show any restricted items
+    // This prevents showing tabs that the user doesn't have access to
+    return false;
   });
 
   return (

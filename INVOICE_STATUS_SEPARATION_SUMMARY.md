@@ -102,3 +102,5 @@ Create Invoice (Independent) ←→ Update Job Status to 'INVOICED' (Independent
 The invoice creation and job status management are now completely independent processes, giving users full flexibility in managing their workflow while maintaining data integrity and proper status progression.
 
 
+
+

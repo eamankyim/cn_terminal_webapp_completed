@@ -128,3 +128,5 @@ Invoice Number: 2345436456       ← Should show actual value
 **The backend server has been restarted with the updated Prisma client. The shipper name and invoice number should now properly display in job details!** 🎉
 
 
+
+

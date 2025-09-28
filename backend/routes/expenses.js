@@ -1,13 +1,151 @@
 const express = require('express');
 const { prisma } = require('../config/database');
 const { authenticateToken, requirePermission } = require('../middleware/auth');
+const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 const { PERMISSIONS } = require('../utils/permissions');
 
 const router = express.Router();
 
+// Get user's own expense requests (no special permission required)
+router.get('/my-requests', authenticateToken, async (req, res) => {
+  try {
+    console.log(`🔍 Fetching expense requests for user: ${req.user.id}`);
+    
+    const { page = 1, limit = 10, status, category } = req.query;
+    const skip = (page - 1) * limit;
+
+    // Build where clause - only user's own requests
+    const where = {
+      requestedById: req.user.id
+    };
+    if (status) where.status = status;
+    if (category) where.category = category;
+
+    console.log('🔍 Where clause:', where);
+
+    const [requests, total] = await Promise.all([
+      prisma.expenseRequest.findMany({
+        where,
+        skip: parseInt(skip),
+        take: parseInt(limit),
+        include: {
+          requestedBy: {
+            select: { id: true, name: true, email: true, role: true }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.expenseRequest.count({ where })
+    ]);
+
+    console.log(`📊 Found ${requests.length} requests out of ${total} total`);
+
+    res.json({
+      requests,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching user expense requests:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: error.message 
+    });
+  }
+});
+
+// Get user's own expense statistics (no special permission required)
+router.get('/my-stats', authenticateToken, async (req, res) => {
+  try {
+    const { period = 'month', startDate, endDate } = req.query;
+    
+    // Calculate date range
+    let dateFilter = {};
+    if (startDate && endDate) {
+      dateFilter = {
+        createdAt: {
+          gte: new Date(startDate),
+          lte: new Date(endDate)
+        }
+      };
+    } else {
+      const now = new Date();
+      let start;
+      switch (period) {
+        case 'week':
+          start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'month':
+          start = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case 'year':
+          start = new Date(now.getFullYear(), 0, 1);
+          break;
+        default:
+          start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      }
+      dateFilter = {
+        createdAt: {
+          gte: start,
+          lte: now
+        }
+      };
+    }
+
+    // Only user's own requests
+    const where = {
+      requestedById: req.user.id,
+      ...dateFilter
+    };
+
+    const [totalRequests, totalAmount, statusCounts, categoryCounts] = await Promise.all([
+      prisma.expenseRequest.count({ where }),
+      prisma.expenseRequest.aggregate({
+        where,
+        _sum: { amount: true }
+      }),
+      prisma.expenseRequest.groupBy({
+        by: ['status'],
+        where,
+        _count: { status: true }
+      }),
+      prisma.expenseRequest.groupBy({
+        by: ['category'],
+        where,
+        _count: { category: true },
+        _sum: { amount: true }
+      })
+    ]);
+
+    const stats = {
+      totalRequests,
+      totalAmount: totalAmount._sum.amount || 0,
+      statusBreakdown: statusCounts.reduce((acc, item) => {
+        acc[item.status] = item._count.status;
+        return acc;
+      }, {}),
+      categoryBreakdown: categoryCounts.reduce((acc, item) => {
+        acc[item.category] = {
+          count: item._count.category,
+          amount: item._sum.amount || 0
+        };
+        return acc;
+      }, {})
+    };
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching user expense stats:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Get all expense requests (with filtering and pagination)
-router.get('/requests', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_VIEW), async (req, res) => {
+router.get('/requests', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { page = 1, limit = 10, status, category, userId, jobId } = req.query;
     const skip = (page - 1) * limit;
@@ -56,7 +194,7 @@ router.get('/requests', authenticateToken, requirePermission(PERMISSIONS.EXPENSE
 });
 
 // Get expense request by ID
-router.get('/requests/:id', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_VIEW), async (req, res) => {
+router.get('/requests/:id', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -87,8 +225,91 @@ router.get('/requests/:id', authenticateToken, requirePermission(PERMISSIONS.EXP
   }
 });
 
-// Create new expense request
-router.post('/requests', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_CREATE), async (req, res) => {
+// Record expense directly (for admins/accountants)
+router.post('/record', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_CREATE), async (req, res) => {
+  try {
+    const {
+      amount,
+      category,
+      description,
+      expenseDate,
+      jobId,
+      receiptUrl
+    } = req.body;
+
+    // Validate required fields
+    if (!amount || !category || !description || !expenseDate) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Validate amount
+    if (amount <= 0) {
+      return res.status(400).json({ error: 'Amount must be greater than 0' });
+    }
+
+    // Validate category
+    const validCategories = ['FUEL', 'MATERIALS', 'OPERATIONS', 'MISCELLANEOUS'];
+    if (!validCategories.includes(category)) {
+      return res.status(400).json({ error: 'Invalid category' });
+    }
+
+    // Create expense request with APPROVED status (no approval needed)
+    const expenseRequest = await prisma.expenseRequest.create({
+      data: {
+        amount: parseFloat(amount),
+        category,
+        description,
+        expenseDate: new Date(expenseDate),
+        jobId: jobId || null,
+        receiptUrl: receiptUrl || null,
+        requestedById: req.user.id,
+        status: 'APPROVED',  // Direct recording - auto-approved
+        approvedById: req.user.id,
+        approvedAt: new Date()
+      },
+      include: {
+        requestedBy: {
+          select: { id: true, name: true, email: true, role: true }
+        },
+        approvedBy: {
+          select: { id: true, name: true, email: true, role: true }
+        },
+        job: {
+          select: { id: true, trackingId: true, description: true }
+        }
+      }
+    });
+
+    // Create corresponding expense record
+    const expense = await prisma.expense.create({
+      data: {
+        requestId: expenseRequest.id,
+        amount: expenseRequest.amount,
+        category: expenseRequest.category,
+        description: expenseRequest.description,
+        expenseDate: expenseRequest.expenseDate,
+        jobId: expenseRequest.jobId,
+        receiptUrl: expenseRequest.receiptUrl
+      }
+    });
+
+    console.log(`✅ Expense recorded directly by ${req.user.name} (${req.user.role})`);
+    res.status(201).json({
+      message: 'Expense recorded successfully',
+      expenseRequest,
+      expense
+    });
+  } catch (error) {
+    console.error('❌ Error recording expense:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: error.message 
+    });
+  }
+});
+
+// Create new expense request (for employees)
+router.post('/requests', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_REQUEST), async (req, res) => {
   try {
     const {
       amount,
@@ -160,7 +381,7 @@ router.post('/requests', authenticateToken, requirePermission(PERMISSIONS.EXPENS
 });
 
 // Approve expense request
-router.patch('/requests/:id/approve', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_APPROVE), async (req, res) => {
+router.patch('/requests/:id/approve', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -248,7 +469,7 @@ router.patch('/requests/:id/approve', authenticateToken, requirePermission(PERMI
 });
 
 // Reject expense request
-router.patch('/requests/:id/reject', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_APPROVE), async (req, res) => {
+router.patch('/requests/:id/reject', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { id } = req.params;
     const { rejectionReason } = req.body;
@@ -314,7 +535,7 @@ router.patch('/requests/:id/reject', authenticateToken, requirePermission(PERMIS
 });
 
 // Get all expenses (approved requests)
-router.get('/', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_VIEW), async (req, res) => {
+router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { page = 1, limit = 10, category, jobId, startDate, endDate } = req.query;
     const skip = (page - 1) * limit;
@@ -412,7 +633,7 @@ router.get('/', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_VIEW), 
  *         description: Internal server error
  */
 // Get expense statistics (MUST come before /:id route)
-router.get('/stats/summary', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_VIEW), async (req, res) => {
+router.get('/stats/summary', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     console.log('\n' + '='.repeat(60));
     console.log('🔍 EXPENSE STATS ROUTE HIT');
@@ -483,7 +704,7 @@ router.get('/stats/summary', authenticateToken, requirePermission(PERMISSIONS.EX
 });
 
 // Get expense by ID
-router.get('/:id', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_VIEW), async (req, res) => {
+router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { id } = req.params;
 

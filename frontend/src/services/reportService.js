@@ -5,8 +5,10 @@ class ReportService {
   async getSummaryStats(startDate, endDate) {
     try {
       const response = await apiService.get('/reports/summary', {
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0]
+        params: {
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0]
+        }
       });
       return response;
     } catch (error) {
@@ -19,8 +21,10 @@ class ReportService {
   async getJobStatusSummary(startDate, endDate) {
     try {
       const response = await apiService.get('/reports/job-status', {
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0]
+        params: {
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0]
+        }
       });
       return response;
     } catch (error) {
@@ -33,8 +37,10 @@ class ReportService {
   async getDailyActivity(startDate, endDate) {
     try {
       const response = await apiService.get('/reports/daily-activity', {
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0]
+        params: {
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0]
+        }
       });
       return response;
     } catch (error) {
@@ -47,8 +53,10 @@ class ReportService {
   async getRevenueSummary(startDate, endDate) {
     try {
       const response = await apiService.get('/reports/revenue', {
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0]
+        params: {
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0]
+        }
       });
       return response;
     } catch (error) {
@@ -61,8 +69,10 @@ class ReportService {
   async getInvoiceReports(startDate, endDate) {
     try {
       const response = await apiService.get('/reports/invoices', {
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0]
+        params: {
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0]
+        }
       });
       return response;
     } catch (error) {
@@ -75,8 +85,10 @@ class ReportService {
   async getCustomerActivity(startDate, endDate) {
     try {
       const response = await apiService.get('/reports/customers', {
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0]
+        params: {
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0]
+        }
       });
       return response;
     } catch (error) {
@@ -89,10 +101,12 @@ class ReportService {
   async getProcessingTimeReport(startDate, endDate) {
     try {
       const response = await apiService.get('/reports/processing-time', {
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0]
+        params: {
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0]
+        }
       });
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error fetching processing time report:', error);
       throw error;
@@ -103,10 +117,12 @@ class ReportService {
   async getMonthlyTrendsReport(startDate, endDate) {
     try {
       const response = await apiService.get('/reports/monthly-trends', {
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0]
+        params: {
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0]
+        }
       });
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error fetching monthly trends report:', error);
       throw error;

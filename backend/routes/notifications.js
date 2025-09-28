@@ -1,6 +1,7 @@
 const express = require('express');
 const { prisma } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const RealtimeNotificationService = require('../services/realtimeNotificationService');
 
 const router = express.Router();
 
@@ -131,6 +132,10 @@ router.patch('/:id/read', authenticateToken, async (req, res) => {
       }
     });
 
+    // Send real-time update
+    await RealtimeNotificationService.sendNotificationReadUpdate(req.user.id, id, true);
+    await RealtimeNotificationService.sendUnreadCountUpdate(req.user.id);
+
     res.json({
       success: true,
       data: notification
@@ -145,34 +150,55 @@ router.patch('/:id/read', authenticateToken, async (req, res) => {
  * @swagger
  * /api/notifications/read-all:
  *   patch:
- *     summary: Mark all notifications as read
+ *     summary: Delete all notifications
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: All notifications marked as read
+ *         description: All notifications deleted successfully
  */
 router.patch('/read-all', authenticateToken, async (req, res) => {
   try {
-    const result = await prisma.notification.updateMany({
+    // First get all notifications to send individual delete updates
+    const allNotifications = await prisma.notification.findMany({
       where: {
-        userId: req.user.id,
-        isRead: false
+        userId: req.user.id
       },
-      data: {
-        isRead: true,
-        readAt: new Date()
+      select: { id: true }
+    });
+
+    // Delete all notifications for the user
+    const result = await prisma.notification.deleteMany({
+      where: {
+        userId: req.user.id
       }
     });
 
+    // Send real-time updates for notification deletions and unread count
+    if (global.io) {
+      // Send individual notification delete updates
+      allNotifications.forEach(notification => {
+        global.io.to(`user_${req.user.id}`).emit('notification_deleted', {
+          notificationId: notification.id
+        });
+      });
+      
+      // Send unread count update (will be 0 since all notifications are deleted)
+      global.io.to(`user_${req.user.id}`).emit('unread_count_update', {
+        count: 0
+      });
+      
+      console.log(`📡 Sent delete updates for ${allNotifications.length} notifications to user ${req.user.id}`);
+    }
+
     res.json({
       success: true,
-      data: { updatedCount: result.count }
+      data: { deletedCount: result.count }
     });
   } catch (error) {
-    console.error('Error marking all notifications as read:', error);
-    res.status(500).json({ success: false, message: 'Failed to mark all notifications as read' });
+    console.error('Error deleting all notifications:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete all notifications' });
   }
 });
 
@@ -237,6 +263,9 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       }
     });
 
+    // Send real-time update for unread count
+    await RealtimeNotificationService.sendUnreadCountUpdate(req.user.id);
+
     res.json({
       success: true,
       message: 'Notification deleted successfully'
@@ -244,6 +273,56 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error deleting notification:', error);
     res.status(500).json({ success: false, message: 'Failed to delete notification' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/notifications/test-realtime:
+ *   post:
+ *     summary: Test real-time notification functionality
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 default: "Test Notification"
+ *               message:
+ *                 type: string
+ *                 default: "This is a test real-time notification"
+ *               type:
+ *                 type: string
+ *                 enum: [INFO, SUCCESS, WARNING, ERROR, URGENT]
+ *                 default: INFO
+ *     responses:
+ *       200:
+ *         description: Test notification sent successfully
+ */
+router.post('/test-realtime', authenticateToken, async (req, res) => {
+  try {
+    const { title = 'Test Notification', message = 'This is a test real-time notification', type = 'INFO' } = req.body;
+
+    await RealtimeNotificationService.sendRealtimeNotification(req.user.id, {
+      title,
+      message,
+      type,
+      category: 'TEST'
+    });
+
+    res.json({
+      success: true,
+      message: 'Test notification sent successfully'
+    });
+  } catch (error) {
+    console.error('Error sending test notification:', error);
+    res.status(500).json({ success: false, message: 'Failed to send test notification' });
   }
 });
 

@@ -180,3 +180,5 @@ select: {
 **The shipper name and invoice number now properly display in job details after being entered during INVOICED status update!** 🎉
 
 
+
+

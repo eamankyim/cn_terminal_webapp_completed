@@ -41,12 +41,15 @@ import {
 import { useCustomers } from '../contexts/CustomerContext';
 import { useConsignments } from '../contexts/ConsignmentContext';
 import { getCustomerStatusColor } from '../utils/statusUtils';
+import { useAuth } from '../contexts/AuthContext';
+import { PERMISSIONS } from '../utils/permissions';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
 
 const ClientsPage = () => {
+  const { hasPermission } = useAuth();
   const [searchText, setSearchText] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -253,7 +256,7 @@ const ClientsPage = () => {
       key: 'actions',
       render: (_, record) => (
         <Button 
-          type="text" 
+          type="default" 
           icon={<EyeOutlined />} 
           onClick={() => handleViewClient(record)}
           size="small"
@@ -271,18 +274,20 @@ const ClientsPage = () => {
           <Title level={2}>Clients Management</Title>
           <Text type="secondary">Manage client information, profiles, and communication history</Text>
         </div>
-        <Button 
-          type="primary" 
-          icon={<PlusOutlined />} 
-          size="large"
-          onClick={() => {
-            setEditingClient(null);
-            form.resetFields();
-            setIsCreateModalVisible(true);
-          }}
-        >
-          New Client
-        </Button>
+        {hasPermission(PERMISSIONS.CUSTOMER_CREATE) && (
+          <Button 
+            type="primary" 
+            icon={<PlusOutlined />} 
+            size="large"
+            onClick={() => {
+              setEditingClient(null);
+              form.resetFields();
+              setIsCreateModalVisible(true);
+            }}
+          >
+            New Client
+          </Button>
+        )}
       </div>
 
       {/* Statistics Row */}
@@ -395,34 +400,36 @@ const ClientsPage = () => {
                   {selectedClient.status === 'ACTIVE' ? '✓ Active' : '✗ Inactive'}
                 </Tag>
                </div>
-               <Dropdown
-                 menu={{
-                   items: [
-                     {
-                       key: 'edit',
-                       icon: <EditOutlined />,
-                       label: 'Edit Client',
-                       onClick: () => {
-                         setIsModalVisible(false);
-                         handleEditClient(selectedClient);
-                       }
-                     },
-                     {
-                       key: 'delete',
-                       icon: <DeleteOutlined />,
-                       label: 'Delete Client',
-                       danger: true,
-                       onClick: () => {
-                         setIsModalVisible(false);
-                         handleDeleteClient(selectedClient.id);
-                       }
-                     }
-                   ]
-                 }}
-                 placement="bottomRight"
-               >
-                 <Button type="text" icon={<MoreOutlined />} size="small" />
-               </Dropdown>
+               {(hasPermission(PERMISSIONS.CUSTOMER_EDIT) || hasPermission(PERMISSIONS.CUSTOMER_DELETE)) && (
+                 <Dropdown
+                   menu={{
+                     items: [
+                       ...(hasPermission(PERMISSIONS.CUSTOMER_EDIT) ? [{
+                         key: 'edit',
+                         icon: <EditOutlined />,
+                         label: 'Edit Client',
+                         onClick: () => {
+                           setIsModalVisible(false);
+                           handleEditClient(selectedClient);
+                         }
+                       }] : []),
+                       ...(hasPermission(PERMISSIONS.CUSTOMER_DELETE) ? [{
+                         key: 'delete',
+                         icon: <DeleteOutlined />,
+                         label: 'Delete Client',
+                         danger: true,
+                         onClick: () => {
+                           setIsModalVisible(false);
+                           handleDeleteClient(selectedClient.id);
+                         }
+                       }] : [])
+                     ]
+                   }}
+                   placement="bottomRight"
+                 >
+                   <Button type="text" icon={<MoreOutlined />} size="small" />
+                 </Dropdown>
+               )}
              </div>
 
              {/* Tabs for Details and Consignments */}
@@ -523,17 +530,19 @@ const ClientsPage = () => {
                           <Title level={4} style={{ margin: 0 }}>
                             Consignments & Consignees
                           </Title>
-                          <Button 
-                            type="primary" 
-                            icon={<PlusOutlined />}
-                            onClick={() => {
-                              setEditingConsignment(null);
-                              consignmentForm.resetFields();
-                              setIsConsignmentModalVisible(true);
-                            }}
-                          >
-                            New Consignment
-                          </Button>
+                          {hasPermission(PERMISSIONS.CUSTOMER_EDIT) && (
+                            <Button 
+                              type="primary" 
+                              icon={<PlusOutlined />}
+                              onClick={() => {
+                                setEditingConsignment(null);
+                                consignmentForm.resetFields();
+                                setIsConsignmentModalVisible(true);
+                              }}
+                            >
+                              New Consignment
+                            </Button>
+                          )}
                         </div>
                          
                         {consignments && consignments.length > 0 ? (
@@ -575,25 +584,31 @@ const ClientsPage = () => {
                                 </Row>
                                 
                                 {/* Action Buttons */}
-                                <div style={{ marginTop: '16px', textAlign: 'right', borderTop: '1px solid #f0f0f0', paddingTop: '12px' }}>
-                                  <Space>
-                                    <Button 
-                                      size="small" 
-                                      icon={<EditOutlined />}
-                                      onClick={() => handleEditConsignment(consignment)}
-                                    >
-                                      Edit
-                                    </Button>
-                                    <Button 
-                                      size="small" 
-                                      danger
-                                      icon={<DeleteOutlined />}
-                                      onClick={() => handleDeleteConsignment(consignment.id)}
-                                    >
-                                      Delete
-                                    </Button>
-                                  </Space>
-                                </div>
+                                {(hasPermission(PERMISSIONS.CUSTOMER_EDIT) || hasPermission(PERMISSIONS.CUSTOMER_DELETE)) && (
+                                  <div style={{ marginTop: '16px', textAlign: 'right', borderTop: '1px solid #f0f0f0', paddingTop: '12px' }}>
+                                    <Space>
+                                      {hasPermission(PERMISSIONS.CUSTOMER_EDIT) && (
+                                        <Button 
+                                          size="small" 
+                                          icon={<EditOutlined />}
+                                          onClick={() => handleEditConsignment(consignment)}
+                                        >
+                                          Edit
+                                        </Button>
+                                      )}
+                                      {hasPermission(PERMISSIONS.CUSTOMER_DELETE) && (
+                                        <Button 
+                                          size="small" 
+                                          danger
+                                          icon={<DeleteOutlined />}
+                                          onClick={() => handleDeleteConsignment(consignment.id)}
+                                        >
+                                          Delete
+                                        </Button>
+                                      )}
+                                    </Space>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>

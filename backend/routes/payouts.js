@@ -1,13 +1,13 @@
 const express = require('express');
 const { prisma } = require('../config/database');
 const { authenticateToken, requirePermission } = require('../middleware/auth');
-const { PERMISSIONS } = require('../utils/permissions');
+const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 
 const router = express.Router();
 
 
 // Get all payouts (with filtering and pagination)
-router.get('/', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_VIEW), async (req, res) => {
+router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { page = 1, limit = 10, status, paymentMethod, jobId, startDate, endDate } = req.query;
     const skip = (page - 1) * limit;
@@ -99,7 +99,7 @@ router.get('/', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_VIEW), a
  *         description: Internal server error
  */
 // Get payout statistics (MUST come before /:id route)
-router.get('/stats/summary', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_VIEW), async (req, res) => {
+router.get('/stats/summary', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     console.log('\n' + '='.repeat(60));
     console.log('🔍 PAYOUT STATS ROUTE HIT');
@@ -169,7 +169,7 @@ router.get('/stats/summary', authenticateToken, requirePermission(PERMISSIONS.PA
 });
 
 // Get payout by ID
-router.get('/:id', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_VIEW), async (req, res) => {
+router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -197,7 +197,7 @@ router.get('/:id', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_VIEW)
 });
 
 // Create new payout
-router.post('/', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_CREATE), async (req, res) => {
+router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const {
       payee,
@@ -268,7 +268,7 @@ router.post('/', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_CREATE)
 });
 
 // Update payout status
-router.patch('/:id/status', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_UPDATE), async (req, res) => {
+router.patch('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { id } = req.params;
     const { status, paymentDate } = req.body;
@@ -348,7 +348,7 @@ router.patch('/:id/status', authenticateToken, requirePermission(PERMISSIONS.PAY
 });
 
 // Update payout details
-router.patch('/:id', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_UPDATE), async (req, res) => {
+router.patch('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { id } = req.params;
     const { payee, amount, paymentMethod, purpose, jobId } = req.body;
@@ -406,7 +406,7 @@ router.patch('/:id', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_UPD
 });
 
 // Delete payout (only if pending)
-router.delete('/:id', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_DELETE), async (req, res) => {
+router.delete('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -505,7 +505,7 @@ router.delete('/:id', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_DE
  *       500:
  *         description: Internal server error
  */
-router.get('/records', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_VIEW), async (req, res) => {
+router.get('/records', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { page = 1, limit = 10, category, startDate, endDate } = req.query;
     const skip = (page - 1) * limit;
@@ -618,7 +618,7 @@ router.get('/records', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_V
  *       500:
  *         description: Internal server error
  */
-router.post('/records', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_CREATE), async (req, res) => {
+router.post('/records', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const {
       amount,
@@ -696,7 +696,7 @@ router.post('/records', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_
  *       500:
  *         description: Internal server error
  */
-router.get('/records/:id', authenticateToken, requirePermission(PERMISSIONS.PAYOUT_VIEW), async (req, res) => {
+router.get('/records/:id', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { id } = req.params;
 

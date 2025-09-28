@@ -7,7 +7,7 @@ export const cashflowService = {
   getTransactions: async (params = {}) => {
     try {
       const response = await api.get(`${CASHFLOW_API_BASE}/transactions`, { params });
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error fetching cashflow transactions:', error);
       throw error;
@@ -17,7 +17,7 @@ export const cashflowService = {
   createTransaction: async (data) => {
     try {
       const response = await api.post(`${CASHFLOW_API_BASE}/transactions`, data);
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error creating cashflow transaction:', error);
       throw error;
@@ -41,7 +41,7 @@ export const cashflowService = {
   getBalance: async (params = {}) => {
     try {
       const response = await api.get(`${CASHFLOW_API_BASE}/balance`, { params });
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error fetching account balance:', error);
       throw error;
@@ -51,7 +51,7 @@ export const cashflowService = {
   getJobProfitability: async (jobId) => {
     try {
       const response = await api.get(`${CASHFLOW_API_BASE}/job-profitability/${jobId}`);
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error fetching job profitability:', error);
       throw error;
@@ -61,7 +61,7 @@ export const cashflowService = {
   getTrends: async (params = {}) => {
     try {
       const response = await api.get(`${CASHFLOW_API_BASE}/trends`, { params });
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error fetching cashflow trends:', error);
       throw error;

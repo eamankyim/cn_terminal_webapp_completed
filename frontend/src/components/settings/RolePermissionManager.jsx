@@ -17,7 +17,7 @@ import {
   Tooltip,
   message,
   Collapse,
-  Badge
+  Spin
 } from 'antd';
 import {
   UserOutlined,
@@ -39,11 +39,92 @@ import {
   canManageRole,
   getAvailableRoles
 } from '../../utils/permissions';
+import { UI_PERMISSIONS, ROLE_UI_PERMISSIONS } from '../../utils/uiPermissions';
 import roleService from '../../services/roleService';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { Panel } = Collapse;
+
+// UI Permission Categories for role editing
+const UI_PERMISSION_CATEGORIES = {
+  'Sidebar Navigation': {
+    'ui:dashboard': 'Dashboard',
+    'ui:jobs': 'Jobs',
+    'ui:clients': 'Clients',
+    'ui:invoices': 'Invoices',
+    'ui:accounting': 'Accounting',
+    'ui:requests': 'Requests',
+    'ui:reports': 'Reports',
+    'ui:settings': 'Settings',
+    'ui:configuration': 'Configuration'
+  },
+  'Settings Tabs': {
+    'ui:profile_settings': 'Profile Settings',
+    'ui:roles_permissions': 'Roles & Permissions',
+    'ui:invite_users': 'Invite Users',
+    'ui:team_members': 'Team Members',
+    'ui:system_preferences': 'System Preferences',
+    'ui:security_settings': 'Security Settings',
+    // 'ui:whatsapp_web': 'WhatsApp Web',
+    'ui:api_integration_test': 'API Integration Test'
+  },
+  'Job Management': {
+    'ui:create_job': 'Create Job',
+    'ui:edit_job': 'Edit Job',
+    'ui:delete_job': 'Delete Job',
+    'ui:assign_job': 'Assign Job',
+    'ui:update_job_status': 'Update Job Status',
+    'ui:view_all_jobs': 'View All Jobs'
+  },
+  'Customer Management': {
+    'ui:create_customer': 'Create Customer',
+    'ui:edit_customer': 'Edit Customer',
+    'ui:delete_customer': 'Delete Customer',
+    'ui:view_all_customers': 'View All Customers'
+  },
+  'Invoice Management': {
+    'ui:create_invoice': 'Create Invoice',
+    'ui:edit_invoice': 'Edit Invoice',
+    'ui:delete_invoice': 'Delete Invoice',
+    'ui:approve_invoice': 'Approve Invoice',
+    'ui:view_all_invoices': 'View All Invoices'
+  },
+  'Accounting & Finance': {
+    'ui:create_expense': 'Create Expense',
+    'ui:approve_expense': 'Approve Expense',
+    'ui:edit_expense': 'Edit Expense',
+    'ui:delete_expense': 'Delete Expense',
+    'ui:create_payout': 'Create Payout',
+    'ui:edit_payout': 'Edit Payout',
+    'ui:delete_payout': 'Delete Payout',
+    'ui:view_cashflow': 'View Cashflow',
+    'ui:create_cashflow': 'Create Cashflow'
+  },
+  'Reports & Analytics': {
+    'ui:view_reports': 'View Reports',
+    'ui:export_reports': 'Export Reports',
+    'ui:view_analytics': 'View Analytics'
+  },
+  'User Management': {
+    'ui:create_user': 'Create User',
+    'ui:edit_user': 'Edit User',
+    'ui:delete_user': 'Delete User',
+    'ui:manage_roles': 'Manage Roles',
+    'ui:invite_user': 'Invite User'
+  },
+  'File & Notifications': {
+    'ui:upload_file': 'Upload File',
+    'ui:download_file': 'Download File',
+    'ui:delete_file': 'Delete File',
+    'ui:send_notification': 'Send Notification',
+    'ui:view_notifications': 'View Notifications'
+  },
+  'System Configuration': {
+    'ui:edit_system_settings': 'Edit System Settings',
+    'ui:configure_system': 'Configure System'
+  }
+};
 
 const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
   const [roles, setRoles] = useState([]);
@@ -51,22 +132,49 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
   const [editingRole, setEditingRole] = useState(null);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [updatingPermissions, setUpdatingPermissions] = useState(new Set());
+  const [currentRolePermissions, setCurrentRolePermissions] = useState([]);
 
   // Initialize roles with current permissions
   useEffect(() => {
     const loadRoles = async () => {
       try {
+        console.log('🔍 ROLE MANAGER - Starting to load roles...');
         const response = await roleService.getRoles();
-        const rolesData = response.roles.map(roleData => ({
-          key: roleData.role,
-          role: roleData.role,
-          ...ROLE_INFO[roleData.role],
-          permissions: roleData.permissions,
-          userCount: 0 // This would come from API
-        }));
+        console.log('🔍 ROLE MANAGER - API response:', JSON.stringify(response, null, 2));
+        
+        const rolesData = response.roles.map(roleData => {
+          console.log('🔍 ROLE MAPPING - Processing roleData:', roleData);
+          
+          const roleInfo = ROLE_INFO[roleData.role] || {
+            name: roleData.role,
+            description: 'Unknown role',
+            color: 'default',
+            icon: '❓',
+            level: 0
+          };
+          
+          const mappedRole = {
+            key: roleData.role,
+            role: roleData.role,
+            name: roleData.name || roleInfo.name, // Use API name first, fallback to ROLE_INFO
+            description: roleData.description || roleInfo.description,
+            color: roleInfo.color,
+            icon: roleInfo.icon,
+            level: roleInfo.level,
+            permissions: roleData.permissions,
+            userCount: roleData.userCount || 0
+          };
+          
+          console.log('🔍 ROLE MAPPING - Mapped role:', mappedRole);
+          return mappedRole;
+        });
+        
+        console.log('🔍 ROLE MANAGER - Processed roles data:', JSON.stringify(rolesData, null, 2));
         setRoles(rolesData);
       } catch (error) {
-        console.error('Error loading roles:', error);
+        console.error('❌ ROLE MANAGER - Error loading roles:', error);
+        console.log('🔍 ROLE MANAGER - Falling back to static roles...');
         // Fallback to static roles if API fails
         const initialRoles = Object.keys(ROLE_INFO).map(role => ({
           key: role,
@@ -75,6 +183,7 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
           permissions: getRolePermissions(role),
           userCount: 0
         }));
+        console.log('🔍 ROLE MANAGER - Static roles fallback:', JSON.stringify(initialRoles, null, 2));
         setRoles(initialRoles);
       }
     };
@@ -89,9 +198,11 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
     }
     
     setEditingRole(role);
+    const rolePermissions = Array.isArray(role.permissions) ? role.permissions : [];
+    setCurrentRolePermissions(rolePermissions);
     form.setFieldsValue({
       role: role.role,
-      permissions: role.permissions
+      permissions: rolePermissions
     });
     setIsModalVisible(true);
   };
@@ -99,10 +210,13 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
   const handleSaveRole = async (values) => {
     setLoading(true);
     try {
-      const { permissions } = values;
+      // Use currentRolePermissions instead of form values
+      const permissions = Array.isArray(currentRolePermissions) ? currentRolePermissions : [];
+      
+      console.log(`🔄 Saving permissions for ${editingRole.role}:`, permissions);
       
       // Call the API to save the role permissions
-      await roleService.updateRolePermissions(editingRole.role, permissions);
+      const response = await roleService.updateRolePermissions(editingRole.role, permissions);
       
       // Update local state
       const updatedRoles = roles.map(role => 
@@ -113,9 +227,18 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
       
       setRoles(updatedRoles);
       
-      message.success('Role permissions updated successfully');
+      // Check if force logout is required
+      if (response.forceLogout && response.affectedUsers > 0) {
+        message.warning(
+          `Role permissions updated successfully. ${response.affectedUsers} users with this role will be logged out.`,
+          5
+        );
+      } else {
+        message.success('Role permissions updated successfully');
+      }
       setIsModalVisible(false);
       setEditingRole(null);
+      setCurrentRolePermissions([]);
       form.resetFields();
       
       if (onRoleUpdate) {
@@ -132,6 +255,7 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
   const handleCancel = () => {
     setIsModalVisible(false);
     setEditingRole(null);
+    setCurrentRolePermissions([]);
     form.resetFields();
   };
 
@@ -140,9 +264,9 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
       title: 'Role',
       dataIndex: 'role',
       key: 'role',
-      render: (role, record) => (
-        <Space>
-          <span style={{ fontSize: '18px' }}>{record.icon}</span>
+      render: (role, record) => {
+        console.log('🔍 TABLE RENDER - Role:', role, 'Record:', record);
+        return (
           <div>
             <Text strong>{record.name}</Text>
             <br />
@@ -150,16 +274,22 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
               {record.description}
             </Text>
           </div>
-        </Space>
-      ),
+        );
+      },
     },
     {
       title: 'Users',
       dataIndex: 'userCount',
       key: 'userCount',
-      render: (count) => (
-        <Badge count={count} style={{ backgroundColor: '#52c41a' }} />
-      ),
+      render: (count, record) => {
+        console.log('🔍 USER COUNT - Count:', count, 'Record userCount:', record.userCount);
+        const userCount = count || record.userCount || 0;
+        return (
+          <div>
+            <Text strong style={{ color: '#52c41a' }}>{userCount}</Text>
+          </div>
+        );
+      },
     },
     {
       title: 'Permissions',
@@ -188,7 +318,8 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
   ];
 
   const renderPermissionCategory = (categoryName, categoryPermissions) => {
-    const selectedPermissions = form.getFieldValue('permissions') || [];
+    // Use the current role permissions state instead of form value
+    const permissionsArray = Array.isArray(currentRolePermissions) ? currentRolePermissions : [];
     
     return (
       <Card size="small" style={{ marginBottom: '16px' }}>
@@ -196,24 +327,72 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
           {categoryName}
         </Title>
         <Row gutter={[16, 8]}>
-          {categoryPermissions.map(permission => (
+          {Object.entries(categoryPermissions).map(([permission, label]) => (
             <Col span={12} key={permission}>
               <Checkbox
                 value={permission}
-                checked={selectedPermissions.includes(permission)}
-                onChange={(e) => {
-                  const currentPermissions = form.getFieldValue('permissions') || [];
+                checked={permissionsArray.includes(permission)}
+                disabled={updatingPermissions.has(permission)}
+                onChange={async (e) => {
+                  // Use current role permissions state
+                  const permissionsArray = Array.isArray(currentRolePermissions) ? currentRolePermissions : [];
                   const newPermissions = e.target.checked
-                    ? [...currentPermissions, permission]
-                    : currentPermissions.filter(p => p !== permission);
+                    ? [...permissionsArray, permission]
+                    : permissionsArray.filter(p => p !== permission);
+                  
+                  // Update both form and state immediately for UI responsiveness
                   form.setFieldsValue({ permissions: newPermissions });
+                  setCurrentRolePermissions(newPermissions);
+                  
+                  // Add to updating set
+                  setUpdatingPermissions(prev => new Set([...prev, permission]));
+                  
+                  // Save to database immediately
+                  try {
+                    console.log(`🔄 Updating permissions for ${editingRole.role}:`, newPermissions);
+                    const response = await roleService.updateRolePermissions(editingRole.role, newPermissions);
+                    
+                    // Update local state
+                    const updatedRoles = roles.map(role => 
+                      role.role === editingRole.role 
+                        ? { ...role, permissions: newPermissions }
+                        : role
+                    );
+                    setRoles(updatedRoles);
+                    
+                    // Check if force logout is required
+                    if (response.forceLogout && response.affectedUsers > 0) {
+                      message.warning(
+                        `Permission ${e.target.checked ? 'granted' : 'revoked'} successfully. ${response.affectedUsers} users with this role will be logged out.`,
+                        5
+                      );
+                    } else {
+                      message.success(`Permission ${e.target.checked ? 'granted' : 'revoked'} successfully`);
+                    }
+                  } catch (error) {
+                    // Revert both form and state if API call fails
+                    form.setFieldsValue({ permissions: permissionsArray });
+                    setCurrentRolePermissions(permissionsArray);
+                    message.error(`Failed to ${e.target.checked ? 'grant' : 'revoke'} permission: ${error.message || 'Unknown error'}`);
+                    console.error('Error updating permission:', error);
+                  } finally {
+                    // Remove from updating set
+                    setUpdatingPermissions(prev => {
+                      const newSet = new Set(prev);
+                      newSet.delete(permission);
+                      return newSet;
+                    });
+                  }
                 }}
               >
                 <div>
-                  <Text strong>{permission.split(':')[1].replace(/_/g, ' ').toUpperCase()}</Text>
+                  <Text strong>{permission}</Text>
+                  {updatingPermissions.has(permission) && (
+                    <Spin size="small" style={{ marginLeft: '8px' }} />
+                  )}
                   <br />
                   <Text type="secondary" style={{ fontSize: '12px' }}>
-                    {PERMISSION_DESCRIPTIONS[permission]}
+                    {label}
                   </Text>
                 </div>
               </Checkbox>
@@ -274,6 +453,9 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
           form={form}
           layout="vertical"
           onFinish={handleSaveRole}
+          initialValues={{
+            permissions: []
+          }}
         >
           <Form.Item
             name="role"
@@ -287,10 +469,9 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
           <Form.Item
             name="permissions"
             label="Permissions"
-            rules={[{ required: true, message: 'Please select at least one permission' }]}
           >
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-              {Object.entries(PERMISSION_CATEGORIES).map(([categoryName, categoryPermissions]) =>
+              {Object.entries(UI_PERMISSION_CATEGORIES).map(([categoryName, categoryPermissions]) =>
                 renderPermissionCategory(categoryName, categoryPermissions)
               )}
             </div>

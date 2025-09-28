@@ -1,13 +1,13 @@
 const express = require('express');
 const { prisma } = require('../config/database');
 const { authenticateToken, requirePermission } = require('../middleware/auth');
-const { PERMISSIONS } = require('../utils/permissions');
+const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 
 const router = express.Router();
 
 
 // Get cashflow transactions (with filtering and pagination)
-router.get('/transactions', authenticateToken, requirePermission(PERMISSIONS.CASHFLOW_VIEW), async (req, res) => {
+router.get('/transactions', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { page = 1, limit = 10, type, sourceType, jobId, startDate, endDate } = req.query;
     const skip = (page - 1) * limit;
@@ -108,7 +108,7 @@ router.get('/transactions', authenticateToken, requirePermission(PERMISSIONS.CAS
  *         description: Internal server error
  */
 // Get cashflow summary/dashboard data
-router.get('/summary', authenticateToken, requirePermission(PERMISSIONS.CASHFLOW_VIEW), async (req, res) => {
+router.get('/summary', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     console.log('\n' + '='.repeat(60));
     console.log('🔍 CASHFLOW SUMMARY ROUTE HIT');
@@ -255,7 +255,7 @@ router.get('/summary', authenticateToken, requirePermission(PERMISSIONS.CASHFLOW
 });
 
 // Get account balance (calculated running balance)
-router.get('/balance', authenticateToken, requirePermission(PERMISSIONS.CASHFLOW_VIEW), async (req, res) => {
+router.get('/balance', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
 
@@ -306,7 +306,7 @@ router.get('/balance', authenticateToken, requirePermission(PERMISSIONS.CASHFLOW
 });
 
 // Get job profitability
-router.get('/job-profitability/:jobId', authenticateToken, requirePermission(PERMISSIONS.CASHFLOW_VIEW), async (req, res) => {
+router.get('/job-profitability/:jobId', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { jobId } = req.params;
 
@@ -401,7 +401,7 @@ router.get('/job-profitability/:jobId', authenticateToken, requirePermission(PER
 });
 
 // Get cashflow trends (for charts)
-router.get('/trends', authenticateToken, requirePermission(PERMISSIONS.CASHFLOW_VIEW), async (req, res) => {
+router.get('/trends', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { period = '30', type = 'daily' } = req.query;
     const days = parseInt(period);
@@ -466,7 +466,7 @@ router.get('/trends', authenticateToken, requirePermission(PERMISSIONS.CASHFLOW_
 });
 
 // Create manual cashflow transaction (for adjustments)
-router.post('/transactions', authenticateToken, requirePermission(PERMISSIONS.CASHFLOW_CREATE), async (req, res) => {
+router.post('/transactions', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const {
       type,

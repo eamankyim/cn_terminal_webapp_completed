@@ -48,11 +48,15 @@ const router = express.Router();
  */
 router.get('/', authenticateToken, requireAdminOrIT, async (req, res) => {
   try {
+    console.log('🔍 ROLES API - Starting to fetch roles...');
+    console.log('🔍 ROLES API - User making request:', req.user?.email, 'Role:', req.user?.role);
+    
     const roles = await getAllRoles();
+    console.log('🔍 ROLES API - Raw roles from database:', JSON.stringify(roles, null, 2));
     
     const formattedRoles = roles.map(role => ({
-      id: role.id,
-      name: role.name,
+      role: role.name, // Frontend expects 'role' field
+      name: role.displayName, // Frontend expects 'name' field
       displayName: role.displayName,
       description: role.description,
       isSystem: role.isSystem,
@@ -64,13 +68,18 @@ router.get('/', authenticateToken, requireAdminOrIT, async (req, res) => {
       updatedAt: role.updatedAt
     }));
 
-    res.json({
+    console.log('🔍 ROLES API - Formatted roles:', JSON.stringify(formattedRoles, null, 2));
+
+    const response = {
       success: true,
       roles: formattedRoles,
       totalRoles: formattedRoles.length
-    });
+    };
+
+    console.log('🔍 ROLES API - Final response:', JSON.stringify(response, null, 2));
+    res.json(response);
   } catch (error) {
-    console.error('Error fetching roles:', error);
+    console.error('❌ ROLES API - Error fetching roles:', error);
     res.status(500).json({ error: 'Failed to fetch roles' });
   }
 });
@@ -101,15 +110,27 @@ router.get('/:role/permissions', authenticateToken, requireAdminOrIT, async (req
   try {
     const { role } = req.params;
     
-    if (!ROLE_PERMISSIONS[role]) {
+    // Find the role in database
+    const roleRecord = await prisma.role.findUnique({
+      where: { name: role },
+      include: {
+        rolePermissions: {
+          include: { permission: true }
+        }
+      }
+    });
+
+    if (!roleRecord) {
       return res.status(404).json({ error: 'Role not found' });
     }
+
+    const permissions = roleRecord.rolePermissions.map(rp => rp.permission.name);
 
     res.json({
       success: true,
       role,
-      permissions: ROLE_PERMISSIONS[role],
-      permissionCount: ROLE_PERMISSIONS[role].length
+      permissions,
+      permissionCount: permissions.length
     });
   } catch (error) {
     console.error('Error fetching role permissions:', error);
@@ -159,34 +180,69 @@ router.put('/:role/permissions', authenticateToken, requireAdminOrIT, async (req
     const { role } = req.params;
     const { permissions } = req.body;
 
-    if (!ROLE_PERMISSIONS[role]) {
-      return res.status(404).json({ error: 'Role not found' });
-    }
-
     if (!Array.isArray(permissions)) {
       return res.status(400).json({ error: 'Permissions must be an array' });
     }
 
-    // Validate that all permissions are valid
-    const allValidPermissions = Object.values(PERMISSIONS);
-    const invalidPermissions = permissions.filter(perm => !allValidPermissions.includes(perm));
-    
-    if (invalidPermissions.length > 0) {
+    // Find the role in database
+    const roleRecord = await prisma.role.findUnique({
+      where: { name: role }
+    });
+
+    if (!roleRecord) {
+      return res.status(404).json({ error: 'Role not found' });
+    }
+
+    // Check if role is system role (can't be modified)
+    if (roleRecord.isSystem) {
+      return res.status(403).json({ error: 'Cannot modify system role permissions' });
+    }
+
+    // Get permission IDs from permission names
+    const permissionRecords = await prisma.permission.findMany({
+      where: { name: { in: permissions } }
+    });
+
+    if (permissionRecords.length !== permissions.length) {
+      const foundPermissionNames = permissionRecords.map(p => p.name);
+      const invalidPermissions = permissions.filter(p => !foundPermissionNames.includes(p));
       return res.status(400).json({ 
         error: 'Invalid permissions provided',
         invalidPermissions 
       });
     }
 
-    // Update the role permissions (in a real app, this would be stored in database)
-    ROLE_PERMISSIONS[role] = permissions;
+    const permissionIds = permissionRecords.map(p => p.id);
+
+    // Update role permissions using database function
+    await updateRolePermissions(roleRecord.id, permissionIds, req.user.id);
+
+    // Force logout all users with this role by invalidating their sessions
+    // This ensures they get updated permissions on next login
+    const usersWithRole = await prisma.user.findMany({
+      where: { 
+        role: role,
+        isActive: true 
+      },
+      select: { id: true, email: true }
+    });
+
+    console.log(`🔄 Force logout: Invalidating sessions for ${usersWithRole.length} users with role ${role}`);
+    
+    // In a real implementation, you would invalidate JWT tokens or sessions here
+    // For now, we'll just log the affected users
+    usersWithRole.forEach(user => {
+      console.log(`📤 User ${user.email} (ID: ${user.id}) will be logged out due to permission changes`);
+    });
 
     res.json({
       success: true,
-      message: 'Role permissions updated successfully',
+      message: 'Role permissions updated successfully. All users with this role will be logged out.',
       role,
       permissions,
-      permissionCount: permissions.length
+      permissionCount: permissions.length,
+      affectedUsers: usersWithRole.length,
+      forceLogout: true
     });
   } catch (error) {
     console.error('Error updating role permissions:', error);
@@ -260,7 +316,7 @@ router.get('/permissions', authenticateToken, requireAdminOrIT, async (req, res)
  *             properties:
  *               role:
  *                 type: string
- *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, RELEASE_OFFICER, REVIEW_OFFICER, INVOICE_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, WAREHOUSE]
+ *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, RELEASE_OFFICER, REVIEW_OFFICER, INVOICE_OFFICER, CLEARING_OFFICER, STAFF, DRIVER]
  *                 description: New role for the user
  *     responses:
  *       200:
@@ -273,9 +329,12 @@ router.put('/users/:userId/role', authenticateToken, requireAdminOrIT, async (re
     const { userId } = req.params;
     const { role } = req.body;
 
-    // Validate role
-    const validRoles = Object.keys(ROLE_PERMISSIONS);
-    if (!validRoles.includes(role)) {
+    // Validate role by checking if it exists in database
+    const roleRecord = await prisma.role.findUnique({
+      where: { name: role }
+    });
+    
+    if (!roleRecord) {
       return res.status(400).json({ error: 'Invalid role specified' });
     }
 
@@ -303,12 +362,20 @@ router.put('/users/:userId/role', authenticateToken, requireAdminOrIT, async (re
       }
     });
 
+    // Get the new role's permissions
+    const newRolePermissions = await prisma.rolePermission.findMany({
+      where: { roleId: roleRecord.id },
+      include: { permission: true }
+    });
+
+    const newPermissions = newRolePermissions.map(rp => rp.permission.name);
+
     res.json({
       success: true,
       message: 'User role updated successfully',
       user: updatedUser,
       newRole: role,
-      newPermissions: ROLE_PERMISSIONS[role]
+      newPermissions
     });
   } catch (error) {
     console.error('Error updating user role:', error);

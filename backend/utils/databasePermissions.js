@@ -120,7 +120,8 @@ async function getAllPermissions() {
  */
 async function getAllRoles() {
   try {
-    return await prisma.role.findMany({
+    console.log('🔍 DATABASE PERMISSIONS - Fetching all roles from database...');
+    const roles = await prisma.role.findMany({
       where: { isActive: true },
       include: {
         rolePermissions: {
@@ -132,8 +133,11 @@ async function getAllRoles() {
       },
       orderBy: { name: 'asc' }
     });
+    console.log('🔍 DATABASE PERMISSIONS - Found roles:', roles.length);
+    console.log('🔍 DATABASE PERMISSIONS - Roles data:', JSON.stringify(roles, null, 2));
+    return roles;
   } catch (error) {
-    console.error('Error getting all roles:', error);
+    console.error('❌ DATABASE PERMISSIONS - Error getting all roles:', error);
     return [];
   }
 }

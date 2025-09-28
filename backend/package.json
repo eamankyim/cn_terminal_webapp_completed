@@ -33,6 +33,7 @@
     "multer": "^2.0.2",
     "node-fetch": "^2.7.0",
     "prisma": "^5.7.1",
+    "socket.io": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
   },

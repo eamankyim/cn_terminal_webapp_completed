@@ -3,11 +3,43 @@ import api from './api';
 const EXPENSE_API_BASE = '/expenses';
 
 export const expenseService = {
-  // Expense Requests
+  // User's own expense requests (no special permission required)
+  getMyExpenseRequests: async (params = {}) => {
+    try {
+      const response = await api.get(`${EXPENSE_API_BASE}/my-requests`, { params });
+      return response; // API service returns data directly, not wrapped in .data
+    } catch (error) {
+      console.error('Error fetching my expense requests:', error);
+      throw error;
+    }
+  },
+
+  getMyExpenseStats: async (params = {}) => {
+    try {
+      const response = await api.get(`${EXPENSE_API_BASE}/my-stats`, { params });
+      return response; // API service returns data directly, not wrapped in .data
+    } catch (error) {
+      console.error('Error fetching my expense stats:', error);
+      throw error;
+    }
+  },
+
+  // Record expense directly (for admins/accountants)
+  recordExpense: async (expenseData) => {
+    try {
+      const response = await api.post(`${EXPENSE_API_BASE}/record`, expenseData);
+      return response;
+    } catch (error) {
+      console.error('Error recording expense:', error);
+      throw error;
+    }
+  },
+
+  // Expense Requests (requires accounting permission)
   getExpenseRequests: async (params = {}) => {
     try {
       const response = await api.get(`${EXPENSE_API_BASE}/requests`, { params });
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error fetching expense requests:', error);
       throw error;
@@ -17,7 +49,7 @@ export const expenseService = {
   getExpenseRequest: async (id) => {
     try {
       const response = await api.get(`${EXPENSE_API_BASE}/requests/${id}`);
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error fetching expense request:', error);
       throw error;
@@ -27,7 +59,7 @@ export const expenseService = {
   createExpenseRequest: async (data) => {
     try {
       const response = await api.post(`${EXPENSE_API_BASE}/requests`, data);
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error creating expense request:', error);
       throw error;
@@ -37,7 +69,7 @@ export const expenseService = {
   approveExpenseRequest: async (id) => {
     try {
       const response = await api.patch(`${EXPENSE_API_BASE}/requests/${id}/approve`);
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error approving expense request:', error);
       throw error;
@@ -49,7 +81,7 @@ export const expenseService = {
       const response = await api.patch(`${EXPENSE_API_BASE}/requests/${id}/reject`, {
         rejectionReason
       });
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error rejecting expense request:', error);
       throw error;
@@ -60,7 +92,7 @@ export const expenseService = {
   getExpenses: async (params = {}) => {
     try {
       const response = await api.get(EXPENSE_API_BASE, { params });
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error fetching expenses:', error);
       throw error;
@@ -70,7 +102,7 @@ export const expenseService = {
   getExpense: async (id) => {
     try {
       const response = await api.get(`${EXPENSE_API_BASE}/${id}`);
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Error fetching expense:', error);
       throw error;

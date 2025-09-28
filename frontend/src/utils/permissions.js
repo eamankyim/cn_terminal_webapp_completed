@@ -7,7 +7,8 @@ import {
   CheckCircleOutlined,
   EyeOutlined,
   FileTextOutlined,
-  FlagOutlined
+  FlagOutlined,
+  UserOutlined
 } from '@ant-design/icons';
 
 // Define all available permissions
@@ -63,9 +64,11 @@ export const PERMISSIONS = {
   NOTIFICATION_VIEW: 'notification:view',
   NOTIFICATION_SEND: 'notification:send',
   
+  
   // Accounting & Finance
   EXPENSE_VIEW: 'expense:view',
-  EXPENSE_CREATE: 'expense:create',
+  EXPENSE_CREATE: 'expense:create',        // For recording expenses directly (admins/accountants)
+  EXPENSE_REQUEST: 'expense:request',      // For requesting expenses (employees)
   EXPENSE_APPROVE: 'expense:approve',
   EXPENSE_EDIT: 'expense:edit',
   EXPENSE_DELETE: 'expense:delete',
@@ -83,33 +86,21 @@ export const PERMISSIONS = {
 // Role definitions with their permissions
 export const ROLE_PERMISSIONS = {
   ADMIN: [
-    // Full access to everything
+    // VIEW-ONLY ACCESS (cannot create/edit)
     PERMISSIONS.USER_VIEW,
-    PERMISSIONS.USER_CREATE,
-    PERMISSIONS.USER_EDIT,
-    PERMISSIONS.USER_DELETE,
-    PERMISSIONS.USER_MANAGE_ROLES,
+    PERMISSIONS.USER_MANAGE_ROLES,        // Can change user roles
     
     PERMISSIONS.JOB_VIEW,
-    PERMISSIONS.JOB_CREATE,
-    PERMISSIONS.JOB_EDIT,
-    PERMISSIONS.JOB_DELETE,
-    PERMISSIONS.JOB_ASSIGN,
-    PERMISSIONS.JOB_UPDATE_STATUS,
     PERMISSIONS.JOB_VIEW_ALL,
+    // ❌ REMOVED: JOB_CREATE, JOB_EDIT, JOB_DELETE, JOB_ASSIGN, JOB_UPDATE_STATUS
     
     PERMISSIONS.INVOICE_VIEW,
-    PERMISSIONS.INVOICE_CREATE,
-    PERMISSIONS.INVOICE_EDIT,
-    PERMISSIONS.INVOICE_DELETE,
-    PERMISSIONS.INVOICE_APPROVE,
     PERMISSIONS.INVOICE_VIEW_ALL,
+    // ❌ REMOVED: INVOICE_CREATE, INVOICE_EDIT, INVOICE_DELETE, INVOICE_APPROVE
     
     PERMISSIONS.CUSTOMER_VIEW,
-    PERMISSIONS.CUSTOMER_CREATE,
-    PERMISSIONS.CUSTOMER_EDIT,
-    PERMISSIONS.CUSTOMER_DELETE,
     PERMISSIONS.CUSTOMER_VIEW_ALL,
+    // ❌ REMOVED: CUSTOMER_CREATE, CUSTOMER_EDIT, CUSTOMER_DELETE
     
     PERMISSIONS.REPORTS_VIEW,
     PERMISSIONS.REPORTS_EXPORT,
@@ -127,20 +118,13 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.NOTIFICATION_VIEW,
     PERMISSIONS.NOTIFICATION_SEND,
     
-    // Accounting & Finance
+    // Accounting & Finance - VIEW ONLY
     PERMISSIONS.EXPENSE_VIEW,
-    PERMISSIONS.EXPENSE_CREATE,
-    PERMISSIONS.EXPENSE_APPROVE,
-    PERMISSIONS.EXPENSE_EDIT,
-    PERMISSIONS.EXPENSE_DELETE,
+    // ❌ REMOVED: EXPENSE_CREATE, EXPENSE_APPROVE, EXPENSE_EDIT, EXPENSE_DELETE
     
     PERMISSIONS.PAYOUT_VIEW,
-    PERMISSIONS.PAYOUT_CREATE,
-    PERMISSIONS.PAYOUT_UPDATE,
-    PERMISSIONS.PAYOUT_DELETE,
-    
     PERMISSIONS.CASHFLOW_VIEW,
-    PERMISSIONS.CASHFLOW_CREATE,
+    // ❌ REMOVED: PAYOUT_CREATE, PAYOUT_UPDATE, PAYOUT_DELETE, CASHFLOW_CREATE
   ],
   
   IT_CONSULTANT: [
@@ -205,7 +189,7 @@ export const ROLE_PERMISSIONS = {
   ],
   
   ENQUIRY_OFFICER: [
-    // Creates jobs and manages customer enquiries
+    // EMPLOYEE - Can CREATE jobs, customers, invoices, requests
     PERMISSIONS.JOB_VIEW,
     PERMISSIONS.JOB_CREATE,
     PERMISSIONS.JOB_EDIT,
@@ -216,72 +200,224 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.CUSTOMER_EDIT,
     PERMISSIONS.CUSTOMER_VIEW_ALL,
     
+    PERMISSIONS.INVOICE_VIEW,
+    PERMISSIONS.INVOICE_CREATE,        // ✅ EMPLOYEES can create invoices
+    PERMISSIONS.INVOICE_VIEW_ALL,
+    
     PERMISSIONS.DASHBOARD_VIEW,
+    PERMISSIONS.REPORTS_VIEW,          // ✅ General reports access
+    
+    PERMISSIONS.SETTINGS_VIEW,
     
     PERMISSIONS.FILE_UPLOAD,
     PERMISSIONS.FILE_DOWNLOAD,
     
     PERMISSIONS.NOTIFICATION_VIEW,
     
-    // Can create expense requests
-    PERMISSIONS.EXPENSE_CREATE,
+    // Can request expenses (requires approval)
+    PERMISSIONS.EXPENSE_REQUEST,
     PERMISSIONS.EXPENSE_VIEW,
   ],
   
   RELEASE_OFFICER: [
-    // Updates jobs to released status, only sees assigned jobs
+    // EMPLOYEE - Can CREATE jobs, customers, invoices, requests
     PERMISSIONS.JOB_VIEW,
-    PERMISSIONS.JOB_UPDATE_STATUS,
-    
-    PERMISSIONS.CUSTOMER_VIEW,
-    
-    PERMISSIONS.DASHBOARD_VIEW,
-    
-    PERMISSIONS.FILE_DOWNLOAD,
-    
-    PERMISSIONS.NOTIFICATION_VIEW,
-    
-    // Can create expense requests
-    PERMISSIONS.EXPENSE_CREATE,
-    PERMISSIONS.EXPENSE_VIEW,
-  ],
-  
-  REVIEW_OFFICER: [
-    // Reviews and preinvoices jobs
-    PERMISSIONS.JOB_VIEW,
+    PERMISSIONS.JOB_CREATE,
     PERMISSIONS.JOB_EDIT,
     PERMISSIONS.JOB_UPDATE_STATUS,
     PERMISSIONS.JOB_VIEW_ALL,
     
-    PERMISSIONS.INVOICE_VIEW,
-    PERMISSIONS.INVOICE_CREATE,
-    PERMISSIONS.INVOICE_EDIT,
-    PERMISSIONS.INVOICE_VIEW_ALL,
-    
     PERMISSIONS.CUSTOMER_VIEW,
+    PERMISSIONS.CUSTOMER_CREATE,
+    PERMISSIONS.CUSTOMER_EDIT,
     PERMISSIONS.CUSTOMER_VIEW_ALL,
     
+    PERMISSIONS.INVOICE_VIEW,
+    PERMISSIONS.INVOICE_CREATE,        // ✅ EMPLOYEES can create invoices
+    PERMISSIONS.INVOICE_VIEW_ALL,
+    
     PERMISSIONS.DASHBOARD_VIEW,
+    PERMISSIONS.REPORTS_VIEW,          // ✅ General reports access
     
     PERMISSIONS.FILE_UPLOAD,
     PERMISSIONS.FILE_DOWNLOAD,
     
     PERMISSIONS.NOTIFICATION_VIEW,
+    
+    // Can request expenses (requires approval)
+    PERMISSIONS.EXPENSE_REQUEST,
+    PERMISSIONS.EXPENSE_VIEW,
+  ],
+  
+  REVIEW_OFFICER: [
+    // EMPLOYEE - Can CREATE jobs, customers, invoices, requests
+    PERMISSIONS.JOB_VIEW,
+    PERMISSIONS.JOB_CREATE,
+    PERMISSIONS.JOB_EDIT,
+    PERMISSIONS.JOB_UPDATE_STATUS,
+    PERMISSIONS.JOB_VIEW_ALL,
+    
+    PERMISSIONS.CUSTOMER_VIEW,
+    PERMISSIONS.CUSTOMER_CREATE,
+    PERMISSIONS.CUSTOMER_EDIT,
+    PERMISSIONS.CUSTOMER_VIEW_ALL,
+    
+    PERMISSIONS.INVOICE_VIEW,
+    PERMISSIONS.INVOICE_CREATE,        // ✅ EMPLOYEES can create invoices
+    PERMISSIONS.INVOICE_EDIT,
+    PERMISSIONS.INVOICE_VIEW_ALL,
+    
+    PERMISSIONS.DASHBOARD_VIEW,
+    PERMISSIONS.REPORTS_VIEW,          // ✅ General reports access
+    
+    PERMISSIONS.FILE_UPLOAD,
+    PERMISSIONS.FILE_DOWNLOAD,
+    
+    PERMISSIONS.NOTIFICATION_VIEW,
+    
+    // Can request expenses (requires approval)
+    PERMISSIONS.EXPENSE_REQUEST,
+    PERMISSIONS.EXPENSE_VIEW,
   ],
   
   INVOICE_OFFICER: [
-    // Creates and manages invoices
+    // FINANCE ROLE - Can create invoices and view finance reports
     PERMISSIONS.JOB_VIEW,
     PERMISSIONS.JOB_VIEW_ALL,
     
+    PERMISSIONS.CUSTOMER_VIEW,
+    PERMISSIONS.CUSTOMER_VIEW_ALL,
+    
     PERMISSIONS.INVOICE_VIEW,
-    PERMISSIONS.INVOICE_CREATE,
+    PERMISSIONS.INVOICE_CREATE,        // ✅ INVOICE_OFFICER can create invoices
     PERMISSIONS.INVOICE_EDIT,
     PERMISSIONS.INVOICE_APPROVE,
     PERMISSIONS.INVOICE_VIEW_ALL,
     
+    PERMISSIONS.REPORTS_VIEW,
+    PERMISSIONS.REPORTS_EXPORT,
+    PERMISSIONS.DASHBOARD_VIEW,
+    // ✅ Finance reports access (same as general reports for now)
+    
+    PERMISSIONS.FILE_UPLOAD,
+    PERMISSIONS.FILE_DOWNLOAD,
+    
+    PERMISSIONS.NOTIFICATION_VIEW,
+    
+    // Finance Officer - can view expenses and manage payouts
+    PERMISSIONS.EXPENSE_VIEW,
+    // ❌ REMOVED: EXPENSE_APPROVE (only ACCOUNTANT can approve)
+    PERMISSIONS.PAYOUT_VIEW,
+    PERMISSIONS.PAYOUT_CREATE,
+    PERMISSIONS.PAYOUT_UPDATE,
+    PERMISSIONS.CASHFLOW_VIEW,
+  ],
+  
+  CLEARING_OFFICER: [
+    // EMPLOYEE - Can CREATE jobs, customers, invoices, requests
+    PERMISSIONS.JOB_VIEW,
+    PERMISSIONS.JOB_CREATE,
+    PERMISSIONS.JOB_EDIT,
+    PERMISSIONS.JOB_UPDATE_STATUS,
+    PERMISSIONS.JOB_VIEW_ALL,
+    
+    PERMISSIONS.CUSTOMER_VIEW,
+    PERMISSIONS.CUSTOMER_CREATE,
+    PERMISSIONS.CUSTOMER_EDIT,
+    PERMISSIONS.CUSTOMER_VIEW_ALL,
+    
+    PERMISSIONS.INVOICE_VIEW,
+    PERMISSIONS.INVOICE_CREATE,        // ✅ EMPLOYEES can create invoices
+    PERMISSIONS.INVOICE_VIEW_ALL,
+    
+    PERMISSIONS.DASHBOARD_VIEW,
+    PERMISSIONS.REPORTS_VIEW,          // ✅ General reports access
+    
+    PERMISSIONS.FILE_UPLOAD,
+    PERMISSIONS.FILE_DOWNLOAD,
+    
+    PERMISSIONS.NOTIFICATION_VIEW,
+    
+    // Can request expenses (requires approval)
+    PERMISSIONS.EXPENSE_REQUEST,
+    PERMISSIONS.EXPENSE_VIEW,
+  ],
+  
+  DRIVER: [
+    // EMPLOYEE - Can CREATE jobs, customers, invoices, requests
+    PERMISSIONS.JOB_VIEW,
+    PERMISSIONS.JOB_CREATE,
+    PERMISSIONS.JOB_EDIT,
+    PERMISSIONS.JOB_UPDATE_STATUS,
+    PERMISSIONS.JOB_VIEW_ALL,
+    
+    PERMISSIONS.CUSTOMER_VIEW,
+    PERMISSIONS.CUSTOMER_CREATE,
+    PERMISSIONS.CUSTOMER_EDIT,
+    PERMISSIONS.CUSTOMER_VIEW_ALL,
+    
+    PERMISSIONS.INVOICE_VIEW,
+    PERMISSIONS.INVOICE_CREATE,        // ✅ EMPLOYEES can create invoices
+    PERMISSIONS.INVOICE_VIEW_ALL,
+    
+    PERMISSIONS.DASHBOARD_VIEW,
+    PERMISSIONS.REPORTS_VIEW,          // ✅ General reports access
+    
+    PERMISSIONS.FILE_UPLOAD,
+    PERMISSIONS.FILE_DOWNLOAD,
+    
+    PERMISSIONS.NOTIFICATION_VIEW,
+    
+    // Can request expenses (requires approval)
+    PERMISSIONS.EXPENSE_REQUEST,
+    PERMISSIONS.EXPENSE_VIEW,
+  ],
+  
+  STAFF: [
+    // EMPLOYEE - Can CREATE jobs, customers, invoices, requests
+    PERMISSIONS.JOB_VIEW,
+    PERMISSIONS.JOB_CREATE,
+    PERMISSIONS.JOB_EDIT,
+    PERMISSIONS.JOB_ASSIGN,
+    PERMISSIONS.JOB_UPDATE_STATUS,
+    PERMISSIONS.JOB_VIEW_ALL,
+    
+    PERMISSIONS.CUSTOMER_VIEW,
+    PERMISSIONS.CUSTOMER_CREATE,
+    PERMISSIONS.CUSTOMER_EDIT,
+    PERMISSIONS.CUSTOMER_VIEW_ALL,
+    
+    PERMISSIONS.INVOICE_VIEW,
+    PERMISSIONS.INVOICE_CREATE,        // ✅ EMPLOYEES can create invoices
+    PERMISSIONS.INVOICE_EDIT,
+    PERMISSIONS.INVOICE_VIEW_ALL,
+    
+    PERMISSIONS.REPORTS_VIEW,
+    PERMISSIONS.REPORTS_EXPORT,
+    PERMISSIONS.DASHBOARD_VIEW,
+    
+    PERMISSIONS.SETTINGS_VIEW,
+    
+    PERMISSIONS.FILE_UPLOAD,
+    PERMISSIONS.FILE_DOWNLOAD,
+    
+    PERMISSIONS.NOTIFICATION_VIEW,
+    
+    // Can request expenses (requires approval)
+    PERMISSIONS.EXPENSE_REQUEST,
+    PERMISSIONS.EXPENSE_VIEW,
+  ],
+  
+  ACCOUNTANT: [
+    // ACCOUNTANT - ONLY role that can record and approve expenses
+    PERMISSIONS.JOB_VIEW,
+    PERMISSIONS.JOB_VIEW_ALL,
+    
     PERMISSIONS.CUSTOMER_VIEW,
     PERMISSIONS.CUSTOMER_VIEW_ALL,
+    
+    PERMISSIONS.INVOICE_VIEW,
+    PERMISSIONS.INVOICE_VIEW_ALL,
     
     PERMISSIONS.REPORTS_VIEW,
     PERMISSIONS.REPORTS_EXPORT,
@@ -292,28 +428,20 @@ export const ROLE_PERMISSIONS = {
     
     PERMISSIONS.NOTIFICATION_VIEW,
     
-    // Finance Officer - can approve expenses and manage payouts
+    // ✅ ONLY ACCOUNTANT can record and approve expenses
     PERMISSIONS.EXPENSE_VIEW,
-    PERMISSIONS.EXPENSE_APPROVE,
+    PERMISSIONS.EXPENSE_CREATE,        // Record expenses directly (no approval needed)
+    PERMISSIONS.EXPENSE_APPROVE,       // Approve expense requests
+    PERMISSIONS.EXPENSE_EDIT,
+    PERMISSIONS.EXPENSE_DELETE,
+    
     PERMISSIONS.PAYOUT_VIEW,
     PERMISSIONS.PAYOUT_CREATE,
     PERMISSIONS.PAYOUT_UPDATE,
+    PERMISSIONS.PAYOUT_DELETE,
+    
     PERMISSIONS.CASHFLOW_VIEW,
-  ],
-  
-  CLEARING_OFFICER: [
-    // Sets jobs to cleared status
-    PERMISSIONS.JOB_VIEW,
-    PERMISSIONS.JOB_UPDATE_STATUS,
-    PERMISSIONS.JOB_VIEW_ALL,
-    
-    PERMISSIONS.CUSTOMER_VIEW,
-    
-    PERMISSIONS.DASHBOARD_VIEW,
-    
-    PERMISSIONS.FILE_DOWNLOAD,
-    
-    PERMISSIONS.NOTIFICATION_VIEW,
+    PERMISSIONS.CASHFLOW_CREATE,
   ],
 };
 
@@ -367,6 +495,27 @@ export const ROLE_INFO = {
     color: 'gold',
     icon: <FlagOutlined />,
     level: 3
+  },
+  DRIVER: {
+    name: 'Driver',
+    description: 'Manages delivery jobs and updates location',
+    color: 'lime',
+    icon: <FileAddOutlined />,
+    level: 2
+  },
+  STAFF: {
+    name: 'Staff',
+    description: 'General staff member with basic access',
+    color: 'blue',
+    icon: <UserOutlined />,
+    level: 1
+  },
+  ACCOUNTANT: {
+    name: 'Accountant',
+    description: 'Manages expenses, payouts, and financial records',
+    color: 'green',
+    icon: <FileTextOutlined />,
+    level: 3
   }
 };
 
@@ -403,11 +552,13 @@ export const PERMISSION_CATEGORIES = {
     PERMISSIONS.CUSTOMER_DELETE,
     PERMISSIONS.CUSTOMER_VIEW_ALL,
   ],
-  'Reports & Analytics': [
+  'Dashboard & Analytics': [
+    PERMISSIONS.DASHBOARD_VIEW,
+    PERMISSIONS.ANALYTICS_VIEW,
+  ],
+  'Reports': [
     PERMISSIONS.REPORTS_VIEW,
     PERMISSIONS.REPORTS_EXPORT,
-    PERMISSIONS.ANALYTICS_VIEW,
-    PERMISSIONS.DASHBOARD_VIEW,
   ],
   'System Settings': [
     PERMISSIONS.SETTINGS_VIEW,
@@ -523,7 +674,8 @@ export const PERMISSION_DESCRIPTIONS = {
   
   // Accounting & Finance
   [PERMISSIONS.EXPENSE_VIEW]: 'View expense requests and expenses',
-  [PERMISSIONS.EXPENSE_CREATE]: 'Create new expense requests',
+  [PERMISSIONS.EXPENSE_CREATE]: 'Record expenses directly (no approval needed)',
+  [PERMISSIONS.EXPENSE_REQUEST]: 'Request expenses (requires approval)',
   [PERMISSIONS.EXPENSE_APPROVE]: 'Approve or reject expense requests',
   [PERMISSIONS.EXPENSE_EDIT]: 'Edit expense requests',
   [PERMISSIONS.EXPENSE_DELETE]: 'Delete expense requests',

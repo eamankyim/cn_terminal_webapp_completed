@@ -175,28 +175,6 @@ const AccountingPage = () => {
             </Col>
           </Row>
 
-          {/* Quick Actions */}
-          <Card title="Quick Actions">
-            <Space>
-              <PermissionGate userRole={currentUser?.role} permissions={PERMISSIONS.EXPENSE_CREATE}>
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={() => setExpenseRequestModalVisible(true)}
-                >
-                  New Expense Request
-                </Button>
-              </PermissionGate>
-              
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={loadDashboardData}
-                loading={loading}
-              >
-                Refresh Data
-              </Button>
-            </Space>
-          </Card>
         </div>
       ),
     },
@@ -315,10 +293,26 @@ const AccountingPage = () => {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <Title level={2}>
-          <DollarOutlined /> Accounting & Finance
-        </Title>
-        <p>Manage expenses, payouts, and track cashflow</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <Title level={2}>
+              <DollarOutlined /> Accounting & Finance
+            </Title>
+            <p>Manage expenses, payouts, and track cashflow</p>
+          </div>
+          
+          <div style={{ marginTop: 8 }}>
+            <PermissionGate userRole={currentUser?.role} permissions={PERMISSIONS.EXPENSE_CREATE}>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setExpenseRequestModalVisible(true)}
+              >
+                Record Expense
+              </Button>
+            </PermissionGate>
+          </div>
+        </div>
       </div>
 
       <Card>
@@ -334,6 +328,7 @@ const AccountingPage = () => {
         visible={expenseRequestModalVisible}
         onCancel={() => setExpenseRequestModalVisible(false)}
         onSuccess={handleExpenseRequestSuccess}
+        mode="record"
       />
 
     </div>

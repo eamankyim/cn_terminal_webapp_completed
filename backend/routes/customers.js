@@ -1,6 +1,7 @@
 const express = require('express');
 const { prisma } = require('../config/database');
-const { authenticateToken, requireStaff } = require('../middleware/auth');
+const { authenticateToken, requirePermission } = require('../middleware/auth');
+const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 const NotificationService = require('../services/notificationService');
 
 const router = express.Router();
@@ -137,7 +138,7 @@ const router = express.Router();
  *         description: Internal server error
  */
 // Get all customers
-router.get('/', authenticateToken, requireStaff, async (req, res) => {
+router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), async (req, res) => {
   try {
     const { page = 1, limit = 10, search = '' } = req.query;
     const skip = (page - 1) * limit;
@@ -243,7 +244,7 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
  *         description: Internal server error
  */
 // Get customer by ID
-router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
+router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -281,7 +282,7 @@ router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
 });
 
 // Create new customer
-router.post('/', authenticateToken, requireStaff, async (req, res) => {
+router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), async (req, res) => {
   try {
     console.log('\n' + '='.repeat(60));
     console.log('👥 CREATE CUSTOMER REQUEST');
@@ -502,7 +503,7 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
  *         description: Internal server error
  */
 // Update customer
-router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
+router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -637,7 +638,7 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
  *         description: Internal server error
  */
 // Delete customer
-router.delete('/:id', authenticateToken, requireStaff, async (req, res) => {
+router.delete('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -738,7 +739,7 @@ router.delete('/:id', authenticateToken, requireStaff, async (req, res) => {
  *         description: Internal server error
  */
 // Get customer statistics
-router.get('/:id/statistics', authenticateToken, requireStaff, async (req, res) => {
+router.get('/:id/statistics', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -845,7 +846,7 @@ router.get('/:id/statistics', authenticateToken, requireStaff, async (req, res) 
  *         description: Internal server error
  */
 // Get customer by ID for dropdown/selector
-router.get('/selector', authenticateToken, requireStaff, async (req, res) => {
+router.get('/selector', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), async (req, res) => {
   try {
     const { search = '' } = req.query;
     

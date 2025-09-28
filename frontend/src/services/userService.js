@@ -27,6 +27,17 @@ class UserService {
     }
   }
 
+  // Get assignable users for job assignment (excludes IT_CONSULTANT)
+  async getAssignableUsers() {
+    try {
+      const response = await apiService.get('/auth/assignable-users');
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch assignable users:', error);
+      throw error;
+    }
+  }
+
   // Get user by ID
   async getUserById(userId) {
     try {

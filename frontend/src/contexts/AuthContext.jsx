@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import apiService from '../services/api';
 import invitationService from '../services/invitationService';
+import { hasUIPermission } from '../utils/uiPermissions';
 
 const AuthContext = createContext();
 
@@ -200,17 +201,37 @@ export const AuthProvider = ({ children }) => {
   const hasPermission = (permission) => {
     if (!currentUser) return false;
     
-    // If user has admin role, they have all permissions
-    if (currentUser.role === 'ADMIN') return true;
-    
-    // Check if user has specific permissions array
+    // Check if user has specific permissions array from database
     if (currentUser.permissions && Array.isArray(currentUser.permissions)) {
-      return currentUser.permissions.includes('all') || currentUser.permissions.includes(permission);
+      return currentUser.permissions.includes(permission);
     }
     
-    // Default permissions based on role
-    const rolePermissions = getPermissionsForRole(currentUser.role);
-    return rolePermissions.includes('all') || rolePermissions.includes(permission);
+    // Fallback to UI-based permissions
+    return hasUIPermission(currentUser.role, permission);
+  };
+
+  // Function to refresh user permissions from the server
+  const refreshUserPermissions = async () => {
+    try {
+      console.log('🔄 Refreshing user permissions...');
+      const response = await apiService.get('/auth/me');
+      
+      if (response && response.user) {
+        const updatedUser = {
+          ...currentUser,
+          permissions: response.user.permissions || []
+        };
+        
+        setCurrentUser(updatedUser);
+        localStorage.setItem('cn_terminal_user', JSON.stringify(updatedUser));
+        
+        console.log('✅ User permissions refreshed:', updatedUser.permissions);
+        return true;
+      }
+    } catch (error) {
+      console.error('❌ Failed to refresh user permissions:', error);
+      return false;
+    }
   };
 
   const value = {
@@ -224,7 +245,8 @@ export const AuthProvider = ({ children }) => {
     pendingInvites,
     loadPendingInvitations,
     updateProfile,
-    hasPermission
+    hasPermission,
+    refreshUserPermissions
   };
 
   return (

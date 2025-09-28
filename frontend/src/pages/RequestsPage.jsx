@@ -10,7 +10,10 @@ import {
   Table,
   Tag,
   Tooltip,
-  Empty
+  Empty,
+  Drawer,
+  Descriptions,
+  Divider
 } from 'antd';
 import {
   PlusOutlined,
@@ -22,6 +25,7 @@ import {
   CloseCircleOutlined
 } from '@ant-design/icons';
 import moment from 'moment';
+import { useNavigate } from 'react-router-dom';
 import ExpenseRequestForm from '../components/accounting/ExpenseRequestForm';
 import expenseService from '../services/expenseService';
 import { useAuth } from '../contexts/AuthContext';
@@ -31,11 +35,24 @@ import { PERMISSIONS } from '../utils/permissions';
 const { Title, Text } = Typography;
 
 const RequestsPage = () => {
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  
+  // Route guard: Redirect admin and IT consultant users since they don't send requests
+  useEffect(() => {
+    if (currentUser?.role === 'ADMIN' || currentUser?.role === 'IT_CONSULTANT') {
+      message.info('Admins record expenses directly in the Accounting section');
+      navigate('/accounting');
+      return;
+    }
+  }, [currentUser, navigate]);
+
   const [expenseRequestModalVisible, setExpenseRequestModalVisible] = useState(false);
   const [myRequests, setMyRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({});
-  const { currentUser } = useAuth();
+  const [detailsDrawerVisible, setDetailsDrawerVisible] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
 
   const expenseStatuses = expenseService.getExpenseStatuses();
 
@@ -47,8 +64,7 @@ const RequestsPage = () => {
   const loadMyRequests = async () => {
     try {
       setLoading(true);
-      const response = await expenseService.getExpenseRequests({
-        requestedBy: currentUser?.id,
+      const response = await expenseService.getMyExpenseRequests({
         limit: 50
       });
       setMyRequests(response.requests || []);
@@ -62,9 +78,7 @@ const RequestsPage = () => {
 
   const loadMyStats = async () => {
     try {
-      const response = await expenseService.getExpenseStats({
-        requestedBy: currentUser?.id
-      });
+      const response = await expenseService.getMyExpenseStats();
       setStats(response);
     } catch (error) {
       console.error('Error loading my stats:', error);
@@ -159,6 +173,7 @@ const RequestsPage = () => {
       render: (_, record) => (
         <Tooltip title="View Details">
           <Button
+            type="default"
             size="small"
             icon={<EyeOutlined />}
             onClick={() => handleViewDetails(record)}
@@ -168,24 +183,34 @@ const RequestsPage = () => {
     },
   ];
 
-  const handleViewDetails = async (record) => {
-    try {
-      const response = await expenseService.getExpenseRequest(record.id);
-      // For now, just show a message with details
-      message.info(`Request Details: ${response.description} - ${expenseService.formatExpenseAmount(response.amount)}`);
-    } catch (error) {
-      console.error('Error loading request details:', error);
-      message.error('Failed to load request details');
-    }
+  const handleViewDetails = (record) => {
+    setSelectedRequest(record);
+    setDetailsDrawerVisible(true);
   };
 
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <Title level={2}>
-          <FileTextOutlined /> My Requests
-        </Title>
-        <p>Submit and track your expense requests</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <Title level={2}>
+              <FileTextOutlined /> My Requests
+            </Title>
+            <p>Submit and track your expense requests</p>
+          </div>
+          
+          <div style={{ marginTop: 8 }}>
+            <PermissionGate userRole={currentUser?.role} permissions={PERMISSIONS.EXPENSE_REQUEST}>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setExpenseRequestModalVisible(true)}
+              >
+                New Expense Request
+              </Button>
+            </PermissionGate>
+          </div>
+        </div>
       </div>
 
       {/* My Statistics */}
@@ -248,20 +273,6 @@ const RequestsPage = () => {
         </Col>
       </Row>
 
-      {/* Quick Actions */}
-      <Card style={{ marginBottom: 16 }}>
-        <Space>
-          <PermissionGate userRole={currentUser?.role} permissions={PERMISSIONS.EXPENSE_CREATE}>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setExpenseRequestModalVisible(true)}
-            >
-              New Expense Request
-            </Button>
-          </PermissionGate>
-        </Space>
-      </Card>
 
       {/* My Requests Table */}
       <Card>
@@ -294,6 +305,136 @@ const RequestsPage = () => {
         onCancel={() => setExpenseRequestModalVisible(false)}
         onSuccess={handleExpenseRequestSuccess}
       />
+
+      {/* Request Details Drawer */}
+      <Drawer
+        title="Request Details"
+        placement="right"
+        width={600}
+        open={detailsDrawerVisible}
+        onClose={() => setDetailsDrawerVisible(false)}
+      >
+        {selectedRequest && (
+          <div>
+            {/* Request Header */}
+            <Card size="small" style={{ marginBottom: 16 }}>
+              <Space align="center">
+                {getStatusIcon(selectedRequest.status)}
+                <Tag color={getStatusColor(selectedRequest.status)}>
+                  {selectedRequest.status}
+                </Tag>
+                <Text strong style={{ fontSize: '18px' }}>
+                  {expenseService.formatExpenseAmount(selectedRequest.amount)}
+                </Text>
+              </Space>
+            </Card>
+
+            {/* Request Details */}
+            <Descriptions
+              title="Request Information"
+              bordered
+              column={1}
+              size="small"
+            >
+              <Descriptions.Item label="Description">
+                <Text>{selectedRequest.description}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Amount">
+                <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
+                  {expenseService.formatExpenseAmount(selectedRequest.amount)}
+                </Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Category">
+                <Tag color="blue">{selectedRequest.category}</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Expense Date">
+                <Text>{moment(selectedRequest.expenseDate).format('DD/MM/YYYY')}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Requested By">
+                <Space>
+                  <Text strong>{selectedRequest.requestedBy?.name}</Text>
+                  <Tag color="green">{selectedRequest.requestedBy?.role}</Tag>
+                </Space>
+              </Descriptions.Item>
+              <Descriptions.Item label="Requested On">
+                <Space direction="vertical" size={0}>
+                  <Text>{moment(selectedRequest.createdAt).format('DD/MM/YYYY HH:mm')}</Text>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    {moment(selectedRequest.createdAt).fromNow()}
+                  </Text>
+                </Space>
+              </Descriptions.Item>
+              {selectedRequest.job && (
+                <Descriptions.Item label="Related Job">
+                  <Space>
+                    <Text strong>{selectedRequest.job.jobNumber}</Text>
+                    <Text type="secondary">{selectedRequest.job.description}</Text>
+                  </Space>
+                </Descriptions.Item>
+              )}
+              {selectedRequest.receiptUrl && (
+                <Descriptions.Item label="Receipt">
+                  <Button
+                    type="default"
+                    size="small"
+                    onClick={() => window.open(selectedRequest.receiptUrl, '_blank')}
+                  >
+                    View Receipt
+                  </Button>
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+
+            {/* Approval Information */}
+            {(selectedRequest.status === 'APPROVED' || selectedRequest.status === 'REJECTED') && (
+              <>
+                <Divider />
+                <Descriptions
+                  title="Approval Information"
+                  bordered
+                  column={1}
+                  size="small"
+                >
+                  {selectedRequest.approvedBy && (
+                    <Descriptions.Item label="Approved By">
+                      <Text strong>{selectedRequest.approvedBy.name}</Text>
+                      <Tag color="blue">{selectedRequest.approvedBy.role}</Tag>
+                    </Descriptions.Item>
+                  )}
+                  {selectedRequest.approvedAt && (
+                    <Descriptions.Item label="Approved On">
+                      <Space direction="vertical" size={0}>
+                        <Text>{moment(selectedRequest.approvedAt).format('DD/MM/YYYY HH:mm')}</Text>
+                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                          {moment(selectedRequest.approvedAt).fromNow()}
+                        </Text>
+                      </Space>
+                    </Descriptions.Item>
+                  )}
+                  {selectedRequest.rejectionReason && (
+                    <Descriptions.Item label="Rejection Reason">
+                      <Text type="danger">{selectedRequest.rejectionReason}</Text>
+                    </Descriptions.Item>
+                  )}
+                </Descriptions>
+              </>
+            )}
+
+            {/* Last Updated */}
+            <Divider />
+            <Card size="small">
+              <Space direction="vertical" size={0}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  Last Updated: {moment(selectedRequest.updatedAt).format('DD/MM/YYYY HH:mm')}
+                </Text>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  {moment(selectedRequest.updatedAt).fromNow()}
+                </Text>
+              </Space>
+            </Card>
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 };

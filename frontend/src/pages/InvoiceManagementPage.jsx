@@ -185,6 +185,7 @@ const InvoiceManagementPage = () => {
       render: (_, record) => (
         <Space>
           <Button 
+            type="default"
             size="small"
             icon={<EyeOutlined />}
             onClick={() => handleViewInvoice(record)}

@@ -171,3 +171,5 @@ select: {
 **The shipper name and invoice number are now displayed as part of the job information, providing complete visibility of invoice-related data for INVOICED status jobs!** 🎉
 
 
+
+

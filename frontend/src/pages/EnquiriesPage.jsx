@@ -141,8 +141,8 @@ const EnquiriesPage = () => {
       key: 'actions',
       render: (_, record) => (
         <Space size="small">
-          <Button 
-            type="text" 
+          <Button
+            type="default" 
             icon={<EyeOutlined />} 
             size="small"
             onClick={() => handleViewEnquiry(record)}

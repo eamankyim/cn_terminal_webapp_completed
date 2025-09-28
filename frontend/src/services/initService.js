@@ -6,7 +6,7 @@ class InitService {
   async checkInitialization() {
     try {
       const response = await apiService.get('/init/check');
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Failed to check initialization status:', error);
       throw error;
@@ -17,7 +17,7 @@ class InitService {
   async createSuperAdmin(adminData) {
     try {
       const response = await apiService.post('/init/super-admin', adminData);
-      return response.data;
+      return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
       console.error('Failed to create super admin:', error);
       throw error;

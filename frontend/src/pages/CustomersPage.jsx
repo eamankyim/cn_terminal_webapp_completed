@@ -34,6 +34,8 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useCustomers } from '../contexts/CustomerContext';
+import { useAuth } from '../contexts/AuthContext';
+import { PERMISSIONS } from '../utils/permissions';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -45,6 +47,7 @@ const CustomersPage = () => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [form] = Form.useForm();
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
   const { customers: contextCustomers, addCustomer, updateCustomer } = useCustomers();
 
   // Transform context customers to match the table structure
@@ -135,6 +138,7 @@ const CustomersPage = () => {
        key: 'actions',
        render: (_, record) => (
          <Button 
+           type="default"
            size="small"
            icon={<EyeOutlined />}
            onClick={() => handleViewCustomer(record)}
@@ -232,14 +236,16 @@ const CustomersPage = () => {
             </Space>
           </Col>
           <Col>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              size="large"
-              onClick={handleNewCustomer}
-            >
-              New Customer
-            </Button>
+            {hasPermission(PERMISSIONS.CUSTOMER_CREATE) && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                size="large"
+                onClick={handleNewCustomer}
+              >
+                New Customer
+              </Button>
+            )}
           </Col>
         </Row>
       </Card>

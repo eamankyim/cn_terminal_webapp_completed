@@ -1,6 +1,7 @@
 const express = require('express');
 const { prisma } = require('../config/database');
 const { authenticateToken, requirePermission, PERMISSIONS } = require('../middleware/auth');
+const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 
 const router = express.Router();
 
@@ -47,7 +48,7 @@ const router = express.Router();
  */
 
 // Get dashboard statistics
-router.get('/stats', authenticateToken, requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req, res) => {
+router.get('/stats', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOARD), async (req, res) => {
   try {
     const currentDate = new Date();
     const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -236,7 +237,7 @@ router.get('/stats', authenticateToken, requirePermission(PERMISSIONS.DASHBOARD_
  */
 
 // Get recent shipments
-router.get('/recent-shipments', authenticateToken, requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req, res) => {
+router.get('/recent-shipments', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOARD), async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
@@ -304,7 +305,7 @@ router.get('/recent-shipments', authenticateToken, requirePermission(PERMISSIONS
  */
 
 // Get jobs in progress (excludes REJECTED, ON_HOLD, DELIVERED, CLOSED)
-router.get('/recent-jobs', authenticateToken, requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req, res) => {
+router.get('/recent-jobs', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOARD), async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
@@ -383,7 +384,7 @@ router.get('/recent-jobs', authenticateToken, requirePermission(PERMISSIONS.DASH
  */
 
 // Get jobs assigned to current user
-router.get('/assigned-jobs', authenticateToken, requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req, res) => {
+router.get('/assigned-jobs', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOARD), async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Card, 
   Typography, 
@@ -27,9 +28,10 @@ import { useAuth } from '../contexts/AuthContext';
 import userService from '../services/userService';
 import { getCustomerStatusColor } from '../utils/statusUtils';
 import { ROLE_INFO, PERMISSIONS } from '../utils/permissions';
+import { UI_PERMISSIONS } from '../utils/uiPermissions';
 import RolePermissionManager from '../components/settings/RolePermissionManager';
+import IntegrationTest from '../components/IntegrationTest';
 import UserRoleAssignment from '../components/settings/UserRoleAssignment';
-import PermissionGate from '../components/common/PermissionGate';
 import InviteManagement from '../components/admin/InviteManagement';
 import { 
   SettingOutlined, 
@@ -44,7 +46,7 @@ import {
   EyeOutlined,
   TeamOutlined,
   MailOutlined,
-  WhatsAppOutlined
+  // WhatsAppOutlined
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -52,7 +54,8 @@ const { Option } = Select;
 const { TextArea } = Input;
 
 const SettingsPage = () => {
-  const { currentUser, updateProfile } = useAuth();
+  const { currentUser, updateProfile, refreshUserPermissions } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('profile');
   const [isUserModalVisible, setIsUserModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -68,6 +71,17 @@ const SettingsPage = () => {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
+
+  // Handle URL parameter for tab selection
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
+  // Note: Permission refresh is now manual via the "Refresh Permissions" button
+  // to avoid causing re-render issues when switching tabs
   const [passwordLoading, setPasswordLoading] = useState(false);
 
   // Users data - loaded from API
@@ -275,6 +289,7 @@ const SettingsPage = () => {
   const profileTab = {
     key: 'profile',
     label: 'Profile Settings',
+    permission: UI_PERMISSIONS.PROFILE_SETTINGS,
     children: (
       <div>
         <Row gutter={24}>
@@ -472,30 +487,104 @@ const SettingsPage = () => {
   const rolesTab = {
     key: 'roles',
     label: 'Roles & Permissions',
+    permission: UI_PERMISSIONS.MANAGE_ROLES,
     children: (
       <div>
         {/* Permissions Overview */}
-        <Card title="Available Permissions" style={{ marginBottom: '24px' }}>
+        <Card title="Available UI Permissions" style={{ marginBottom: '24px' }}>
           <div style={{ marginBottom: '16px' }}>
             <Text type="secondary">
-              This system has {Object.keys(PERMISSIONS).length} available permissions across different modules.
+              This system has {Object.keys(UI_PERMISSIONS).length} UI-based permissions organized by functionality.
             </Text>
           </div>
           <Row gutter={[16, 16]}>
-            {Object.entries(
-              Object.entries(PERMISSIONS).reduce((acc, [key, permission]) => {
-                const category = permission.split(':')[0];
-                if (!acc[category]) acc[category] = [];
-                acc[category].push({ key, permission });
-                return acc;
-              }, {})
-            ).map(([category, permissions]) => (
+            {Object.entries({
+              'Sidebar Navigation': {
+                'ui:dashboard': 'Dashboard',
+                'ui:jobs': 'Jobs',
+                'ui:clients': 'Clients',
+                'ui:invoices': 'Invoices',
+                'ui:accounting': 'Accounting',
+                'ui:requests': 'Requests',
+                'ui:reports': 'Reports',
+                'ui:settings': 'Settings',
+                'ui:configuration': 'Configuration'
+              },
+              'Settings Tabs': {
+                'ui:profile_settings': 'Profile Settings',
+                'ui:roles_permissions': 'Roles & Permissions',
+                'ui:invite_users': 'Invite Users',
+                'ui:team_members': 'Team Members',
+                'ui:system_preferences': 'System Preferences',
+                'ui:security_settings': 'Security Settings',
+                // 'ui:whatsapp_web': 'WhatsApp Web',
+                'ui:api_integration_test': 'API Integration Test'
+              },
+              'Job Management': {
+                'ui:create_job': 'Create Job',
+                'ui:edit_job': 'Edit Job',
+                'ui:delete_job': 'Delete Job',
+                'ui:assign_job': 'Assign Job',
+                'ui:update_job_status': 'Update Job Status',
+                'ui:view_all_jobs': 'View All Jobs'
+              },
+              'Customer Management': {
+                'ui:create_customer': 'Create Customer',
+                'ui:edit_customer': 'Edit Customer',
+                'ui:delete_customer': 'Delete Customer',
+                'ui:view_all_customers': 'View All Customers'
+              },
+              'Invoice Management': {
+                'ui:create_invoice': 'Create Invoice',
+                'ui:edit_invoice': 'Edit Invoice',
+                'ui:delete_invoice': 'Delete Invoice',
+                'ui:approve_invoice': 'Approve Invoice',
+                'ui:view_all_invoices': 'View All Invoices'
+              },
+              'Accounting & Finance': {
+                'ui:create_expense': 'Create Expense',
+                'ui:approve_expense': 'Approve Expense',
+                'ui:edit_expense': 'Edit Expense',
+                'ui:delete_expense': 'Delete Expense',
+                'ui:create_payout': 'Create Payout',
+                'ui:edit_payout': 'Edit Payout',
+                'ui:delete_payout': 'Delete Payout',
+                'ui:view_cashflow': 'View Cashflow',
+                'ui:create_cashflow': 'Create Cashflow'
+              },
+              'Reports & Analytics': {
+                'ui:view_reports': 'View Reports',
+                'ui:export_reports': 'Export Reports',
+                'ui:view_analytics': 'View Analytics'
+              },
+              'User Management': {
+                'ui:create_user': 'Create User',
+                'ui:edit_user': 'Edit User',
+                'ui:delete_user': 'Delete User',
+                'ui:manage_roles': 'Manage Roles',
+                'ui:invite_user': 'Invite User'
+              },
+              'File & Notifications': {
+                'ui:upload_file': 'Upload File',
+                'ui:download_file': 'Download File',
+                'ui:delete_file': 'Delete File',
+                'ui:send_notification': 'Send Notification',
+                'ui:view_notifications': 'View Notifications'
+              },
+              'System Configuration': {
+                'ui:edit_system_settings': 'Edit System Settings',
+                'ui:configure_system': 'Configure System'
+              }
+            }).map(([category, permissions]) => (
               <Col xs={24} sm={12} lg={8} key={category}>
-                <Card size="small" title={category.charAt(0).toUpperCase() + category.slice(1)}>
+                <Card size="small" title={category} style={{ height: '100%' }}>
                   <Space direction="vertical" style={{ width: '100%' }}>
-                    {permissions.map(({ key, permission }) => (
-                      <Tag key={key} color="blue" style={{ marginBottom: '4px' }}>
-                        {permission}
+                    {Object.entries(permissions).map(([permission, label]) => (
+                      <Tag key={permission} color="blue" style={{ marginBottom: '4px', display: 'block' }}>
+                        <Text style={{ fontSize: '12px' }}>
+                          <strong>{permission}</strong><br/>
+                          <Text type="secondary">{label}</Text>
+                        </Text>
                       </Tag>
                     ))}
                   </Space>
@@ -506,27 +595,13 @@ const SettingsPage = () => {
         </Card>
 
         {/* System Roles & Custom Role Management */}
-        <PermissionGate
-          userRole={currentUser?.role}
-          permissions={PERMISSIONS.USER_MANAGE_ROLES}
-          fallback={
-            <Alert
-              message="Access Denied"
-              description="You do not have permission to manage roles and permissions."
-              type="warning"
-              showIcon
-            />
-          }
-          showFallback={true}
-        >
-          <RolePermissionManager
-            currentUserRole={currentUser?.role}
-            onRoleUpdate={() => {
-              // Refresh data if needed
-              console.log('Role updated');
-            }}
-          />
-        </PermissionGate>
+        <RolePermissionManager
+          currentUserRole={currentUser?.role}
+          onRoleUpdate={() => {
+            // Refresh data if needed
+            console.log('Role updated');
+          }}
+        />
       </div>
     ),
   };
@@ -535,52 +610,20 @@ const SettingsPage = () => {
   const invitesTab = {
     key: 'invites',
     label: 'Invite Users',
+    permission: UI_PERMISSIONS.INVITE_USER,
     children: (
-      <PermissionGate
-        userRole={currentUser?.role}
-        permissions={PERMISSIONS.USER_CREATE}
-        fallback={
-          <Alert
-            message="Access Denied"
-            description="You do not have permission to manage invitations."
-            type="warning"
-            showIcon
-          />
-        }
-        showFallback={true}
-      >
-        <InviteManagement />
-      </PermissionGate>
+      <InviteManagement />
     ),
   };
 
   const teamMembersTab = {
     key: 'team-members',
     label: 'Team Members',
+    permission: UI_PERMISSIONS.TEAM_MEMBERS,
     children: (
-      <PermissionGate
-        userRole={currentUser?.role}
-        permissions={PERMISSIONS.USER_VIEW}
-        fallback={
-          <Alert
-            message="Access Denied"
-            description="You do not have permission to view team members."
-            type="warning"
-            showIcon
-          />
-        }
-        showFallback={true}
-      >
         <div>
-          <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ marginBottom: '16px' }}>
             <Title level={4}>Team Members</Title>
-            <Alert
-              message="Note"
-              description="To add new team members, use the 'Invite Users' tab to send invitations."
-              type="info"
-              showIcon
-              style={{ maxWidth: '400px' }}
-            />
         </div>
 
         <Table
@@ -639,9 +682,8 @@ const SettingsPage = () => {
                 title: 'Actions',
                 key: 'actions',
                 render: (_, record) => (
-                  <Space>
                     <Button
-                      type="text"
+                    type="default"
                       icon={<EyeOutlined />}
                       onClick={() => {
                         setSelectedUser(record);
@@ -650,17 +692,6 @@ const SettingsPage = () => {
                     >
                       View
                     </Button>
-                    <Button
-                      type="text"
-                      icon={<EditOutlined />}
-                      onClick={() => {
-                        setEditingUser(record);
-                        setIsUserModalVisible(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  </Space>
                 ),
               },
             ]}
@@ -669,7 +700,6 @@ const SettingsPage = () => {
           loading={usersLoading}
         />
       </div>
-      </PermissionGate>
     ),
   };
 
@@ -677,6 +707,7 @@ const SettingsPage = () => {
   const preferencesTab = {
     key: 'preferences',
     label: 'System Preferences',
+    permission: 'ADMIN_OR_IT_ONLY', // Special permission for admin/IT only
     children: (
       <div>
         <Row gutter={24}>
@@ -765,6 +796,7 @@ const SettingsPage = () => {
   const securityTab = {
     key: 'security',
     label: 'Security Settings',
+    permission: 'ADMIN_OR_IT_ONLY', // Special permission for admin/IT only
     children: (
       <div>
         <Alert
@@ -846,7 +878,8 @@ const SettingsPage = () => {
     ),
   };
 
-  // WhatsApp Web Tab
+  // WhatsApp Web Tab - COMMENTED OUT
+  /*
   const whatsappTab = {
     key: 'whatsapp',
     label: (
@@ -855,6 +888,7 @@ const SettingsPage = () => {
         WhatsApp Web
       </Space>
     ),
+    permission: 'ADMIN_OR_IT_ONLY', // Special permission for admin/IT only
     children: (
       <div>
         <Alert
@@ -940,38 +974,92 @@ const SettingsPage = () => {
     ),
   };
 
-  // Build tabs array based on user role
+  */
+
+  // API Integration Test Tab
+  const apiTestTab = {
+    key: 'api-test',
+    label: (
+      <Space>
+        <SettingOutlined />
+        API Integration Test
+      </Space>
+    ),
+    permission: 'ADMIN_OR_IT_ONLY', // Special permission for admin/IT only
+    children: (
+      <div>
+        <IntegrationTest />
+      </div>
+    ),
+  };
+
+  // Build tabs array based on user permissions
   const getTabItems = () => {
-    // Core tabs that everyone needs
-    const coreTabs = [profileTab, preferencesTab, securityTab, whatsappTab];
+    const allTabs = [profileTab, preferencesTab, securityTab, /* whatsappTab, */ apiTestTab, rolesTab, invitesTab, teamMembersTab];
     
-    // Permission management tabs
-    const permissionTabs = [
-      rolesTab,        // System roles + custom roles + permissions
-      invitesTab,      // Invite users and assign roles
-      teamMembersTab   // View onboarded users
-    ];
+    // Filter tabs based on user permissions
+    const filteredTabs = allTabs.filter(tab => {
+      if (!tab.permission) return true; // Show tabs without permission requirements
+      
+      // Special case: ADMIN_OR_IT_ONLY tabs
+      if (tab.permission === 'ADMIN_OR_IT_ONLY') {
+        return currentUser?.role === 'ADMIN' || currentUser?.role === 'IT_CONSULTANT';
+      }
+      
+      // For ADMIN and IT_CONSULTANT, always show all tabs (they have full access)
+      if (currentUser?.role === 'ADMIN' || currentUser?.role === 'IT_CONSULTANT') {
+        return true;
+      }
+      
+      // For employee roles, only show Profile and Team Members tabs
+      const employeeRoles = ['STAFF', 'DRIVER', 'WAREHOUSE', 'ENQUIRY_OFFICER', 'RELEASE_OFFICER', 'REVIEW_OFFICER', 'INVOICE_OFFICER', 'CLEARING_OFFICER'];
+      if (employeeRoles.includes(currentUser?.role)) {
+        return tab.key === 'profile' || tab.key === 'team-members';
+      }
+      
+      // For other roles, check if user has the permission in their database permissions
+      if (currentUser?.permissions && Array.isArray(currentUser.permissions)) {
+        return currentUser.permissions.includes(tab.permission);
+      }
+      
+      // If no user permissions, don't show any restricted items
+      return false;
+    });
     
-    if (currentUser?.role === 'ADMIN') {
-      return [...coreTabs, ...permissionTabs];
-    }
-    
-    // Show permission tabs to all users, but content will be permission-gated
-    return [...coreTabs, ...permissionTabs];
+    return filteredTabs;
   };
 
   return (
     <div style={{ padding: '24px' }}>
-      <Title level={2} style={{ marginBottom: '24px' }}>
-        Settings & Configuration
-      </Title>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <Title level={2} style={{ margin: 0 }}>
+          Settings & Configuration
+        </Title>
+        <Button 
+          type="default" 
+          icon={<SettingOutlined />}
+          onClick={async () => {
+            const success = await refreshUserPermissions();
+            if (success) {
+              message.success('Permissions refreshed successfully');
+            } else {
+              message.error('Failed to refresh permissions');
+            }
+          }}
+        >
+          Refresh Permissions
+        </Button>
+      </div>
 
       {/* Main Content Tabs */}
       <Card>
         <Tabs 
           activeKey={activeTab}
           items={getTabItems()}
-          onChange={setActiveTab}
+          onChange={(tab) => {
+            setActiveTab(tab);
+            setSearchParams({ tab });
+          }}
           size="large"
         />
       </Card>
@@ -1079,6 +1167,203 @@ const SettingsPage = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* Team Member Details Drawer */}
+      <Drawer
+        title="Team Member Details"
+        placement="right"
+        width={600}
+        open={isDetailsDrawerVisible}
+        onClose={() => setIsDetailsDrawerVisible(false)}
+      >
+        {selectedUser && (
+          <div>
+            {/* User Header */}
+            <Card size="small" style={{ marginBottom: 16 }}>
+              <Space align="center">
+                <Avatar size={64} icon={<UserOutlined />} />
+                <div>
+                  <Title level={4} style={{ margin: 0 }}>
+                    {selectedUser.name}
+                  </Title>
+                  <Text type="secondary">{selectedUser.email}</Text>
+                  <br />
+                  <Tag color={getRoleColor(selectedUser.role)} style={{ marginTop: 4 }}>
+                    {getRoleLabel(selectedUser.role)}
+                  </Tag>
+                </div>
+              </Space>
+            </Card>
+
+            {/* User Information */}
+            <Descriptions
+              title="Personal Information"
+              bordered
+              column={1}
+              size="small"
+            >
+              <Descriptions.Item label="Full Name">
+                <Text strong>{selectedUser.name}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Email Address">
+                <Text copyable>{selectedUser.email}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Role">
+                <Space>
+                  <Tag color={getRoleColor(selectedUser.role)}>
+                    {getRoleLabel(selectedUser.role)}
+                  </Tag>
+                  <Text type="secondary">
+                    {ROLE_INFO[selectedUser.role]?.description || 'No description available'}
+                  </Text>
+                </Space>
+              </Descriptions.Item>
+              <Descriptions.Item label="Department">
+                <Text>
+                  {(() => {
+                    const departmentMap = {
+                      'ADMIN': 'Management',
+                      'STAFF': 'Client Engagement',
+                      'DRIVER': 'Logistics',
+                      'WAREHOUSE': 'Operations',
+                      'ENQUIRY_OFFICER': 'Client Services',
+                      'RELEASE_OFFICER': 'Operations',
+                      'REVIEW_OFFICER': 'Quality Assurance',
+                      'INVOICE_OFFICER': 'Finance',
+                      'CLEARING_OFFICER': 'Customs',
+                      'IT_CONSULTANT': 'Information Technology'
+                    };
+                    return departmentMap[selectedUser.role] || 'General';
+                  })()}
+                </Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Status">
+                <Tag color={selectedUser.isActive ? 'green' : 'red'}>
+                  {selectedUser.isActive ? 'ACTIVE' : 'INACTIVE'}
+                </Tag>
+              </Descriptions.Item>
+            </Descriptions>
+
+            {/* Account Information */}
+            <Descriptions
+              title="Account Information"
+              bordered
+              column={1}
+              size="small"
+              style={{ marginTop: 16 }}
+            >
+              <Descriptions.Item label="User ID">
+                <Text code>{selectedUser.id}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Created">
+                <Space direction="vertical" size={0}>
+                  <Text>{new Date(selectedUser.createdAt).toLocaleDateString()}</Text>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    {new Date(selectedUser.createdAt).toLocaleTimeString()}
+                  </Text>
+                </Space>
+              </Descriptions.Item>
+              <Descriptions.Item label="Last Updated">
+                <Space direction="vertical" size={0}>
+                  <Text>{new Date(selectedUser.updatedAt).toLocaleDateString()}</Text>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    {new Date(selectedUser.updatedAt).toLocaleTimeString()}
+                  </Text>
+                </Space>
+              </Descriptions.Item>
+              {selectedUser.lastLoginAt && (
+                <Descriptions.Item label="Last Login">
+                  <Space direction="vertical" size={0}>
+                    <Text>{new Date(selectedUser.lastLoginAt).toLocaleDateString()}</Text>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      {new Date(selectedUser.lastLoginAt).toLocaleTimeString()}
+                    </Text>
+                  </Space>
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+
+            {/* Role Information */}
+            <Card 
+              title="Role Information" 
+              size="small" 
+              style={{ marginTop: 16 }}
+            >
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <div>
+                  <Text strong>Role Level: </Text>
+                  <Text>{ROLE_INFO[selectedUser.role]?.level || 'Standard'}</Text>
+                </div>
+                <div>
+                  <Text strong>Role Description: </Text>
+                  <Text type="secondary">
+                    {ROLE_INFO[selectedUser.role]?.description || 'No description available'}
+                  </Text>
+                </div>
+                {ROLE_INFO[selectedUser.role]?.icon && (
+                  <div>
+                    <Text strong>Role Icon: </Text>
+                    <Text type="secondary">
+                      {ROLE_INFO[selectedUser.role].icon}
+                    </Text>
+                  </div>
+                )}
+              </Space>
+            </Card>
+
+            {/* Quick Actions */}
+            <Card 
+              title="Quick Actions" 
+              size="small" 
+              style={{ marginTop: 16 }}
+            >
+              <Space wrap>
+                <Button
+                  type="primary"
+                  icon={<EditOutlined />}
+                  onClick={() => {
+                    setIsDetailsDrawerVisible(false);
+                    setEditingUser(selectedUser);
+                    setIsUserModalVisible(true);
+                  }}
+                >
+                  Edit User
+                </Button>
+                <Button
+                  type="default"
+                  icon={<EyeOutlined />}
+                  onClick={() => {
+                    // Could add view permissions functionality here
+                    message.info('Permission details coming soon');
+                  }}
+                >
+                  View Permissions
+                </Button>
+                <Button
+                  type="default"
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedUser.email);
+                    message.success('Email copied to clipboard');
+                  }}
+                >
+                  Copy Email
+                </Button>
+              </Space>
+            </Card>
+
+            {/* Additional Information */}
+            {selectedUser.notes && (
+              <Card 
+                title="Notes" 
+                size="small" 
+                style={{ marginTop: 16 }}
+              >
+                <Text>{selectedUser.notes}</Text>
+              </Card>
+            )}
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 };

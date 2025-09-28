@@ -182,3 +182,5 @@ const phoneWithCountryCode = cleanPhone.startsWith('233') ? cleanPhone : `233${c
 **This implementation gives you exactly what you wanted: WhatsApp Web embedded in your application so you can send messages to customers directly from your terminal management system!** 🎉
 
 
+
+

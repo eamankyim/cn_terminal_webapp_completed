@@ -1,7 +1,9 @@
 const express = require('express');
 const { prisma } = require('../config/database');
-const { authenticateToken, requireStaff } = require('../middleware/auth');
+const { authenticateToken, requirePermission } = require('../middleware/auth');
+const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 const NotificationService = require('../services/notificationService');
+const RealtimeNotificationService = require('../services/realtimeNotificationService');
 
 const router = express.Router();
 
@@ -132,7 +134,7 @@ const router = express.Router();
  */
 
 // Get all jobs
-router.get('/', authenticateToken, requireStaff, async (req, res) => {
+router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
   try {
     console.log('\n' + '='.repeat(60));
     console.log('📋 GET JOBS REQUEST');
@@ -358,7 +360,7 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
 });
 
 // Get job by ID
-router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
+router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -494,7 +496,7 @@ const generateJobId = async () => {
 };
 
 // Create new job
-router.post('/', authenticateToken, requireStaff, async (req, res) => {
+router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
   try {
     console.log('\n' + '='.repeat(60));
     console.log('📋 CREATE JOB REQUEST');
@@ -669,11 +671,11 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
     });
     console.log('✅ Status history created');
 
-    // Create notifications for job creation and assignment
+    // Create notifications for job creation and assignment with real-time updates
     try {
       // Notify the assigned user about the new job
-      await NotificationService.notifyJobAssignment(job.id, job.assignedToId, req.user.id);
-      console.log('📢 Job assignment notification created');
+      await RealtimeNotificationService.notifyJobAssignmentRealtime(job.id, job.assignedToId, req.user.id);
+      console.log('📢 Job assignment notification created with real-time updates');
 
       // Notify all staff about new job creation (optional - for visibility)
       await NotificationService.createNotification({
@@ -722,7 +724,7 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
 });
 
 // Update job
-router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
+router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -917,7 +919,7 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
 });
 
 // Update job status
-router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
+router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
   try {
     const { id } = req.params;
     const { status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact } = req.body;
@@ -1200,15 +1202,15 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
     console.log('🔍 Complete job shipperName:', completeJob?.shipperName);
     console.log('🔍 Complete job invoiceNumber:', completeJob?.invoiceNumber);
 
-    // Create notification for job status change
+    // Create notification for job status change with real-time updates
     try {
-      await NotificationService.notifyJobStatusChange(
+      await RealtimeNotificationService.notifyJobStatusChangeRealtime(
         id, 
         existingJob.status, 
         status, 
         req.user.id
       );
-      console.log('📢 Job status change notification created');
+      console.log('📢 Job status change notification created with real-time updates');
     } catch (notificationError) {
       console.error('⚠️ Failed to create job status change notification:', notificationError);
       // Don't fail the status update if notification fails
@@ -1232,7 +1234,7 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
 });
 
 // Get consignments for a customer
-router.get('/customer/:customerId/consignments', authenticateToken, requireStaff, async (req, res) => {
+router.get('/customer/:customerId/consignments', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
   try {
     const { customerId } = req.params;
 
@@ -1267,7 +1269,7 @@ router.get('/customer/:customerId/consignments', authenticateToken, requireStaff
 });
 
 // Delete job
-router.delete('/:id', authenticateToken, requireStaff, async (req, res) => {
+router.delete('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
   try {
     const { id } = req.params;
 
