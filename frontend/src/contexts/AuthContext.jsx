@@ -204,15 +204,22 @@ export const AuthProvider = ({ children }) => {
   };
 
   const hasPermission = (permission) => {
-    if (!currentUser) return false;
+    if (!currentUser) {
+      console.log('❌ hasPermission: No currentUser');
+      return false;
+    }
     
     // Check if user has specific permissions array from database
     if (currentUser.permissions && Array.isArray(currentUser.permissions)) {
-      return currentUser.permissions.includes(permission);
+      const hasPermissionResult = currentUser.permissions.includes(permission);
+      console.log(`🔍 hasPermission(${permission}):`, hasPermissionResult, '| User permissions count:', currentUser.permissions.length);
+      return hasPermissionResult;
     }
     
     // Fallback to UI-based permissions
-    return hasUIPermission(currentUser.role, permission);
+    const fallbackResult = hasUIPermission(currentUser.role, permission);
+    console.log(`🔍 hasPermission(${permission}) [FALLBACK]:`, fallbackResult, '| Role:', currentUser.role);
+    return fallbackResult;
   };
 
   // Function to refresh user permissions from the server

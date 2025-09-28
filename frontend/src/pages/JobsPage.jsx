@@ -1886,25 +1886,40 @@ const JobsPage = () => {
             >
               Update Status
             </Button>
-           {hasPermission(PERMISSIONS.JOB_EDIT) || hasPermission(PERMISSIONS.JOB_DELETE) ? (
+           {(() => {
+             const hasEditPermission = hasPermission(PERMISSIONS.JOB_EDIT);
+             const hasDeletePermission = hasPermission(PERMISSIONS.JOB_DELETE);
+             const showMenu = hasEditPermission || hasDeletePermission;
+             
+             console.log('🔧 Job Details Menu Debug:');
+             console.log('  - hasEditPermission:', hasEditPermission);
+             console.log('  - hasDeletePermission:', hasDeletePermission);
+             console.log('  - showMenu (3-dots):', showMenu);
+             console.log('  - Current user permissions:', currentUser?.permissions?.length || 0);
+             console.log('  - JOB_EDIT permission check:', hasPermission(PERMISSIONS.JOB_EDIT));
+             console.log('  - JOB_DELETE permission check:', hasPermission(PERMISSIONS.JOB_DELETE));
+             
+             return showMenu ? (
              <Dropdown
                menu={{
                  items: [
-                   ...(hasPermission(PERMISSIONS.JOB_EDIT) ? [{
+                   ...(hasEditPermission ? [{
                      key: 'edit',
                       label: 'Edit Job',
                      icon: <EditOutlined />,
                      onClick: () => {
+                       console.log('✅ Edit Job clicked');
                        setIsDetailsDrawerVisible(false);
                        handleEditJob(selectedJob);
                      },
                    }] : []),
-                   ...(hasPermission(PERMISSIONS.JOB_DELETE) ? [{
+                   ...(hasDeletePermission ? [{
                       key: 'delete',
                       label: 'Delete Job',
                       icon: <DeleteOutlined />,
                       danger: true,
                       onClick: () => {
+                        console.log('✅ Delete Job clicked');
                         setIsDetailsDrawerVisible(false);
                         handleDeleteJob(selectedJob);
                       },
@@ -1920,7 +1935,12 @@ const JobsPage = () => {
                 size="large"
               />
             </Dropdown>
-           ) : null}
+           ) : (
+             <div style={{ color: 'red', fontSize: '12px' }}>
+               ❌ No edit/delete permissions - Menu hidden
+             </div>
+           );
+           })()}
           </Space>
         }
        >
