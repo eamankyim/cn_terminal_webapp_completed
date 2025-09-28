@@ -134,8 +134,6 @@ const JobsPage = () => {
   const [isStatusUpdateModalVisible, setIsStatusUpdateModalVisible] = useState(false);
   const [statusUpdateForm] = Form.useForm();
   const [currentJobForStatusUpdate, setCurrentJobForStatusUpdate] = useState(null);
-  const [isDocumentViewerVisible, setIsDocumentViewerVisible] = useState(false);
-  const [selectedDocument, setSelectedDocument] = useState(null);
   const [selectedCustomerConsignments, setSelectedCustomerConsignments] = useState([]);
   const [consignmentsLoading, setConsignmentsLoading] = useState(false);
   const [hasSelectedClient, setHasSelectedClient] = useState(false);
@@ -947,8 +945,10 @@ const JobsPage = () => {
   };
 
   const handleViewDocument = (document) => {
-    setSelectedDocument(document);
-    setIsDocumentViewerVisible(true);
+    if (document?.url) {
+      const url = document.url.startsWith('http') ? document.url : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${document.url}`;
+      window.open(url, '_blank');
+    }
   };
 
 
@@ -1786,73 +1786,6 @@ const JobsPage = () => {
           </Form>
         </Modal>
 
-        {/* Document Viewer Modal */}
-        <Modal
-          title={selectedDocument?.originalName || 'Document Preview'}
-          open={isDocumentViewerVisible}
-          onCancel={() => setIsDocumentViewerVisible(false)}
-          footer={null}
-          width="90%"
-          style={{ top: 20 }}
-          bodyStyle={{ padding: 0, height: '80vh' }}
-        >
-          {selectedDocument && (
-            <div style={{ height: '100%' }}>
-              {selectedDocument?.url ? (
-                <iframe
-                  src={selectedDocument.url.startsWith('http') ? selectedDocument.url : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${selectedDocument.url}`}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    border: 'none',
-                    borderRadius: '8px'
-                  }}
-                  title={`Preview of ${selectedDocument.originalName}`}
-                  onError={(e) => {
-                    console.error('Error loading document:', e);
-                    // Show fallback content if preview fails
-                    e.target.style.display = 'none';
-                    const fallback = e.target.nextElementSibling;
-                    if (fallback) fallback.style.display = 'flex';
-                  }}
-                />
-              ) : null}
-              
-              {/* Fallback content for unsupported files or if preview fails */}
-              <div style={{ 
-                display: selectedDocument?.url ? 'none' : 'flex',
-                textAlign: 'center', 
-                padding: '40px',
-                backgroundColor: '#fafafa',
-                border: '2px dashed #d9d9d9',
-                height: '100%',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}>
-                <FileTextOutlined style={{ fontSize: '48px', color: '#d9d9d9', marginBottom: '16px' }} />
-                <br />
-                <Text type="secondary">Document preview not available</Text>
-                <br />
-                <Text type="secondary" style={{ fontSize: '12px', marginBottom: '16px' }}>
-                  This file type cannot be previewed in the browser
-                </Text>
-                <Button 
-                  type="primary" 
-                  icon={<DownloadOutlined />}
-                  onClick={() => {
-                    if (selectedDocument?.url) {
-                      const url = selectedDocument.url.startsWith('http') ? selectedDocument.url : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${selectedDocument.url}`;
-                      window.open(url, '_blank');
-                    }
-                  }}
-                >
-                  Download Document
-                </Button>
-              </div>
-            </div>
-          )}
-        </Modal>
 
       {/* Job Details Drawer */}
        <Drawer

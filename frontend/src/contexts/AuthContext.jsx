@@ -238,6 +238,10 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('cn_terminal_user', JSON.stringify(updatedUser));
         
         console.log('✅ User permissions refreshed:', updatedUser.permissions);
+        console.log('📊 Total permissions count:', updatedUser.permissions.length);
+        console.log('🔍 Has dashboard permission:', updatedUser.permissions.includes('ui:dashboard'));
+        console.log('🔍 Has job edit permission:', updatedUser.permissions.includes('job:edit'));
+        
         return true;
       }
     } catch (error) {
