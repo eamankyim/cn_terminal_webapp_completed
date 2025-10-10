@@ -177,7 +177,7 @@ const JobsPage = () => {
     if (jobId && jobs.length > 0) {
       const job = jobs.find(j => j.id === jobId);
       if (job) {
-        console.log('🔍 Opening job details from URL parameter:', jobId);
+
         setSelectedJob(job);
         setIsDetailsDrawerVisible(true);
         // Clear the URL parameter after opening the job details
@@ -193,7 +193,7 @@ const JobsPage = () => {
     if (selectedJob && jobs.length > 0) {
       const updatedJob = jobs.find(job => job.id === selectedJob.id);
       if (updatedJob && updatedJob.updatedAt !== selectedJob.updatedAt) {
-        console.log('🔄 Syncing selectedJob with updated jobs list');
+
         setSelectedJob(updatedJob);
       }
     }
@@ -204,43 +204,30 @@ const JobsPage = () => {
       setJobsLoading(true);
       setError(null);
       const response = await jobService.getJobs({ limit: 100 });
-      console.log('🔍 Jobs API response:', response);
-      console.log('🔍 First job details:', response.jobs?.[0]);
+
       if (response.jobs?.[0]) {
-        console.log('🔍 First job fields check:');
-        console.log('  - mediumOfEnquiry:', response.jobs[0].mediumOfEnquiry);
-        console.log('  - documentsBrought:', response.jobs[0].documentsBrought);
-        console.log('  - containerNumber:', response.jobs[0].containerNumber);
-        console.log('  - blNumber:', response.jobs[0].blNumber);
-        console.log('  - vesselName:', response.jobs[0].vesselName);
-        console.log('  - line:', response.jobs[0].line);
-        console.log('  - jobDescription:', response.jobs[0].jobDescription);
+
       }
       
       const allJobs = response.jobs || [];
       
       // Debug: Log all jobs and their isDraft status
-      console.log('🔍 All jobs from API:', allJobs.length);
+
       allJobs.forEach((job, index) => {
-        console.log(`🔍 Job ${index + 1}: ${job.trackingId} - isDraft: ${job.isDraft}, status: ${job.status}`);
+
       });
       
       // Separate regular jobs from drafts
       const regularJobs = allJobs.filter(job => !job.isDraft);
       const drafts = allJobs.filter(job => job.isDraft);
-      
-      console.log('🔍 Regular jobs after filtering:', regularJobs.map(j => `${j.trackingId} (isDraft: ${j.isDraft})`));
-      console.log('🔍 Draft jobs after filtering:', drafts.map(j => `${j.trackingId} (isDraft: ${j.isDraft})`));
-      
+
       setJobs(regularJobs);
       setDraftJobs(drafts);
-      
-      console.log(`📊 Loaded ${regularJobs.length} regular jobs and ${drafts.length} drafts`);
-      
+
       // Also reload terminal options when jobs are loaded
       loadTerminalOptions();
     } catch (error) {
-      console.error('Error loading jobs:', error);
+
       setError('Failed to load jobs');
     } finally {
       setJobsLoading(false);
@@ -249,8 +236,7 @@ const JobsPage = () => {
 
   const loadTerminalOptions = async () => {
     try {
-      console.log('Loading terminal options from existing jobs and localStorage...');
-      
+
       // Load terminals from database (existing jobs)
       const response = await jobService.getJobs({ limit: 1000 }); // Get more jobs to find all terminals
       const allJobs = response.jobs || [];
@@ -273,57 +259,39 @@ const JobsPage = () => {
         value: terminal,
         label: terminal
       }));
-      
-      console.log('🔍 Loaded terminal options:', terminalOptions);
-      console.log('  - From database:', dbTerminals);
-      console.log('  - From localStorage:', savedTerminals.map(t => t.value));
+
       setTerminalOptions(terminalOptions);
     } catch (error) {
-      console.error('Error loading terminal options:', error);
+
       // Don't set error state as this is not critical
     }
   };
 
   const loadStaffMembers = async () => {
     try {
-      console.log('🔍 [JOB ASSIGNMENT] Loading assignable users for job assignment...');
-      
+
       const response = await userService.getAssignableUsers();
-      console.log('📡 [JOB ASSIGNMENT] API Response:', response);
-      console.log('👥 [JOB ASSIGNMENT] All assignable users loaded:', response.users);
-      console.log('📊 [JOB ASSIGNMENT] Total assignable users count:', response.users?.length || 0);
-      
+
       if (!response.users || !Array.isArray(response.users)) {
-        console.error('❌ [JOB ASSIGNMENT] Invalid response format:', response);
-        console.log('🔧 [JOB ASSIGNMENT] Setting empty staff members array');
+
         setStaffMembers([]);
         return;
       }
       
       // Log all assignable users with their details
-      console.log('📋 [JOB ASSIGNMENT] Assignable user details:');
+
       response.users.forEach((user, index) => {
-        console.log(`  ${index + 1}. ${user.name} (${user.email}) - Role: ${user.role}, Active: ${user.isActive}`);
+
       });
-      
-      console.log('✅ [JOB ASSIGNMENT] All assignable users (IT_CONSULTANT excluded by backend):', response.users);
-      console.log('📊 [JOB ASSIGNMENT] Assignable users count:', response.users.length);
-      
+
       setStaffMembers(response.users || []);
-      console.log('💾 [JOB ASSIGNMENT] Staff members state updated with:', response.users.length, 'users');
-      
+
     } catch (error) {
-      console.error('❌ [JOB ASSIGNMENT] Error loading assignable users:', error);
-      console.error('📄 [JOB ASSIGNMENT] Error details:', error.response?.data || error.message);
-      console.error('🔧 [JOB ASSIGNMENT] Setting empty staff members array due to error');
+
       setStaffMembers([]);
       // Don't set error state for staff members as it's not critical
     }
   };
-
-
-
-
 
   const getStatusIcon = (status, isDraft) => {
     if (isDraft) {
@@ -483,26 +451,17 @@ const JobsPage = () => {
   };
 
   const handleEditJob = async (job) => {
-    console.log('\n' + '='.repeat(60));
-    console.log('✏️ EDIT JOB HANDLER');
-    console.log('='.repeat(60));
-    console.log('📋 Job details:', {
-      id: job.id,
-      trackingId: job.trackingId,
-      customerId: job.customerId,
-      status: job.status
-    });
-    
+
     setEditingJob(job);
     
     // Load existing documents for this job
     let existingDocuments = [];
     try {
-      console.log('📁 Loading existing documents for job:', job.id);
+
       const documentsResponse = await fileService.getFilesByEntity('job', job.id);
       
       if (documentsResponse && documentsResponse.files) {
-        console.log('📄 Found existing documents:', documentsResponse.files.length);
+
         existingDocuments = documentsResponse.files.map(file => ({
           uid: file.id.toString(),
           name: file.originalName,
@@ -511,16 +470,12 @@ const JobsPage = () => {
           size: file.size,
           type: file.mimeType
         }));
-        console.log('📋 Mapped documents:', existingDocuments);
+
       } else {
-        console.log('⚠️ No existing documents found or invalid response');
+
       }
     } catch (error) {
-      console.log('\n' + '='.repeat(60));
-      console.log('💥 LOAD EXISTING DOCUMENTS ERROR');
-      console.log('='.repeat(60));
-      console.error('❌ Failed to load existing documents:', error);
-      console.log('='.repeat(60) + '\n');
+
     }
     
     const formValues = {
@@ -539,13 +494,9 @@ const JobsPage = () => {
       status: job.status,
       documents: existingDocuments
     };
-    
-    console.log('📝 Setting form values:', formValues);
+
     form.setFieldsValue(formValues);
-    
-    console.log('✅ Job edit form initialized successfully');
-    console.log('='.repeat(60) + '\n');
-    
+
     setIsModalVisible(true);
   };
 
@@ -560,18 +511,18 @@ const JobsPage = () => {
     
     // Fetch documents for this job
     try {
-      console.log('📁 Loading documents for job:', job.id);
+
       const documentsResponse = await fileService.getFilesByEntity('job', job.id);
       
       if (documentsResponse && documentsResponse.files) {
-        console.log('📄 Found documents:', documentsResponse.files.length);
+
         setSelectedJobDocuments(documentsResponse.files);
       } else {
-        console.log('⚠️ No documents found');
+
         setSelectedJobDocuments([]);
       }
     } catch (error) {
-      console.error('❌ Error loading documents:', error);
+
       setSelectedJobDocuments([]);
     } finally {
       setDocumentsLoading(false);
@@ -601,18 +552,11 @@ const JobsPage = () => {
       const { documents, ...jobData } = values;
       
       // Debug: Log the form values
-      console.log('🔍 Form values received:', values);
-      console.log('📄 Documents extracted:', { file: documents, fileList: documents });
-      console.log('📄 Documents count:', documents?.length);
-      console.log('📄 Documents type:', typeof documents);
-      console.log('📄 Documents is array:', Array.isArray(documents));
+
       if (documents && documents.length > 0) {
-        console.log('📄 First document structure:', documents[0]);
-        console.log('📄 First document has originFileObj:', !!documents[0].originFileObj);
-        console.log('📄 First document has url:', !!documents[0].url);
+
       }
-      console.log('🔍 Job data to send:', jobData);
-      
+
       // Use status from form (defaults to NEW if not specified)
       const jobStatus = jobData.status || 'NEW';
       
@@ -622,19 +566,14 @@ const JobsPage = () => {
       let response;
       if (editingJob) {
         // Update existing job
-        console.log('➕ Updating existing job...');
+
         response = await jobService.updateJob(editingJob.id, submittedJobData);
         message.success('Job updated successfully');
       } else {
         // Create new job - trackingId will be auto-generated by backend
-        console.log('➕ Creating new job...');
+
         response = await jobService.createJob(submittedJobData);
-        console.log('📋 Full response:', response);
-        console.log('📋 Response structure:', {
-          hasJob: !!response.job,
-          jobId: response.job?.id,
-          message: response.message
-        });
+
         message.success('Job created successfully');
       }
       
@@ -642,35 +581,27 @@ const JobsPage = () => {
       if (documents && documents.length > 0) {
         const jobId = response.job?.id || response.id;
         if (jobId) {
-          console.log('📁 Processing documents for job:', jobId);
-          console.log('📄 Documents to process:', documents);
-          
+
           // Filter out files that are already uploaded (have URLs)
           const filesToUpload = documents.filter(file => !file.url && file.originFileObj);
-          console.log('📄 Files to upload:', filesToUpload);
-          
+
           if (filesToUpload.length > 0) {
             await handleJobDocuments(jobId, filesToUpload, 'create');
           } else {
-            console.log('📄 No new files to upload - all files already have URLs');
+
           }
         } else {
-          console.warn('⚠️ No job ID available for document upload');
+
         }
       } else {
-        console.log('📄 No documents to process');
+
       }
       
       loadJobs(); // Reload jobs
       setIsModalVisible(false);
       form.resetFields();
     } catch (error) {
-      console.log('\n' + '='.repeat(80));
-      console.log('💥 JOB SUBMIT ERROR');
-      console.log('='.repeat(80));
-      console.error('❌ Error details:', error);
-      console.log('📄 Error message:', error.message);
-      console.log('='.repeat(80) + '\n');
+
       message.error(error.message || 'Failed to save job');
     } finally {
       setSubmitLoading(false);
@@ -685,23 +616,21 @@ const JobsPage = () => {
       const { documents, ...jobData } = formValues;
       
       // Debug: Log the form values
-      console.log('🔍 Draft form values received:', formValues);
-      console.log('🔍 Draft job data to send:', jobData);
-      
+
       // Set isDraft to true
       const draftJobData = { ...jobData, isDraft: true };
       
       let response;
       if (editingJob) {
         // Update existing job
-        console.log('💾 Updating existing job as draft...');
+
         response = await jobService.updateJob(editingJob.id, draftJobData);
         message.success('Job saved as draft');
       } else {
         // Create new job
-        console.log('💾 Creating new job as draft...');
+
         response = await jobService.createJob(draftJobData);
-        console.log('📋 Draft response:', response);
+
         message.success('Job saved as draft');
       }
       
@@ -709,23 +638,20 @@ const JobsPage = () => {
       if (documents && documents.length > 0) {
         const jobId = response.job?.id || response.id;
         if (jobId) {
-          console.log('📁 Processing documents for draft job:', jobId);
-          console.log('📄 Documents to process:', documents);
-          
+
           // Filter out files that are already uploaded (have URLs)
           const filesToUpload = documents.filter(file => !file.url && file.originFileObj);
-          console.log('📄 Files to upload:', filesToUpload);
-          
+
           if (filesToUpload.length > 0) {
             await handleJobDocuments(jobId, filesToUpload, 'create');
           } else {
-            console.log('📄 No new files to upload - all files already have URLs');
+
           }
         } else {
-          console.warn('⚠️ No job ID available for document upload');
+
         }
       } else {
-        console.log('📄 No documents to process for draft');
+
       }
       
       loadJobs(); // Reload jobs
@@ -735,7 +661,7 @@ const JobsPage = () => {
       if (error.errorFields) {
         message.error('Please fill in all required fields');
       } else {
-        console.error('Draft save error:', error);
+
         message.error(error.message || 'Failed to save job as draft');
       }
     } finally {
@@ -744,8 +670,7 @@ const JobsPage = () => {
   };
 
   const handleCustomerSelect = async (customerId, customer) => {
-    console.log('🔄 JobsPage: Customer selected:', customerId, customer);
-    
+
     // Auto-fill client details when customer is selected
     form.setFieldsValue({
       customerId: customerId
@@ -770,12 +695,12 @@ const JobsPage = () => {
     
     // Get consignments for the selected customer
     try {
-      console.log('🔄 JobsPage: Loading consignments for customer:', customerId);
+
       const consignments = await jobService.getCustomerConsignments(customerId);
-      console.log('✅ JobsPage: Consignments loaded:', consignments);
+
       setSelectedCustomerConsignments(consignments || []);
     } catch (error) {
-      console.error('💥 JobsPage: Error loading customer consignments:', error);
+
       setSelectedCustomerConsignments([]);
     } finally {
       setConsignmentsLoading(false);
@@ -872,28 +797,19 @@ const JobsPage = () => {
       // Handle demurrage/free days and release money for RELEASED status
       const demurrageFreeDays = values.demurrageFreeDays;
       const releaseMoneyReceived = values.releaseMoneyReceived;
-      console.log('🔍 Demurrage/Free Days:', demurrageFreeDays);
-      console.log('🔍 Release Money Received:', releaseMoneyReceived);
-      
+
       // Handle RELEASED status fields
       const terminalName = values.terminalName;
       const scheduleTime = values.scheduleTime;
       const driverName = values.driverName;
       const driverContact = values.driverContact;
-      console.log('🔍 Terminal Name:', terminalName);
-      console.log('🔍 Schedule Time:', scheduleTime);
-      console.log('🔍 Driver Name:', driverName);
-      console.log('🔍 Driver Contact:', driverContact);
-      
+
       // Handle shipper name and invoice number for INVOICED status
       const shipperName = values.shipperName;
       const invoiceNumber = values.invoiceNumber;
-      console.log('🔍 Shipper Name:', shipperName);
-      console.log('🔍 Invoice Number:', invoiceNumber);
-      
+
       const response = await jobService.updateJobStatus(selectedJob.id, values.status, values.comment, undefined, values.assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact);
-      console.log('🔍 Backend response job data:', response);
-      
+
       // Update the selectedJob state with the updated job data
       if (response && response.job) {
         setSelectedJob(prevJob => ({
@@ -922,11 +838,11 @@ const JobsPage = () => {
           assignedTo: response.job.assignedTo
         }));
       } else {
-        console.warn('⚠️ No job data in response, response structure:', response);
+
         // Fallback: try to update from the jobs list if available
         const updatedJobFromList = jobs.find(job => job.id === selectedJob.id);
         if (updatedJobFromList) {
-          console.log('🔍 Using fallback: updating from jobs list');
+
           setSelectedJob(updatedJobFromList);
         }
       }
@@ -937,7 +853,7 @@ const JobsPage = () => {
       statusUpdateForm.resetFields();
       loadJobs(); // Reload jobs list
     } catch (error) {
-      console.error('Status update error:', error);
+
       message.error('Failed to update status');
     } finally {
       setLoading(false);
@@ -951,45 +867,25 @@ const JobsPage = () => {
     }
   };
 
-
-
   // Function to get consignments for a customer
   const getConsignmentsForCustomer = async (customerId) => {
     try {
       const response = await apiService.get(`/consignments/customer/${customerId}`);
       return response.data || [];
     } catch (error) {
-      console.error('Error fetching consignments for customer:', error);
+
       return [];
     }
   };
 
   const handleFileChange = (fileList) => {
-    console.log('\n' + '='.repeat(60));
-    console.log('📁 FILE CHANGE HANDLER');
-    console.log('='.repeat(60));
-    console.log('📋 New file list:', fileList);
-    console.log('📊 File count:', fileList?.length || 0);
-    console.log('🔧 Setting form field value...');
-    
+
     form.setFieldsValue({ documents: fileList });
-    
-    console.log('✅ Form field updated successfully');
-    console.log('='.repeat(60) + '\n');
+
   };
 
   const handleFileUpload = async (file, options = {}) => {
-    console.log('\n' + '='.repeat(60));
-    console.log('📤 JOB FILE UPLOAD HANDLER');
-    console.log('='.repeat(60));
-    console.log('📄 File details:', {
-      name: file.name,
-      size: file.size,
-      type: file.type
-    });
-    console.log('⚙️ Upload options:', options);
-    console.log('🔧 Editing job ID:', editingJob?.id);
-    
+
     try {
       // Upload file with job-specific options if we have a job ID
       const uploadOptions = {
@@ -1001,45 +897,28 @@ const JobsPage = () => {
       if (editingJob?.id) {
         uploadOptions.entityId = editingJob.id;
         uploadOptions.entityType = 'job';
-        console.log('🔗 Linking to existing job:', editingJob.id);
+
       } else {
-        console.log('⚠️ No editing job ID - file will be uploaded without entity link');
+
       }
-      
-      console.log('📤 Final upload options:', uploadOptions);
-      console.log('🚀 Starting file upload...');
-      
+
       const response = await fileService.uploadFile(file, uploadOptions);
-      
-      console.log('✅ File upload successful!');
-      console.log('📄 Response:', response);
-      console.log('='.repeat(60) + '\n');
-      
+
       return response;
     } catch (error) {
-      console.log('\n' + '='.repeat(60));
-      console.log('💥 JOB FILE UPLOAD ERROR');
-      console.log('='.repeat(60));
-      console.error('❌ File upload failed:', error);
-      console.log('📄 Error details:', {
-        message: error.message,
-        stack: error.stack
-      });
-      console.log('='.repeat(60) + '\n');
-      
+
       throw error;
     }
   };
 
   const handleJobDocuments = async (jobId, documents, action) => {
     try {
-      console.log(`📁 Handling documents for job ${jobId} (${action}):`, documents);
-      
+
       // Filter out files that are already uploaded (have URLs)
       const filesToUpload = documents.filter(file => !file.url && file.originFileObj);
       
       if (filesToUpload.length === 0) {
-        console.log('📁 No new files to upload');
+
         return;
       }
 
@@ -1052,17 +931,15 @@ const JobsPage = () => {
             entityId: jobId,
             entityType: 'job'
           });
-          
-          console.log(`✅ File uploaded successfully:`, uploadResponse);
+
         } catch (uploadError) {
-          console.error(`❌ Failed to upload file ${file.name}:`, uploadError);
+
           message.error(`Failed to upload ${file.name}`);
         }
       }
-      
-      console.log(`✅ All documents processed for job ${jobId}`);
+
     } catch (error) {
-      console.error('❌ Error handling job documents:', error);
+
       message.error('Failed to process some documents');
     }
   };
@@ -1330,8 +1207,6 @@ const JobsPage = () => {
             </Col>
           </Row>
 
-
-
           <Row gutter={16}>
             <Col span={24}>
               <Form.Item
@@ -1364,18 +1239,16 @@ const JobsPage = () => {
               >
                 <Select placeholder="Select team member">
                   {(() => {
-                    console.log('🎯 [STATUS UPDATE] Rendering dropdown - staffMembers:', staffMembers);
-                    console.log('📊 [STATUS UPDATE] staffMembers.length:', staffMembers.length);
-                    
+
                     if (staffMembers.length > 0) {
-                      console.log('✅ [STATUS UPDATE] Rendering member options');
+
                       return staffMembers.map(member => (
                         <Option key={member.id} value={member.id}>
                           {member.name} ({member.email})
                         </Option>
                       ));
                     } else {
-                      console.log('❌ [STATUS UPDATE] No staff members - showing disabled option');
+
                       return (
                         <Option disabled value="no-users">
                           No team members available
@@ -1525,7 +1398,6 @@ const JobsPage = () => {
             </Col>
           </Row>
 
-
           <Row gutter={16}>
             <Col span={24}>
               <Form.Item
@@ -1604,19 +1476,16 @@ const JobsPage = () => {
             >
               <Select placeholder="Select team member">
                 {(() => {
-                  console.log('🎯 [JOB ASSIGNMENT] Rendering dropdown - staffMembers:', staffMembers);
-                  console.log('📊 [JOB ASSIGNMENT] staffMembers.length:', staffMembers.length);
-                  console.log('🔍 [JOB ASSIGNMENT] staffMembers content:', staffMembers);
-                  
+
                   if (staffMembers.length > 0) {
-                    console.log('✅ [JOB ASSIGNMENT] Rendering member options');
+
                     return staffMembers.map(member => (
                       <Option key={member.id} value={member.id}>
                         {member.name} ({member.email})
                       </Option>
                     ));
                   } else {
-                    console.log('❌ [JOB ASSIGNMENT] No staff members - showing disabled option');
+
                     return (
                       <Option disabled value="no-users">
                         No team members available
@@ -1786,7 +1655,6 @@ const JobsPage = () => {
           </Form>
         </Modal>
 
-
       {/* Job Details Drawer */}
        <Drawer
         title={
@@ -1823,15 +1691,7 @@ const JobsPage = () => {
              const hasEditPermission = hasPermission(PERMISSIONS.JOB_EDIT);
              const hasDeletePermission = hasPermission(PERMISSIONS.JOB_DELETE);
              const showMenu = hasEditPermission || hasDeletePermission;
-             
-             console.log('🔧 Job Details Menu Debug:');
-             console.log('  - hasEditPermission:', hasEditPermission);
-             console.log('  - hasDeletePermission:', hasDeletePermission);
-             console.log('  - showMenu (3-dots):', showMenu);
-             console.log('  - Current user permissions:', currentUser?.permissions?.length || 0);
-             console.log('  - JOB_EDIT permission check:', hasPermission(PERMISSIONS.JOB_EDIT));
-             console.log('  - JOB_DELETE permission check:', hasPermission(PERMISSIONS.JOB_DELETE));
-             
+
              return showMenu ? (
              <Dropdown
                menu={{
@@ -1841,7 +1701,7 @@ const JobsPage = () => {
                       label: 'Edit Job',
                      icon: <EditOutlined />,
                      onClick: () => {
-                       console.log('✅ Edit Job clicked');
+
                        setIsDetailsDrawerVisible(false);
                        handleEditJob(selectedJob);
                      },
@@ -1852,7 +1712,7 @@ const JobsPage = () => {
                       icon: <DeleteOutlined />,
                       danger: true,
                       onClick: () => {
-                        console.log('✅ Delete Job clicked');
+
                         setIsDetailsDrawerVisible(false);
                         handleDeleteJob(selectedJob);
                       },

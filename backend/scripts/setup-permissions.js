@@ -4,11 +4,10 @@ const { PERMISSIONS, ROLE_PERMISSIONS } = require('../utils/permissions');
 const prisma = new PrismaClient();
 
 async function setupPermissions() {
-  console.log('🔧 Setting up permissions system...');
 
   try {
     // Create all permissions
-    console.log('📝 Creating permissions...');
+
     const permissionEntries = Object.entries(PERMISSIONS).map(([key, value]) => {
       const module = key.split('_')[0]; // Extract module from permission key
       return {
@@ -28,10 +27,8 @@ async function setupPermissions() {
       )
     );
 
-    console.log(`✅ Created ${createdPermissions.length} permissions`);
-
     // Create admin role
-    console.log('👑 Creating admin role...');
+
     const adminRole = await prisma.role.upsert({
       where: { name: 'ADMIN' },
       update: {},
@@ -44,8 +41,6 @@ async function setupPermissions() {
       }
     });
 
-    console.log('✅ Admin role created:', adminRole.id);
-
     // Get the first admin user (the one just created via init endpoint)
     const adminUser = await prisma.user.findFirst({
       where: { role: 'ADMIN' }
@@ -56,7 +51,7 @@ async function setupPermissions() {
     }
 
     // Assign all permissions to admin role
-    console.log('🔗 Assigning permissions to admin role...');
+
     const adminPermissions = ROLE_PERMISSIONS.ADMIN;
     
     for (const permissionName of adminPermissions) {
@@ -79,20 +74,15 @@ async function setupPermissions() {
       }
     }
 
-    console.log('✅ Admin role permissions assigned');
-
     // Update admin user to use the new role
-    console.log('👤 Updating admin user...');
+
     await prisma.user.update({
       where: { id: adminUser.id },
       data: { roleId: adminRole.id }
     });
-    console.log('✅ Admin user updated with role');
 
-    console.log('🎉 Permissions system setup complete!');
-    
   } catch (error) {
-    console.error('❌ Error setting up permissions:', error);
+
     throw error;
   } finally {
     await prisma.$disconnect();
@@ -101,6 +91,6 @@ async function setupPermissions() {
 
 setupPermissions()
   .catch((e) => {
-    console.error('❌ Setup failed:', e);
+
     process.exit(1);
   });

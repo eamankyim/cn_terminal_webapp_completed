@@ -139,13 +139,11 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
   useEffect(() => {
     const loadRoles = async () => {
       try {
-        console.log('🔍 ROLE MANAGER - Starting to load roles...');
+
         const response = await roleService.getRoles();
-        console.log('🔍 ROLE MANAGER - API response:', JSON.stringify(response, null, 2));
-        
+
         const rolesData = response.roles.map(roleData => {
-          console.log('🔍 ROLE MAPPING - Processing roleData:', roleData);
-          
+
           const roleInfo = ROLE_INFO[roleData.role] || {
             name: roleData.role,
             description: 'Unknown role',
@@ -165,16 +163,13 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
             permissions: roleData.permissions,
             userCount: roleData.userCount || 0
           };
-          
-          console.log('🔍 ROLE MAPPING - Mapped role:', mappedRole);
+
           return mappedRole;
         });
-        
-        console.log('🔍 ROLE MANAGER - Processed roles data:', JSON.stringify(rolesData, null, 2));
+
         setRoles(rolesData);
       } catch (error) {
-        console.error('❌ ROLE MANAGER - Error loading roles:', error);
-        console.log('🔍 ROLE MANAGER - Falling back to static roles...');
+
         // Fallback to static roles if API fails
         const initialRoles = Object.keys(ROLE_INFO).map(role => ({
           key: role,
@@ -183,7 +178,7 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
           permissions: getRolePermissions(role),
           userCount: 0
         }));
-        console.log('🔍 ROLE MANAGER - Static roles fallback:', JSON.stringify(initialRoles, null, 2));
+
         setRoles(initialRoles);
       }
     };
@@ -212,9 +207,7 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
     try {
       // Use currentRolePermissions instead of form values
       const permissions = Array.isArray(currentRolePermissions) ? currentRolePermissions : [];
-      
-      console.log(`🔄 Saving permissions for ${editingRole.role}:`, permissions);
-      
+
       // Call the API to save the role permissions
       const response = await roleService.updateRolePermissions(editingRole.role, permissions);
       
@@ -246,7 +239,7 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
       }
     } catch (error) {
       message.error('Failed to update role permissions');
-      console.error('Error updating role:', error);
+
     } finally {
       setLoading(false);
     }
@@ -265,7 +258,7 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
       dataIndex: 'role',
       key: 'role',
       render: (role, record) => {
-        console.log('🔍 TABLE RENDER - Role:', role, 'Record:', record);
+
         return (
           <div>
             <Text strong>{record.name}</Text>
@@ -282,7 +275,7 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
       dataIndex: 'userCount',
       key: 'userCount',
       render: (count, record) => {
-        console.log('🔍 USER COUNT - Count:', count, 'Record userCount:', record.userCount);
+
         const userCount = count || record.userCount || 0;
         return (
           <div>
@@ -349,7 +342,7 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
                   
                   // Save to database immediately
                   try {
-                    console.log(`🔄 Updating permissions for ${editingRole.role}:`, newPermissions);
+
                     const response = await roleService.updateRolePermissions(editingRole.role, newPermissions);
                     
                     // Update local state
@@ -374,7 +367,7 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
                     form.setFieldsValue({ permissions: permissionsArray });
                     setCurrentRolePermissions(permissionsArray);
                     message.error(`Failed to ${e.target.checked ? 'grant' : 'revoke'} permission: ${error.message || 'Unknown error'}`);
-                    console.error('Error updating permission:', error);
+
                   } finally {
                     // Remove from updating set
                     setUpdatingPermissions(prev => {

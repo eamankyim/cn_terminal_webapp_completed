@@ -55,7 +55,6 @@ const InviteManagement = () => {
     loadPendingInvitations();
   }, [loadPendingInvitations]);
 
-
   // Use the centralized role information
   const roleOptions = Object.entries(ROLE_INFO).map(([role, info]) => ({
     value: role,
@@ -260,7 +259,7 @@ const InviteManagement = () => {
           // Reload invitations to get updated data
           loadPendingInvitations();
         } catch (error) {
-          console.error('Resend invitation error:', error);
+
           message.error(error.response?.data?.error || 'Failed to resend invitation');
         } finally {
           setLoading(false);
@@ -284,7 +283,7 @@ const InviteManagement = () => {
           // Reload invitations to get updated data
           loadPendingInvitations();
         } catch (error) {
-          console.error('Cancel invitation error:', error);
+
           message.error(error.response?.data?.error || 'Failed to cancel invitation');
         } finally {
           setLoading(false);

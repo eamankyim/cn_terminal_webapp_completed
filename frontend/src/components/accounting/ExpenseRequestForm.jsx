@@ -61,7 +61,7 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
       const response = await jobService.getJobs({ status: 'INVOICED,RELEASED,CLEARED' });
       setJobs(response.jobs || []);
     } catch (error) {
-      console.error('Error loading jobs:', error);
+
       message.error('Failed to load jobs');
     }
   };
@@ -98,7 +98,7 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
       onSuccess && onSuccess();
       onCancel();
     } catch (error) {
-      console.error('Error submitting expense request:', error);
+
       message.error(error.response?.data?.error || 'Failed to submit expense request');
     } finally {
       setLoading(false);
@@ -169,7 +169,6 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
                   placeholder="0.00"
                   precision={2}
                   min={0.01}
-                  prefix={<DollarOutlined />}
                 />
               </Form.Item>
             </Col>

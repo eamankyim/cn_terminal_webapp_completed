@@ -8,25 +8,14 @@ class EmailService {
     this.fromName = process.env.REACT_APP_FROM_NAME || 'CN Terminal';
     this.devMode = process.env.REACT_APP_EMAIL_DEV_MODE === 'true';
     this.sendGridUrl = 'https://api.sendgrid.com/v3/mail/send';
-    
-    console.log('📧 EmailService: Initialized');
-    console.log('📧 EmailService: Dev mode:', this.devMode);
-    console.log('📧 EmailService: From email:', this.fromEmail);
-    console.log('📧 EmailService: From name:', this.fromName);
-    console.log('📧 EmailService: API key configured:', this.apiKey ? 'Yes' : 'No');
+
   }
 
   // Send user invitation email
   async sendInvitationEmail(inviteData) {
     try {
       const { email, role, invitedBy, inviteLink, expiresAt, invitedByUser } = inviteData;
-      
-      console.log('📧 EmailService: Starting invitation email send');
-      console.log('📧 EmailService: Recipient:', email);
-      console.log('📧 EmailService: Role:', role);
-      console.log('📧 EmailService: Invite link:', inviteLink);
-      console.log('📧 EmailService: Expires at:', expiresAt);
-      
+
       const emailData = {
         personalizations: [
           {
@@ -52,21 +41,10 @@ class EmailService {
 
       if (this.devMode) {
         // Development mode - log email instead of sending
-        console.log('📧 EmailService: DEV MODE - Email would be sent:');
-        console.log('📧 EmailService: Subject:', emailData.personalizations[0].subject);
-        console.log('📧 EmailService: To:', emailData.personalizations[0].to[0].email);
-        console.log('📧 EmailService: From:', `${emailData.from.name} <${emailData.from.email}>`);
-        console.log('📧 EmailService: Content length:', emailData.content[0].value.length, 'characters');
+
         return { success: true, messageId: 'dev-mode-' + Date.now() };
       }
 
-      console.log('📧 EmailService: Sending email via SendGrid API');
-      console.log('📧 EmailService: Request URL:', this.sendGridUrl);
-      console.log('📧 EmailService: Request headers:', {
-        'Authorization': `Bearer ${this.apiKey.substring(0, 10)}...`,
-        'Content-Type': 'application/json'
-      });
-      
       const response = await fetch(this.sendGridUrl, {
         method: 'POST',
         headers: {
@@ -76,22 +54,17 @@ class EmailService {
         body: JSON.stringify(emailData)
       });
 
-      console.log('📧 EmailService: SendGrid response status:', response.status);
-      console.log('📧 EmailService: SendGrid response headers:', Object.fromEntries(response.headers.entries()));
-
       if (!response.ok) {
         const errorData = await response.text();
-        console.error('📧 EmailService: SendGrid API error response:', errorData);
+
         throw new Error(`SendGrid API error: ${response.status} - ${errorData}`);
       }
 
       const messageId = response.headers.get('x-message-id') || 'sent-' + Date.now();
-      console.log('📧 EmailService: Email sent successfully!');
-      console.log('📧 EmailService: Message ID:', messageId);
-      console.log('📧 EmailService: Recipient confirmed:', email);
+
       return { success: true, messageId };
     } catch (error) {
-      console.error('📧 Email sending failed:', error);
+
       throw new Error('Failed to send invitation email');
     }
   }
@@ -123,7 +96,7 @@ class EmailService {
       };
 
       if (this.devMode) {
-        console.log('📧 Password reset email would be sent:', emailData);
+
         return { success: true, messageId: 'dev-mode-' + Date.now() };
       }
 
@@ -144,7 +117,7 @@ class EmailService {
       const messageId = response.headers.get('x-message-id') || 'sent-' + Date.now();
       return { success: true, messageId };
     } catch (error) {
-      console.error('Password reset email failed:', error);
+
       throw new Error('Failed to send password reset email');
     }
   }
@@ -153,12 +126,7 @@ class EmailService {
   async sendWelcomeEmail(userData) {
     try {
       const { email, name, role } = userData;
-      
-      console.log('📧 EmailService: Starting welcome email send');
-      console.log('📧 EmailService: Recipient:', email);
-      console.log('📧 EmailService: Name:', name);
-      console.log('📧 EmailService: Role:', role);
-      
+
       const emailData = {
         personalizations: [
           {
@@ -183,14 +151,10 @@ class EmailService {
       };
 
       if (this.devMode) {
-        console.log('📧 EmailService: DEV MODE - Welcome email would be sent:');
-        console.log('📧 EmailService: Subject:', emailData.personalizations[0].subject);
-        console.log('📧 EmailService: To:', emailData.personalizations[0].to[0].email);
-        console.log('📧 EmailService: From:', `${emailData.from.name} <${emailData.from.email}>`);
+
         return { success: true, messageId: 'dev-mode-' + Date.now() };
       }
 
-      console.log('📧 EmailService: Sending welcome email via SendGrid API');
       const response = await fetch(this.sendGridUrl, {
         method: 'POST',
         headers: {
@@ -200,20 +164,17 @@ class EmailService {
         body: JSON.stringify(emailData)
       });
 
-      console.log('📧 EmailService: Welcome email response status:', response.status);
-
       if (!response.ok) {
         const errorData = await response.text();
-        console.error('📧 EmailService: Welcome email API error:', errorData);
+
         throw new Error(`SendGrid API error: ${response.status} - ${errorData}`);
       }
 
       const messageId = response.headers.get('x-message-id') || 'sent-' + Date.now();
-      console.log('📧 EmailService: Welcome email sent successfully!');
-      console.log('📧 EmailService: Message ID:', messageId);
+
       return { success: true, messageId };
     } catch (error) {
-      console.error('📧 Welcome email failed:', error);
+
       throw new Error('Failed to send welcome email');
     }
   }

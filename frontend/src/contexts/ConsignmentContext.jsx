@@ -26,7 +26,6 @@ export const ConsignmentProvider = ({ children }) => {
       const response = await consignmentService.getConsignmentsByCustomer(customerId);
       setConsignments(response.consignments || []);
     } catch (err) {
-      console.error('Error loading consignments:', err);
       setError(err.message || 'Failed to load consignments');
     } finally {
       setLoading(false);
@@ -41,7 +40,6 @@ export const ConsignmentProvider = ({ children }) => {
       const response = await consignmentService.getAllConsignments();
       setConsignments(response.consignments || []);
     } catch (err) {
-      console.error('Error loading all consignments:', err);
       setError(err.message || 'Failed to load consignments');
     } finally {
       setLoading(false);
@@ -57,7 +55,6 @@ export const ConsignmentProvider = ({ children }) => {
       setConsignments(prev => [response.consignment, ...prev]);
       return response.consignment;
     } catch (err) {
-      console.error('Error adding consignment:', err);
       setError(err.message || 'Failed to add consignment');
       throw err;
     } finally {
@@ -78,7 +75,6 @@ export const ConsignmentProvider = ({ children }) => {
       );
       return response.consignment;
     } catch (err) {
-      console.error('Error updating consignment:', err);
       setError(err.message || 'Failed to update consignment');
       throw err;
     } finally {
@@ -94,7 +90,6 @@ export const ConsignmentProvider = ({ children }) => {
       await consignmentService.deleteConsignment(id);
       setConsignments(prev => prev.filter(consignment => consignment.id !== id));
     } catch (err) {
-      console.error('Error deleting consignment:', err);
       setError(err.message || 'Failed to delete consignment');
       throw err;
     } finally {
@@ -115,7 +110,6 @@ export const ConsignmentProvider = ({ children }) => {
       );
       return response.consignment;
     } catch (err) {
-      console.error('Error updating consignment status:', err);
       setError(err.message || 'Failed to update consignment status');
       throw err;
     } finally {
@@ -150,5 +144,4 @@ export const ConsignmentProvider = ({ children }) => {
 };
 
 export default ConsignmentContext;
-
 

@@ -9,7 +9,7 @@ export const cashflowService = {
       const response = await api.get(`${CASHFLOW_API_BASE}/transactions`, { params });
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error fetching cashflow transactions:', error);
+
       throw error;
     }
   },
@@ -19,7 +19,7 @@ export const cashflowService = {
       const response = await api.post(`${CASHFLOW_API_BASE}/transactions`, data);
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error creating cashflow transaction:', error);
+
       throw error;
     }
   },
@@ -27,13 +27,12 @@ export const cashflowService = {
   // Summary and Dashboard
   getSummary: async (params = {}) => {
     try {
-      console.log('🔍 CASHFLOW SERVICE - getSummary called with params:', params);
-      console.log('🔍 CASHFLOW SERVICE - calling endpoint:', `${CASHFLOW_API_BASE}/summary`);
+      console.log('🔍 CashflowService: Calling getSummary with params:', params);
       const response = await api.get(`${CASHFLOW_API_BASE}/summary`, { params });
-      console.log('🔍 CASHFLOW SERVICE - raw response:', response);
+      console.log('📊 CashflowService: getSummary response:', response);
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error fetching cashflow summary:', error);
+      console.error('❌ CashflowService: getSummary error:', error);
       throw error;
     }
   },
@@ -43,7 +42,7 @@ export const cashflowService = {
       const response = await api.get(`${CASHFLOW_API_BASE}/balance`, { params });
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error fetching account balance:', error);
+
       throw error;
     }
   },
@@ -53,7 +52,7 @@ export const cashflowService = {
       const response = await api.get(`${CASHFLOW_API_BASE}/job-profitability/${jobId}`);
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error fetching job profitability:', error);
+
       throw error;
     }
   },
@@ -63,7 +62,7 @@ export const cashflowService = {
       const response = await api.get(`${CASHFLOW_API_BASE}/trends`, { params });
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error fetching cashflow trends:', error);
+
       throw error;
     }
   },

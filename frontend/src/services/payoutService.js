@@ -9,7 +9,7 @@ export const payoutService = {
       const response = await api.get(PAYOUT_API_BASE, { params });
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error fetching payouts:', error);
+
       throw error;
     }
   },
@@ -19,7 +19,7 @@ export const payoutService = {
       const response = await api.get(`${PAYOUT_API_BASE}/${id}`);
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error fetching payout:', error);
+
       throw error;
     }
   },
@@ -29,7 +29,7 @@ export const payoutService = {
       const response = await api.post(PAYOUT_API_BASE, data);
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error creating payout:', error);
+
       throw error;
     }
   },
@@ -42,7 +42,7 @@ export const payoutService = {
       });
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error updating payout status:', error);
+
       throw error;
     }
   },
@@ -52,7 +52,7 @@ export const payoutService = {
       const response = await api.patch(`${PAYOUT_API_BASE}/${id}`, data);
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error updating payout:', error);
+
       throw error;
     }
   },
@@ -62,7 +62,7 @@ export const payoutService = {
       const response = await api.delete(`${PAYOUT_API_BASE}/${id}`);
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error deleting payout:', error);
+
       throw error;
     }
   },
@@ -70,13 +70,12 @@ export const payoutService = {
   // Statistics
   getPayoutStats: async (params = {}) => {
     try {
-      console.log('🔍 PAYOUT SERVICE - getPayoutStats called with params:', params);
-      console.log('🔍 PAYOUT SERVICE - calling endpoint:', `${PAYOUT_API_BASE}/stats/summary`);
+      console.log('🔍 PayoutService: Calling getPayoutStats with params:', params);
       const response = await api.get(`${PAYOUT_API_BASE}/stats/summary`, { params });
-      console.log('🔍 PAYOUT SERVICE - raw response:', response);
+      console.log('📊 PayoutService: getPayoutStats response:', response);
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error fetching payout statistics:', error);
+      console.error('❌ PayoutService: getPayoutStats error:', error);
       throw error;
     }
   },
@@ -87,7 +86,7 @@ export const payoutService = {
       const response = await api.get(`${PAYOUT_API_BASE}/records`, { params });
       return response;
     } catch (error) {
-      console.error('Error fetching payout records:', error);
+
       throw error;
     }
   },
@@ -97,7 +96,7 @@ export const payoutService = {
       const response = await api.post(`${PAYOUT_API_BASE}/records`, data);
       return response;
     } catch (error) {
-      console.error('Error creating payout record:', error);
+
       throw error;
     }
   },
@@ -107,7 +106,7 @@ export const payoutService = {
       const response = await api.get(`${PAYOUT_API_BASE}/records/${id}`);
       return response;
     } catch (error) {
-      console.error('Error fetching payout record:', error);
+
       throw error;
     }
   },

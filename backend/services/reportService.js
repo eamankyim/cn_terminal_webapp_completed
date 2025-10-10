@@ -30,7 +30,7 @@ class ReportService {
 
       return statusSummary;
     } catch (error) {
-      console.error('Error getting job status summary:', error);
+
       throw error;
     }
   }
@@ -94,7 +94,7 @@ class ReportService {
 
       return Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date));
     } catch (error) {
-      console.error('Error getting daily activity:', error);
+
       throw error;
     }
   }
@@ -149,7 +149,7 @@ class ReportService {
         revenueByStatus: revenueByStatusArray
       };
     } catch (error) {
-      console.error('Error getting revenue summary:', error);
+
       throw error;
     }
   }
@@ -189,7 +189,7 @@ class ReportService {
         date: invoice.createdAt.toISOString().split('T')[0]
       }));
     } catch (error) {
-      console.error('Error getting invoice reports:', error);
+
       throw error;
     }
   }
@@ -249,7 +249,7 @@ class ReportService {
         };
       }).sort((a, b) => b.revenue - a.revenue);
     } catch (error) {
-      console.error('Error getting customer activity:', error);
+
       throw error;
     }
   }
@@ -257,12 +257,7 @@ class ReportService {
   // Summary Statistics
   async getSummaryStats(startDate, endDate) {
     try {
-      console.log('\n' + '='.repeat(60));
-      console.log('📊 REPORT SERVICE - getSummaryStats');
-      console.log('='.repeat(60));
-      console.log('📅 startDate:', startDate.toISOString());
-      console.log('📅 endDate:', endDate.toISOString());
-      
+
       // First, let's check what jobs exist in the database
       const allJobs = await prisma.job.findMany({
         select: {
@@ -276,20 +271,18 @@ class ReportService {
           createdAt: 'desc'
         }
       });
-      
-      console.log('🗂️ All jobs in database:', allJobs.length);
+
       allJobs.forEach(job => {
-        console.log(`  - ${job.trackingId}: ${job.status} (created: ${job.createdAt.toISOString()})`);
+
       });
       
       // Check if any jobs fall within our date range
       const jobsInRange = allJobs.filter(job => {
         return job.createdAt >= startDate && job.createdAt <= endDate;
       });
-      
-      console.log('📊 Jobs in date range:', jobsInRange.length);
+
       jobsInRange.forEach(job => {
-        console.log(`  ✅ ${job.trackingId}: ${job.status} (created: ${job.createdAt.toISOString()})`);
+
       });
 
       const [totalJobs, completedJobs, totalRevenue, activeCustomers] = await Promise.all([
@@ -335,12 +328,6 @@ class ReportService {
         })
       ]);
 
-      console.log('📈 Query results:');
-      console.log('  - totalJobs:', totalJobs);
-      console.log('  - completedJobs:', completedJobs);
-      console.log('  - totalRevenue:', totalRevenue._sum.amount || 0);
-      console.log('  - activeCustomers:', activeCustomers);
-
       // Calculate average processing time
       const jobsWithDates = await prisma.job.findMany({
         where: {
@@ -372,15 +359,9 @@ class ReportService {
         avgProcessingTime: Math.round(avgProcessingTime * 10) / 10
       };
 
-      console.log('📊 Final result:', JSON.stringify(result, null, 2));
-      console.log('='.repeat(60));
-      console.log('✅ REPORT SERVICE SUCCESS');
-      console.log('='.repeat(60) + '\n');
-
       return result;
     } catch (error) {
-      console.error('❌ Error getting summary stats:', error);
-      console.log('='.repeat(60) + '\n');
+
       throw error;
     }
   }
@@ -434,7 +415,7 @@ class ReportService {
         percentage: processingTimes.length > 0 ? Math.round((count / processingTimes.length) * 100 * 10) / 10 : 0
       }));
     } catch (error) {
-      console.error('Error getting processing time report:', error);
+
       throw error;
     }
   }
@@ -505,7 +486,7 @@ class ReportService {
         return aDate - bDate;
       });
     } catch (error) {
-      console.error('Error getting monthly trends report:', error);
+
       throw error;
     }
   }

@@ -3,23 +3,18 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function migrateToRoleBasedPermissions() {
-  console.log('🔄 Starting migration to role-based permissions...');
-  
+
   try {
     // Step 1: Push schema changes to add ACCOUNTANT role
-    console.log('📝 Step 1: Schema changes applied (ACCOUNTANT role added)');
-    
+
     // Step 2: Update role permissions in database
-    console.log('🔧 Step 2: Updating role permissions in database...');
-    
+
     // Get all roles from database
     const roles = await prisma.role.findMany();
-    console.log(`Found ${roles.length} roles in database`);
-    
+
     // Clear existing role permissions
     await prisma.rolePermission.deleteMany({});
-    console.log('✅ Cleared existing role permissions');
-    
+
     // Get all permissions
     const permissions = await prisma.permission.findMany();
     const permissionMap = {};
@@ -155,14 +150,14 @@ async function migrateToRoleBasedPermissions() {
     for (const [roleName, permissionNames] of Object.entries(rolePermissionMappings)) {
       const role = roles.find(r => r.name === roleName);
       if (!role) {
-        console.log(`⚠️  Role ${roleName} not found in database, skipping...`);
+
         continue;
       }
       
       for (const permissionName of permissionNames) {
         const permissionId = permissionMap[permissionName];
         if (!permissionId) {
-          console.log(`⚠️  Permission ${permissionName} not found in database, skipping...`);
+
           continue;
         }
         
@@ -175,12 +170,9 @@ async function migrateToRoleBasedPermissions() {
         });
         totalPermissions++;
       }
-      
-      console.log(`✅ Created ${permissionNames.length} permissions for ${roleName}`);
+
     }
-    
-    console.log(`🎉 Successfully created ${totalPermissions} role-permission mappings`);
-    
+
     // Step 4: Create ACCOUNTANT role if it doesn't exist
     const accountantRole = await prisma.role.findFirst({
       where: { name: 'ACCOUNTANT' }
@@ -195,13 +187,11 @@ async function migrateToRoleBasedPermissions() {
           isSystem: false
         }
       });
-      console.log('✅ Created ACCOUNTANT role');
+
     }
-    
-    console.log('🎉 Migration to role-based permissions completed successfully!');
-    
+
   } catch (error) {
-    console.error('❌ Migration failed:', error);
+
     throw error;
   } finally {
     await prisma.$disconnect();
@@ -212,11 +202,11 @@ async function migrateToRoleBasedPermissions() {
 if (require.main === module) {
   migrateToRoleBasedPermissions()
     .then(() => {
-      console.log('✅ Migration completed successfully');
+
       process.exit(0);
     })
     .catch((error) => {
-      console.error('❌ Migration failed:', error);
+
       process.exit(1);
     });
 }

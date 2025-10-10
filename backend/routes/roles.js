@@ -48,12 +48,9 @@ const router = express.Router();
  */
 router.get('/', authenticateToken, requireAdminOrIT, async (req, res) => {
   try {
-    console.log('🔍 ROLES API - Starting to fetch roles...');
-    console.log('🔍 ROLES API - User making request:', req.user?.email, 'Role:', req.user?.role);
-    
+
     const roles = await getAllRoles();
-    console.log('🔍 ROLES API - Raw roles from database:', JSON.stringify(roles, null, 2));
-    
+
     const formattedRoles = roles.map(role => ({
       role: role.name, // Frontend expects 'role' field
       name: role.displayName, // Frontend expects 'name' field
@@ -68,18 +65,15 @@ router.get('/', authenticateToken, requireAdminOrIT, async (req, res) => {
       updatedAt: role.updatedAt
     }));
 
-    console.log('🔍 ROLES API - Formatted roles:', JSON.stringify(formattedRoles, null, 2));
-
     const response = {
       success: true,
       roles: formattedRoles,
       totalRoles: formattedRoles.length
     };
 
-    console.log('🔍 ROLES API - Final response:', JSON.stringify(response, null, 2));
     res.json(response);
   } catch (error) {
-    console.error('❌ ROLES API - Error fetching roles:', error);
+
     res.status(500).json({ error: 'Failed to fetch roles' });
   }
 });
@@ -133,7 +127,7 @@ router.get('/:role/permissions', authenticateToken, requireAdminOrIT, async (req
       permissionCount: permissions.length
     });
   } catch (error) {
-    console.error('Error fetching role permissions:', error);
+
     res.status(500).json({ error: 'Failed to fetch role permissions' });
   }
 });
@@ -227,12 +221,10 @@ router.put('/:role/permissions', authenticateToken, requireAdminOrIT, async (req
       select: { id: true, email: true }
     });
 
-    console.log(`🔄 Force logout: Invalidating sessions for ${usersWithRole.length} users with role ${role}`);
-    
     // In a real implementation, you would invalidate JWT tokens or sessions here
     // For now, we'll just log the affected users
     usersWithRole.forEach(user => {
-      console.log(`📤 User ${user.email} (ID: ${user.id}) will be logged out due to permission changes`);
+
     });
 
     res.json({
@@ -245,7 +237,7 @@ router.put('/:role/permissions', authenticateToken, requireAdminOrIT, async (req
       forceLogout: true
     });
   } catch (error) {
-    console.error('Error updating role permissions:', error);
+
     res.status(500).json({ error: 'Failed to update role permissions' });
   }
 });
@@ -287,7 +279,7 @@ router.get('/permissions', authenticateToken, requireAdminOrIT, async (req, res)
       totalPermissions: permissions.length
     });
   } catch (error) {
-    console.error('Error fetching permissions:', error);
+
     res.status(500).json({ error: 'Failed to fetch permissions' });
   }
 });
@@ -378,7 +370,7 @@ router.put('/users/:userId/role', authenticateToken, requireAdminOrIT, async (re
       newPermissions
     });
   } catch (error) {
-    console.error('Error updating user role:', error);
+
     res.status(500).json({ error: 'Failed to update user role' });
   }
 });
@@ -428,7 +420,7 @@ router.get('/permissions', authenticateToken, requireAdminOrIT, async (req, res)
       permissions
     });
   } catch (error) {
-    console.error('Error fetching permissions:', error);
+
     res.status(500).json({ error: 'Failed to fetch permissions' });
   }
 });
@@ -502,7 +494,7 @@ router.put('/:roleId/permissions', authenticateToken, requireAdminOrIT, async (r
       message: 'Role permissions updated successfully'
     });
   } catch (error) {
-    console.error('Error updating role permissions:', error);
+
     res.status(500).json({ error: 'Failed to update role permissions' });
   }
 });
@@ -554,7 +546,7 @@ router.get('/users/:userId/permissions', authenticateToken, requireAdminOrIT, as
       permissions
     });
   } catch (error) {
-    console.error('Error fetching user permissions:', error);
+
     res.status(500).json({ error: 'Failed to fetch user permissions' });
   }
 });
@@ -636,7 +628,7 @@ router.post('/users/:userId/permissions', authenticateToken, requireAdminOrIT, a
       message: 'Permission granted successfully'
     });
   } catch (error) {
-    console.error('Error granting user permission:', error);
+
     res.status(500).json({ error: 'Failed to grant permission' });
   }
 });
@@ -701,7 +693,7 @@ router.delete('/users/:userId/permissions/:permissionId', authenticateToken, req
       message: 'Permission revoked successfully'
     });
   } catch (error) {
-    console.error('Error revoking user permission:', error);
+
     res.status(500).json({ error: 'Failed to revoke permission' });
   }
 });

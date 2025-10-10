@@ -83,13 +83,7 @@ const DashboardPage = () => {
         assignedJobs: assignedJobsResponse.jobs || []
       });
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        url: error.config?.url
-      });
+
       setError(`Failed to load dashboard data: ${error.message}`);
     } finally {
       setLoading(false);
@@ -127,10 +121,6 @@ const DashboardPage = () => {
     }
   ];
 
-
-
- 
-
   // Using centralized status color utilities
 
   const getStatusIcon = (status, isDraft) => {
@@ -148,8 +138,6 @@ const DashboardPage = () => {
     };
     return statusIcons[status] || <FileAddOutlined />;
   };
-
-
 
   if (loading) {
     return (
@@ -181,14 +169,18 @@ const DashboardPage = () => {
   }
 
   // Show accounting dashboard for ACCOUNTANT users
-  console.log('DashboardPage: Current user role:', currentUser?.role);
+
   if (currentUser?.role === 'ACCOUNTANT') {
-    console.log('DashboardPage: Rendering AccountingDashboard for ACCOUNTANT user');
+
     return <AccountingDashboard />;
   }
 
   return (
-    <PermissionGate userRole={currentUser?.role} permissions={UI_PERMISSIONS.DASHBOARD}>
+    <PermissionGate 
+      userRole={currentUser?.role} 
+      userPermissions={currentUser?.permissions}
+      permissions={UI_PERMISSIONS.DASHBOARD}
+    >
       <div style={{ padding: '24px' }}>
         <div style={{ marginBottom: '24px' }}>
           <Title level={2}>Welcome to CN Terminal Dashboard</Title>

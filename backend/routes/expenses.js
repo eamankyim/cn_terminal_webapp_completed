@@ -3,14 +3,15 @@ const { prisma } = require('../config/database');
 const { authenticateToken, requirePermission } = require('../middleware/auth');
 const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 const { PERMISSIONS } = require('../utils/permissions');
+const NotificationService = require('../services/notificationService');
+const RealtimeNotificationService = require('../services/realtimeNotificationService');
 
 const router = express.Router();
 
 // Get user's own expense requests (no special permission required)
 router.get('/my-requests', authenticateToken, async (req, res) => {
   try {
-    console.log(`🔍 Fetching expense requests for user: ${req.user.id}`);
-    
+
     const { page = 1, limit = 10, status, category } = req.query;
     const skip = (page - 1) * limit;
 
@@ -20,8 +21,6 @@ router.get('/my-requests', authenticateToken, async (req, res) => {
     };
     if (status) where.status = status;
     if (category) where.category = category;
-
-    console.log('🔍 Where clause:', where);
 
     const [requests, total] = await Promise.all([
       prisma.expenseRequest.findMany({
@@ -38,8 +37,6 @@ router.get('/my-requests', authenticateToken, async (req, res) => {
       prisma.expenseRequest.count({ where })
     ]);
 
-    console.log(`📊 Found ${requests.length} requests out of ${total} total`);
-
     res.json({
       requests,
       pagination: {
@@ -50,7 +47,7 @@ router.get('/my-requests', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Error fetching user expense requests:', error);
+
     res.status(500).json({ 
       error: 'Internal server error',
       details: error.message 
@@ -139,7 +136,7 @@ router.get('/my-stats', authenticateToken, async (req, res) => {
 
     res.json(stats);
   } catch (error) {
-    console.error('Error fetching user expense stats:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -188,7 +185,7 @@ router.get('/requests', authenticateToken, requirePermission(UI_PERMISSIONS.ACCO
       }
     });
   } catch (error) {
-    console.error('Error fetching expense requests:', error);
+
     res.status(500).json({ error: 'Failed to fetch expense requests' });
   }
 });
@@ -220,7 +217,7 @@ router.get('/requests/:id', authenticateToken, requirePermission(UI_PERMISSIONS.
 
     res.json(request);
   } catch (error) {
-    console.error('Error fetching expense request:', error);
+
     res.status(500).json({ error: 'Failed to fetch expense request' });
   }
 });
@@ -274,9 +271,11 @@ router.post('/record', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_
         approvedBy: {
           select: { id: true, name: true, email: true, role: true }
         },
-        job: {
-          select: { id: true, trackingId: true, description: true }
-        }
+        ...(jobId && {
+          job: {
+            select: { id: true, trackingId: true, jobDescription: true }
+          }
+        })
       }
     });
 
@@ -293,14 +292,13 @@ router.post('/record', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_
       }
     });
 
-    console.log(`✅ Expense recorded directly by ${req.user.name} (${req.user.role})`);
     res.status(201).json({
       message: 'Expense recorded successfully',
       expenseRequest,
       expense
     });
   } catch (error) {
-    console.error('❌ Error recording expense:', error);
+
     res.status(500).json({ 
       error: 'Internal server error',
       details: error.message 
@@ -358,24 +356,54 @@ router.post('/requests', authenticateToken, requirePermission(PERMISSIONS.EXPENS
       }
     });
 
-    // Create notification for finance officers/admins
-    await prisma.notification.create({
-      data: {
-        title: 'New Expense Request',
-        message: `${req.user.name} submitted an expense request for ${amount} GHS`,
-        type: 'INFO',
-        category: 'EXPENSE_REQUEST',
-        metadata: {
-          expenseRequestId: expenseRequest.id,
-          amount: expenseRequest.amount,
-          category: expenseRequest.category
-        }
-      }
-    });
+    // Create notification for accounting staff
+    try {
+      console.log('🔔 Creating expense request notifications...');
+      console.log('🔍 Global.io available:', !!global.io);
+      
+      // Get all accounting staff (ACCOUNTANT, ADMIN roles)
+      const accountingStaff = await prisma.user.findMany({
+        where: {
+          OR: [
+            { role: 'ACCOUNTANT' },
+            { role: 'ADMIN' }
+          ],
+          isActive: true
+        },
+        select: { id: true, name: true }
+      });
+
+      console.log('👥 Accounting staff found:', accountingStaff.length);
+      accountingStaff.forEach(staff => console.log(`  - ${staff.name} (${staff.id})`));
+
+      // Create notifications for all accounting staff
+      const notifications = await Promise.all(
+        accountingStaff.map(staff => {
+          console.log(`📤 Sending notification to ${staff.name}...`);
+          return RealtimeNotificationService.sendRealtimeNotification(staff.id, {
+            title: 'New Expense Request',
+            message: `${req.user.name} submitted an expense request for GH₵${amount.toFixed(2)} - ${category}`,
+            type: 'INFO',
+            category: 'EXPENSE_REQUEST',
+            metadata: {
+              expenseRequestId: expenseRequest.id,
+              amount: expenseRequest.amount,
+              category: expenseRequest.category,
+              requestedBy: req.user.name,
+              requestedById: req.user.id
+            }
+          });
+        })
+      );
+      
+      console.log('✅ Notifications sent:', notifications.length);
+    } catch (notificationError) {
+      console.error('❌ Failed to send expense request notifications:', notificationError);
+    }
 
     res.status(201).json(expenseRequest);
   } catch (error) {
-    console.error('Error creating expense request:', error);
+
     res.status(500).json({ error: 'Failed to create expense request' });
   }
 });
@@ -384,6 +412,9 @@ router.post('/requests', authenticateToken, requirePermission(PERMISSIONS.EXPENS
 router.patch('/requests/:id/approve', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
     const { id } = req.params;
+    const { approvalComment } = req.body;
+    
+    console.log('🔍 Approving expense request:', { id, approvalComment, userId: req.user?.id });
 
     // Check if request exists and is pending
     const request = await prisma.expenseRequest.findUnique({
@@ -392,10 +423,36 @@ router.patch('/requests/:id/approve', authenticateToken, requirePermission(UI_PE
     });
 
     if (!request) {
+      console.log('❌ Expense request not found:', id);
       return res.status(404).json({ error: 'Expense request not found' });
     }
 
+    console.log('📋 Found expense request:', { status: request.status, amount: request.amount });
+
     if (request.status !== 'PENDING') {
+      console.log('❌ Request is not pending, current status:', request.status);
+      
+      // If already approved, return the existing request
+      if (request.status === 'APPROVED') {
+        console.log('✅ Request already approved, returning existing request');
+        const existingRequest = await prisma.expenseRequest.findUnique({
+          where: { id },
+          include: {
+            requestedBy: {
+              select: { id: true, name: true, email: true, role: true }
+            },
+            approvedBy: {
+              select: { id: true, name: true, email: true, role: true }
+            },
+            job: {
+              select: { id: true, trackingId: true, status: true }
+            },
+            expense: true
+          }
+        });
+        return res.json(existingRequest);
+      }
+      
       return res.status(400).json({ error: 'Request is not pending' });
     }
 
@@ -405,7 +462,8 @@ router.patch('/requests/:id/approve', authenticateToken, requirePermission(UI_PE
       data: {
         status: 'APPROVED',
         approvedById: req.user.id,
-        approvedAt: new Date()
+        approvedAt: new Date(),
+        approvalComment: approvalComment
       },
       include: {
         requestedBy: {
@@ -420,51 +478,83 @@ router.patch('/requests/:id/approve', authenticateToken, requirePermission(UI_PE
       }
     });
 
-    // Create expense record
-    const expense = await prisma.expense.create({
-      data: {
-        requestId: id,
-        amount: request.amount,
-        category: request.category,
-        description: request.description,
-        expenseDate: request.expenseDate,
-        jobId: request.jobId,
-        receiptUrl: request.receiptUrl
+    // Create expense record (or get existing one)
+    let expense = await prisma.expense.findUnique({
+      where: { requestId: id }
+    });
+
+    if (!expense) {
+      expense = await prisma.expense.create({
+        data: {
+          requestId: id,
+          amount: request.amount,
+          category: request.category,
+          description: request.description,
+          expenseDate: request.expenseDate,
+          jobId: request.jobId,
+          receiptUrl: request.receiptUrl
+        }
+      });
+    }
+
+    // Create cashflow transaction (check if one already exists)
+    const existingCashflow = await prisma.cashflowTransaction.findFirst({
+      where: {
+        sourceType: 'EXPENSE',
+        sourceId: expense.id
       }
     });
 
-    // Create cashflow transaction
-    await prisma.cashflowTransaction.create({
-      data: {
-        type: 'OUTFLOW',
-        amount: request.amount,
-        description: `Expense: ${request.description}`,
-        sourceType: 'EXPENSE',
-        sourceId: expense.id,
-        jobId: request.jobId
-      }
-    });
+    if (!existingCashflow) {
+      await prisma.cashflowTransaction.create({
+        data: {
+          type: 'OUTFLOW',
+          amount: request.amount,
+          description: `Expense: ${request.description}`,
+          sourceType: 'EXPENSE',
+          sourceId: expense.id,
+          jobId: request.jobId
+        }
+      });
+    }
 
     // Create notification for requester
-    await prisma.notification.create({
-      data: {
+    try {
+      const approvalMessage = approvalComment 
+        ? `Your expense request for GH₵${request.amount.toFixed(2)} has been approved. Comment: ${approvalComment}`
+        : `Your expense request for GH₵${request.amount.toFixed(2)} has been approved`;
+        
+      await RealtimeNotificationService.sendRealtimeNotification(request.requestedById, {
         title: 'Expense Request Approved',
-        message: `Your expense request for ${request.amount} GHS has been approved`,
+        message: approvalMessage,
         type: 'SUCCESS',
         category: 'EXPENSE_APPROVED',
-        userId: request.requestedById,
         metadata: {
           expenseRequestId: id,
           amount: request.amount,
-          category: request.category
+          category: request.category,
+          approvalComment: approvalComment,
+          approvedBy: req.user.name,
+          approvedById: req.user.id
         }
-      }
-    });
+      });
+    } catch (notificationError) {
+      console.error('Failed to send expense approval notification:', notificationError);
+    }
 
     res.json(updatedRequest);
   } catch (error) {
     console.error('Error approving expense request:', error);
-    res.status(500).json({ error: 'Failed to approve expense request' });
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      meta: error.meta
+    });
+    res.status(500).json({ 
+      error: 'Failed to approve expense request',
+      details: error.message 
+    });
   }
 });
 
@@ -511,25 +601,28 @@ router.patch('/requests/:id/reject', authenticateToken, requirePermission(UI_PER
     });
 
     // Create notification for requester
-    await prisma.notification.create({
-      data: {
+    try {
+      await RealtimeNotificationService.sendRealtimeNotification(request.requestedById, {
         title: 'Expense Request Rejected',
-        message: `Your expense request for ${request.amount} GHS has been rejected. Reason: ${rejectionReason || 'No reason provided'}`,
+        message: `Your expense request for GH₵${request.amount.toFixed(2)} has been rejected. Reason: ${rejectionReason || 'No reason provided'}`,
         type: 'WARNING',
         category: 'EXPENSE_REJECTED',
-        userId: request.requestedById,
         metadata: {
           expenseRequestId: id,
           amount: request.amount,
           category: request.category,
-          rejectionReason: rejectionReason || 'No reason provided'
+          rejectionReason: rejectionReason || 'No reason provided',
+          rejectedBy: req.user.name,
+          rejectedById: req.user.id
         }
-      }
-    });
+      });
+    } catch (notificationError) {
+      console.error('Failed to send expense rejection notification:', notificationError);
+    }
 
     res.json(updatedRequest);
   } catch (error) {
-    console.error('Error rejecting expense request:', error);
+
     res.status(500).json({ error: 'Failed to reject expense request' });
   }
 });
@@ -585,7 +678,7 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING),
       }
     });
   } catch (error) {
-    console.error('Error fetching expenses:', error);
+
     res.status(500).json({ error: 'Failed to fetch expenses' });
   }
 });
@@ -635,16 +728,7 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING),
 // Get expense statistics (MUST come before /:id route)
 router.get('/stats/summary', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
-    console.log('\n' + '='.repeat(60));
-    console.log('🔍 EXPENSE STATS ROUTE HIT');
-    console.log('='.repeat(60));
-    console.log('📡 Method:', req.method);
-    console.log('🔗 URL:', req.url);
-    console.log('🌐 Full URL:', req.originalUrl);
-    console.log('📋 Headers:', req.headers);
-    console.log('📊 Query params:', req.query);
-    console.log('👤 User:', req.user ? { id: req.user.id, email: req.user.email, role: req.user.role } : 'No user');
-    console.log('='.repeat(60));
+
     const { startDate, endDate } = req.query;
 
     // Build date filter
@@ -698,7 +782,7 @@ router.get('/stats/summary', authenticateToken, requirePermission(UI_PERMISSIONS
       }))
     });
   } catch (error) {
-    console.error('Error fetching expense statistics:', error);
+
     res.status(500).json({ error: 'Failed to fetch expense statistics' });
   }
 });
@@ -733,10 +817,9 @@ router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTIN
 
     res.json(expense);
   } catch (error) {
-    console.error('Error fetching expense:', error);
+
     res.status(500).json({ error: 'Failed to fetch expense' });
   }
 });
-
 
 module.exports = router;

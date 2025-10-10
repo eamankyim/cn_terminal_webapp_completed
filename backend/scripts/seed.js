@@ -4,7 +4,6 @@ const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Starting database seeding...');
 
   // Note: Admin user will be created through the /api/init endpoint
   // This ensures secure password creation and proper permission setup
@@ -15,12 +14,9 @@ async function main() {
   });
 
   if (!adminUser) {
-    console.log('⚠️ No admin user found. Sample data will not be created.');
-    console.log('💡 Please create an admin user first via /api/init/super-admin');
+
     return;
   }
-
-  console.log('✅ Using admin user for sample data creation:', adminUser.email);
 
   // Create sample customers
   const customers = await Promise.all([
@@ -67,8 +63,6 @@ async function main() {
       }
     })
   ]);
-
-  console.log('✅ Customers created:', customers.length);
 
   // Create sample consignments
   const consignments = await Promise.all([
@@ -142,8 +136,6 @@ async function main() {
     })
   ]);
 
-  console.log('✅ Consignments created:', consignments.length);
-
   // Create sample jobs
   const jobs = await Promise.all([
     prisma.job.upsert({
@@ -175,8 +167,6 @@ async function main() {
       }
     })
   ]);
-
-  console.log('✅ Jobs created:', jobs.length);
 
   // Create sample enquiries
   const enquiries = await Promise.all([
@@ -214,8 +204,6 @@ async function main() {
     })
   ]);
 
-  console.log('✅ Enquiries created:', enquiries.length);
-
   // Create sample shipments
   const shipments = await Promise.all([
     prisma.shipment.upsert({
@@ -241,8 +229,6 @@ async function main() {
       }
     })
   ]);
-
-  console.log('✅ Shipments created:', shipments.length);
 
   // Create sample invoices
   const emails = [
@@ -282,8 +268,6 @@ async function main() {
     })
   ]);
 
-  console.log('✅ Invoices created:', invoices.length);
-
   // Create sample payments
   const payments = await Promise.all([
     prisma.payment.create({
@@ -298,19 +282,14 @@ async function main() {
     })
   ]);
 
-  console.log('✅ Payments created:', payments.length);
-
-  console.log('🎉 Database seeding completed successfully!');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Error during seeding:', e);
+
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
   });
-
-
 

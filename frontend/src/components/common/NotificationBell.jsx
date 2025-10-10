@@ -35,23 +35,15 @@ const NotificationBell = () => {
   } = useNotifications();
 
   // Debug logging
-  console.log('🔔 NotificationBell: Render data:', {
-    notificationsCount: notifications?.length || 0,
-    unreadCount,
-    loading,
-    notifications: notifications?.slice(0, 2), // Log first 2 notifications
-    actualUnreadCount: notifications?.filter(n => !n.isRead).length || 0
-  });
 
   // Sync unread count when dropdown opens
   const handleDropdownVisibleChange = (visible) => {
     setDropdownVisible(visible);
     if (visible) {
-      console.log('🔔 NotificationBell: Dropdown opened, syncing unread count...');
+
       syncUnreadCount();
     }
   };
-
 
   const [dropdownVisible, setDropdownVisible] = useState(false);
 
@@ -85,37 +77,31 @@ const NotificationBell = () => {
   };
 
   const handleMarkAllRead = async () => {
-    console.log('🔔 NotificationBell: Clear all button clicked');
-    console.log('🔔 NotificationBell: Current notifications:', notifications.length);
-    console.log('🔔 NotificationBell: Current unread count:', unreadCount);
-    
+
     if (notifications.length === 0) {
-      console.log('⚠️  No notifications to delete');
+
       return;
     }
     
     try {
-      console.log('🔄 NotificationBell: Calling markAllAsRead function...');
+
       await markAllAsRead();
-      console.log('✅ NotificationBell: markAllAsRead completed');
-      
+
       // Close the dropdown to show the updated state
       setDropdownVisible(false);
     } catch (error) {
-      console.error('❌ NotificationBell: Error deleting all notifications:', error);
+
       // Keep dropdown open so user can see the error
     }
   };
 
   const handleRefresh = async () => {
     try {
-      console.log('🔄 Refreshing notifications...');
-      console.log('🔔 NotificationBell: Before refresh - notifications:', notifications?.length, 'unread:', unreadCount);
+
       await refreshNotifications();
-      console.log('✅ Notifications refreshed');
-      console.log('🔔 NotificationBell: After refresh - notifications:', notifications?.length, 'unread:', unreadCount);
+
     } catch (error) {
-      console.error('❌ Error refreshing notifications:', error);
+
     }
   };
 

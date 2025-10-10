@@ -9,8 +9,6 @@ const targetFile = path.join(__dirname, '../utils/permissions.js');
 
 async function restoreFilePermissions() {
   try {
-    console.log('🔄 Restoring file-based permissions system...');
-    
     // Check if backup file exists
     if (!fs.existsSync(backupFile)) {
       throw new Error('Backup file not found. Please ensure the backup exists.');
@@ -24,13 +22,7 @@ async function restoreFilePermissions() {
     
     // Write to target file
     fs.writeFileSync(targetFile, backupContent);
-    
-    console.log('✅ File-based permissions system restored successfully!');
-    console.log('📁 Restored to:', targetFile);
-    console.log('💡 You may need to restart the server for changes to take effect.');
-    
   } catch (error) {
-    console.error('❌ Failed to restore file-based permissions:', error);
     throw error;
   }
 }
@@ -39,17 +31,14 @@ async function restoreFilePermissions() {
 if (require.main === module) {
   restoreFilePermissions()
     .then(() => {
-      console.log('✅ Restore completed successfully');
       process.exit(0);
     })
     .catch((error) => {
-      console.error('❌ Restore failed:', error);
       process.exit(1);
     });
 }
 
 module.exports = { restoreFilePermissions };
-
 
 
 

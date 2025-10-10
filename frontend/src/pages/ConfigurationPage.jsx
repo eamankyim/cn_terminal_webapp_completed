@@ -105,7 +105,7 @@ const ConfigurationPage = () => {
         await initializeDefaults();
       }
     } catch (error) {
-      console.error('Error initializing configurations:', error);
+
       message.error('Failed to load configurations');
     } finally {
       setLoading(false);
@@ -122,7 +122,7 @@ const ConfigurationPage = () => {
         message.error('Failed to initialize default configurations');
       }
     } catch (error) {
-      console.error('Error initializing defaults:', error);
+
       message.error('Failed to initialize default configurations');
     }
   };
@@ -149,7 +149,7 @@ const ConfigurationPage = () => {
         message.error('Failed to load configurations');
       }
     } catch (error) {
-      console.error('Error loading configurations:', error);
+
       message.error('Failed to load configurations');
     } finally {
       setLoading(false);
@@ -176,7 +176,7 @@ const ConfigurationPage = () => {
         message.error('Failed to save configurations');
       }
     } catch (error) {
-      console.error('Error saving configurations:', error);
+
       message.error('Failed to save configurations');
     }
   };
@@ -210,7 +210,7 @@ const ConfigurationPage = () => {
         message.error('Failed to delete configuration');
       }
     } catch (error) {
-      console.error('Error deleting configuration:', error);
+
       message.error('Failed to delete configuration');
     }
   };
@@ -228,7 +228,7 @@ const ConfigurationPage = () => {
         message.error('Failed to save configuration');
       }
     } catch (error) {
-      console.error('Error saving configuration:', error);
+
       message.error('Failed to save configuration');
     } finally {
       setSaving(false);
@@ -250,7 +250,7 @@ const ConfigurationPage = () => {
         message.error('Failed to reset configurations to defaults');
       }
     } catch (error) {
-      console.error('Error resetting to defaults:', error);
+
       message.error('Failed to reset configurations to defaults');
     } finally {
       setSaving(false);

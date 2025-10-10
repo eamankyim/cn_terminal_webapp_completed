@@ -68,7 +68,6 @@ const CustomersPage = () => {
     customerType: customer.customerType,
   }));
 
-
   // Customer statistics
   const stats = [
     { title: 'Total Customers', value: 1247, color: '#1890ff' },
@@ -150,23 +149,23 @@ const CustomersPage = () => {
   ];
 
   const handleNewCustomer = () => {
-    console.log('🔄 CustomersPage: Opening new customer modal');
+
     setIsModalVisible(true);
     form.resetFields();
   };
 
   const handleModalOk = async () => {
     try {
-      console.log('🔄 CustomersPage: Form submission started');
+
       const values = await form.validateFields();
-      console.log('📝 CustomersPage: Form values:', values);
+
       await addCustomer(values);
-      console.log('✅ CustomersPage: Customer created successfully');
+
       message.success('Customer created successfully!');
       setIsModalVisible(false);
       form.resetFields();
     } catch (error) {
-      console.error('💥 CustomersPage: Failed to create customer:', error);
+
       message.error(error.message || 'Failed to create customer');
     }
   };

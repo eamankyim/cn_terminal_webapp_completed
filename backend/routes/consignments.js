@@ -26,7 +26,7 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
 
     res.json({ consignments });
   } catch (error) {
-    console.error('Error fetching consignments:', error);
+
     res.status(500).json({ error: 'Failed to fetch consignments' });
   }
 });
@@ -57,7 +57,7 @@ router.get('/customer/:customerId', authenticateToken, async (req, res) => {
 
     res.json({ consignments });
   } catch (error) {
-    console.error('Error fetching customer consignments:', error);
+
     res.status(500).json({ error: 'Failed to fetch customer consignments' });
   }
 });
@@ -87,7 +87,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     res.json({ consignment });
   } catch (error) {
-    console.error('Error fetching consignment:', error);
+
     res.status(500).json({ error: 'Failed to fetch consignment' });
   }
 });
@@ -149,7 +149,7 @@ router.post('/', authenticateToken, async (req, res) => {
       consignment 
     });
   } catch (error) {
-    console.error('Error creating consignment:', error);
+
     res.status(500).json({ error: 'Failed to create consignment' });
   }
 });
@@ -185,7 +185,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       consignment 
     });
   } catch (error) {
-    console.error('Error updating consignment:', error);
+
     res.status(500).json({ error: 'Failed to update consignment' });
   }
 });
@@ -216,7 +216,7 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
       consignment 
     });
   } catch (error) {
-    console.error('Error updating consignment status:', error);
+
     res.status(500).json({ error: 'Failed to update consignment status' });
   }
 });
@@ -232,7 +232,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
     res.json({ message: 'Consignment deleted successfully' });
   } catch (error) {
-    console.error('Error deleting consignment:', error);
+
     res.status(500).json({ error: 'Failed to delete consignment' });
   }
 });

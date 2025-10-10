@@ -93,7 +93,7 @@ router.get('/', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching notifications:', error);
+
     res.status(500).json({ success: false, message: 'Failed to fetch notifications' });
   }
 });
@@ -141,7 +141,7 @@ router.patch('/:id/read', authenticateToken, async (req, res) => {
       data: notification
     });
   } catch (error) {
-    console.error('Error marking notification as read:', error);
+
     res.status(500).json({ success: false, message: 'Failed to mark notification as read' });
   }
 });
@@ -188,8 +188,7 @@ router.patch('/read-all', authenticateToken, async (req, res) => {
       global.io.to(`user_${req.user.id}`).emit('unread_count_update', {
         count: 0
       });
-      
-      console.log(`📡 Sent delete updates for ${allNotifications.length} notifications to user ${req.user.id}`);
+
     }
 
     res.json({
@@ -197,7 +196,7 @@ router.patch('/read-all', authenticateToken, async (req, res) => {
       data: { deletedCount: result.count }
     });
   } catch (error) {
-    console.error('Error deleting all notifications:', error);
+
     res.status(500).json({ success: false, message: 'Failed to delete all notifications' });
   }
 });
@@ -228,7 +227,7 @@ router.get('/unread-count', authenticateToken, async (req, res) => {
       data: { count }
     });
   } catch (error) {
-    console.error('Error fetching unread count:', error);
+
     res.status(500).json({ success: false, message: 'Failed to fetch unread count' });
   }
 });
@@ -271,7 +270,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       message: 'Notification deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting notification:', error);
+
     res.status(500).json({ success: false, message: 'Failed to delete notification' });
   }
 });
@@ -321,7 +320,7 @@ router.post('/test-realtime', authenticateToken, async (req, res) => {
       message: 'Test notification sent successfully'
     });
   } catch (error) {
-    console.error('Error sending test notification:', error);
+
     res.status(500).json({ success: false, message: 'Failed to send test notification' });
   }
 });

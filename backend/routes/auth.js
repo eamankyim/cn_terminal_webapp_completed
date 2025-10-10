@@ -78,22 +78,13 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    console.log('\n' + '='.repeat(80));
-    console.log('🔐 LOGIN ATTEMPT');
-    console.log('='.repeat(80));
-    console.log('📧 Email:', email);
-    console.log('🔒 Password length:', password ? password.length : 'MISSING');
-    console.log('⏰ Time:', new Date().toISOString());
-    console.log('='.repeat(80));
-
     if (!email || !password) {
-      console.log('❌ Missing email or password');
-      console.log('='.repeat(80) + '\n');
+
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
     // Find user by email with permissions
-    console.log('🔍 Searching for user with email:', email);
+
     const user = await prisma.user.findUnique({
       where: { email },
       include: {
@@ -108,42 +99,26 @@ router.post('/login', async (req, res) => {
     });
 
     if (!user) {
-      console.log('❌ User not found in database');
-      console.log('='.repeat(80) + '\n');
+
       return res.status(401).json({ error: 'Invalid credentials or inactive user' });
     }
 
-    console.log('✅ User found:', {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      isActive: user.isActive,
-      createdAt: user.createdAt
-    });
-
     if (!user.isActive) {
-      console.log('❌ User is inactive');
-      console.log('='.repeat(80) + '\n');
+
       return res.status(401).json({ error: 'Invalid credentials or inactive user' });
     }
 
     // Check password
-    console.log('🔐 Checking password...');
-    console.log('🔒 Stored password hash length:', user.password.length);
-    console.log('🔒 Stored password hash preview:', user.password.substring(0, 20) + '...');
-    
+
     const isValidPassword = await bcrypt.compare(password, user.password);
-    console.log('🔐 Password comparison result:', isValidPassword);
-    
+
     if (!isValidPassword) {
-      console.log('❌ Password does not match');
-      console.log('='.repeat(80) + '\n');
+
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     // Create JWT token
-    console.log('🎫 Creating JWT token...');
+
     const token = jwt.sign(
       { 
         userId: user.id, 
@@ -153,18 +128,6 @@ router.post('/login', async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
-
-    console.log('✅ Login successful!');
-    console.log('🎫 Token created (length):', token.length);
-    console.log('👤 User data:', {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role
-    });
-    console.log('='.repeat(80));
-    console.log('🎉 LOGIN SUCCESSFUL');
-    console.log('='.repeat(80) + '\n');
 
     // Extract permissions from the role
     const permissions = user.assignedRole?.rolePermissions?.map(rp => rp.permission.name) || [];
@@ -180,7 +143,7 @@ router.post('/login', async (req, res) => {
       token
     });
   } catch (error) {
-    console.error('Login error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -315,7 +278,7 @@ router.post('/register', authenticateToken, requireAdminOrIT, async (req, res) =
       user
     });
   } catch (error) {
-    console.error('Register error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -361,7 +324,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
 
     res.json({ user });
   } catch (error) {
-    console.error('Get profile error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -445,7 +408,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
       user: updatedUser
     });
   } catch (error) {
-    console.error('Update profile error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -533,7 +496,7 @@ router.get('/me', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get current user error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -624,7 +587,7 @@ router.put('/change-password', authenticateToken, async (req, res) => {
 
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
-    console.error('Change password error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -674,7 +637,7 @@ router.get('/users', authenticateToken, requireAdmin, async (req, res) => {
 
     res.json({ users });
   } catch (error) {
-    console.error('Get users error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -741,7 +704,7 @@ router.get('/assignable-users', authenticateToken, async (req, res) => {
 
     res.json({ users });
   } catch (error) {
-    console.error('Error fetching assignable users:', error);
+
     res.status(500).json({ error: 'Failed to fetch assignable users' });
   }
 });
@@ -822,7 +785,7 @@ router.put('/users/:id/status', authenticateToken, requireAdmin, async (req, res
       user: updatedUser
     });
   } catch (error) {
-    console.error('Update user status error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -940,7 +903,7 @@ router.put('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
       user: updatedUser
     });
   } catch (error) {
-    console.error('Update user error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1006,7 +969,7 @@ router.delete('/users/:id', authenticateToken, requireAdmin, async (req, res) =>
 
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
-    console.error('Delete user error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1089,20 +1052,7 @@ router.post('/forgot-password', async (req, res) => {
     // TODO: Send email with reset link
     // For now, we'll log the reset link (in production, send via email)
     const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
-    
-    console.log('\n' + '='.repeat(80));
-    console.log('🔐 🔑 PASSWORD RESET LINK GENERATED 🔑');
-    console.log('='.repeat(80));
-    console.log('🔐 🔗 PASSWORD RESET LINK (COPY THIS):');
-    console.log('🔐 ' + resetLink);
-    console.log('🔐 👤 User:', user.name, `(${user.email})`);
-    console.log('🔐 🎭 Role:', user.role);
-    console.log('🔐 ⏰ Expires:', expiresAt.toLocaleString());
-    console.log('🔐 🆔 Token ID:', resetToken.substring(0, 8) + '...');
-    console.log('='.repeat(80));
-    console.log('🔐 💡 TIP: Copy the link above and paste it in your browser to reset password');
-    console.log('='.repeat(80) + '\n');
-    
+
     // Also write to the same log file as invitations
     try {
       const fs = require('fs');
@@ -1117,13 +1067,10 @@ router.post('/forgot-password', async (req, res) => {
       
       const logEntry = `🔑 PASSWORD RESET REQUEST - ${new Date().toISOString()}\n${'='.repeat(60)}\n🔗 RESET LINK: ${resetLink}\n👤 User: ${user.name} (${user.email})\n🎭 Role: ${user.role}\n⏰ Expires: ${expiresAt.toLocaleString()}\n🆔 Token: ${resetToken.substring(0, 8)}...\n${'='.repeat(60)}\n\n`;
       fs.appendFileSync(logFile, logEntry);
-      console.log('🔐 💾 Password reset link saved to: invitation-links.txt');
-      console.log('🔐 📁 File location:', logFile);
+
     } catch (fileError) {
-      console.log('🔐 ⚠️ Could not save to file:', fileError.message);
+
     }
-    console.log('📧 In production, this link would be sent via email to the user');
-    console.log('='.repeat(80) + '\n');
 
     // In a real application, you would send an email here
     // await sendPasswordResetEmail(user.email, user.name, resetLink);
@@ -1132,7 +1079,7 @@ router.post('/forgot-password', async (req, res) => {
       message: 'If the email exists, a password reset link has been sent' 
     });
   } catch (error) {
-    console.error('Forgot password error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1184,24 +1131,15 @@ router.post('/reset-password', async (req, res) => {
   try {
     const { token, password } = req.body;
 
-    console.log('\n' + '='.repeat(60));
-    console.log('🔐 RESETTING PASSWORD');
-    console.log('='.repeat(60));
-    console.log(`🔑 Token: ${token ? token.substring(0, 20) + '...' : 'MISSING'}`);
-    console.log(`🔒 Password length: ${password ? password.length : 'MISSING'}`);
-    console.log(`⏰ Request Time: ${new Date().toISOString()}`);
-
     if (!token || !password) {
-      console.log('❌ Error: Missing token or password');
-      console.log('='.repeat(60) + '\n');
+
       return res.status(400).json({ error: 'Token and password are required' });
     }
 
     // Validate password strength
     const passwordValidation = validatePassword(password);
     if (!passwordValidation.isValid) {
-      console.log('❌ Password validation failed:', passwordValidation.errors);
-      console.log('='.repeat(60) + '\n');
+
       return res.status(400).json({ 
         error: 'Password validation failed',
         details: passwordValidation.errors
@@ -1214,47 +1152,35 @@ router.post('/reset-password', async (req, res) => {
       include: { user: true }
     });
 
-    console.log(`🔍 Token found in DB: ${resetToken ? 'YES' : 'NO'}`);
-
     if (!resetToken) {
-      console.log('❌ Error: Token not found in database');
-      console.log('='.repeat(60) + '\n');
+
       return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
-
-    console.log(`👤 User: ${resetToken.user.name} (${resetToken.user.email})`);
-    console.log(`⏰ Token expires: ${resetToken.expiresAt.toISOString()}`);
-    console.log(`🔒 Token used: ${resetToken.used}`);
 
     // Check if token is expired
     const now = new Date();
     if (resetToken.expiresAt < now) {
-      console.log('❌ Error: Token expired');
-      console.log(`⏰ Current time: ${now.toISOString()}`);
-      console.log(`⏰ Token expires: ${resetToken.expiresAt.toISOString()}`);
-      
+
       // Delete expired token
       await prisma.passwordResetToken.delete({
         where: { id: resetToken.id }
       });
-      console.log('🗑️ Expired token deleted from database');
-      console.log('='.repeat(60) + '\n');
+
       return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
 
     // Check if token has already been used
     if (resetToken.used) {
-      console.log('❌ Error: Token already used');
-      console.log('='.repeat(60) + '\n');
+
       return res.status(400).json({ error: 'Reset token has already been used' });
     }
 
     // Hash new password
-    console.log('🔐 Hashing new password...');
+
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Update user password and mark token as used
-    console.log('💾 Updating user password and marking token as used...');
+
     await prisma.$transaction([
       prisma.user.update({
         where: { id: resetToken.userId },
@@ -1266,26 +1192,9 @@ router.post('/reset-password', async (req, res) => {
       })
     ]);
 
-    console.log('\n' + '='.repeat(80));
-    console.log('🔐 🎉 PASSWORD RESET COMPLETED SUCCESSFULLY! 🎉');
-    console.log('='.repeat(80));
-    console.log('🔐 👤 User Details:');
-    console.log('🔐 📧 Email:', resetToken.user.email);
-    console.log('🔐 👤 Name:', resetToken.user.name);
-    console.log('🔐 🎭 Role:', resetToken.user.role);
-    console.log('🔐 ✅ Status: Password Updated');
-    console.log('🔐 🔑 New Password: Set');
-    console.log('='.repeat(80));
-    console.log('🔐 💡 User can now log in with their new password');
-    console.log('='.repeat(80) + '\n');
-
     res.json({ message: 'Password reset successfully' });
   } catch (error) {
-    console.log('\n' + '='.repeat(60));
-    console.log('💥 RESET PASSWORD ERROR');
-    console.log('='.repeat(60));
-    console.error('Error details:', error);
-    console.log('='.repeat(60) + '\n');
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1333,15 +1242,8 @@ router.post('/verify-reset-token', async (req, res) => {
   try {
     const { token } = req.body;
 
-    console.log('\n' + '='.repeat(60));
-    console.log('🔍 VERIFYING RESET TOKEN');
-    console.log('='.repeat(60));
-    console.log(`🔑 Token: ${token ? token.substring(0, 20) + '...' : 'MISSING'}`);
-    console.log(`⏰ Request Time: ${new Date().toISOString()}`);
-
     if (!token) {
-      console.log('❌ Error: No token provided');
-      console.log('='.repeat(60) + '\n');
+
       return res.status(400).json({ error: 'Token is required' });
     }
 
@@ -1351,54 +1253,35 @@ router.post('/verify-reset-token', async (req, res) => {
       include: { user: true }
     });
 
-    console.log(`🔍 Token found in DB: ${resetToken ? 'YES' : 'NO'}`);
-    
     if (!resetToken) {
-      console.log('❌ Error: Token not found in database');
-      console.log('='.repeat(60) + '\n');
+
       return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
-
-    console.log(`👤 User: ${resetToken.user.name} (${resetToken.user.email})`);
-    console.log(`⏰ Token expires: ${resetToken.expiresAt.toISOString()}`);
-    console.log(`🔒 Token used: ${resetToken.used}`);
 
     // Check if token is expired
     const now = new Date();
     if (resetToken.expiresAt < now) {
-      console.log('❌ Error: Token expired');
-      console.log(`⏰ Current time: ${now.toISOString()}`);
-      console.log(`⏰ Token expires: ${resetToken.expiresAt.toISOString()}`);
-      
+
       // Delete expired token
       await prisma.passwordResetToken.delete({
         where: { id: resetToken.id }
       });
-      console.log('🗑️ Expired token deleted from database');
-      console.log('='.repeat(60) + '\n');
+
       return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
 
     // Check if token has already been used
     if (resetToken.used) {
-      console.log('❌ Error: Token already used');
-      console.log('='.repeat(60) + '\n');
+
       return res.status(400).json({ error: 'Reset token has already been used' });
     }
-
-    console.log('✅ Token is valid and ready for use');
-    console.log('='.repeat(60) + '\n');
 
     res.json({ 
       valid: true,
       email: resetToken.user.email
     });
   } catch (error) {
-    console.log('\n' + '='.repeat(60));
-    console.log('💥 VERIFY RESET TOKEN ERROR');
-    console.log('='.repeat(60));
-    console.error('Error details:', error);
-    console.log('='.repeat(60) + '\n');
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1430,36 +1313,16 @@ router.get('/debug-user', async (req, res) => {
     if (!email) {
       return res.status(400).json({ error: 'Email parameter is required' });
     }
-    
-    console.log('\n' + '='.repeat(80));
-    console.log('🔍 USER DEBUG REQUEST');
-    console.log('='.repeat(80));
-    console.log('📧 Email:', email);
-    console.log('⏰ Time:', new Date().toISOString());
-    console.log('='.repeat(80));
-    
+
     const user = await prisma.user.findUnique({
       where: { email }
     });
     
     if (!user) {
-      console.log('❌ User not found');
-      console.log('='.repeat(80) + '\n');
+
       return res.status(404).json({ error: 'User not found' });
     }
-    
-    console.log('✅ User found:', {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      isActive: user.isActive,
-      createdAt: user.createdAt,
-      passwordHashLength: user.password.length,
-      passwordHashPreview: user.password.substring(0, 20) + '...'
-    });
-    console.log('='.repeat(80) + '\n');
-    
+
     res.json({
       user: {
         id: user.id,
@@ -1473,7 +1336,7 @@ router.get('/debug-user', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Debug user error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });

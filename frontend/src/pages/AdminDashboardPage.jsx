@@ -176,8 +176,7 @@ const AdminDashboardPage = () => {
     try {
       setUsersLoading(true);
       const response = await userService.getUsers();
-      console.log('Loaded users from API:', response.users);
-      
+
       // Transform users to match the expected format
       const transformedUsers = response.users.map((user, index) => ({
         key: user.id,
@@ -195,7 +194,7 @@ const AdminDashboardPage = () => {
       
       setUsers(transformedUsers);
     } catch (error) {
-      console.error('Error loading users:', error);
+
       message.error('Failed to load users');
     } finally {
       setUsersLoading(false);
@@ -314,7 +313,7 @@ const AdminDashboardPage = () => {
       await updateProfile(updateData);
       message.success('Profile updated successfully');
     } catch (error) {
-      console.error('Error updating profile:', error);
+
       message.error('Failed to update profile');
     }
   };
@@ -344,7 +343,7 @@ const AdminDashboardPage = () => {
       );
       setIsEditingPreferences(hasConfiguredSettings);
     } catch (error) {
-      console.error('Error loading general settings from backend:', error);
+
       // Fallback to localStorage if backend fails
       const savedSettings = localStorage.getItem('cn_terminal_general_settings');
       if (savedSettings) {
@@ -352,7 +351,7 @@ const AdminDashboardPage = () => {
           const parsed = JSON.parse(savedSettings);
           setPreferences(prev => ({ ...prev, ...parsed }));
         } catch (parseError) {
-          console.error('Error parsing saved settings:', parseError);
+
         }
       }
     }
@@ -382,7 +381,7 @@ const AdminDashboardPage = () => {
       setNotificationSettings(prev => ({ ...prev, ...loadedSettings }));
       setIsEditingNotifications(true);
     } catch (error) {
-      console.error('Error loading notification settings from backend:', error);
+
       // Fallback to localStorage if backend fails
       const savedSettings = localStorage.getItem('cn_terminal_notification_settings');
       if (savedSettings) {
@@ -391,7 +390,7 @@ const AdminDashboardPage = () => {
           setNotificationSettings(prev => ({ ...prev, ...parsed }));
           setIsEditingNotifications(true);
         } catch (parseError) {
-          console.error('Error parsing saved settings:', parseError);
+
         }
       }
     }
@@ -417,7 +416,7 @@ const AdminDashboardPage = () => {
       setSecuritySettings(prev => ({ ...prev, ...loadedSettings }));
       setIsEditingSecurity(true);
     } catch (error) {
-      console.error('Error loading security settings from backend:', error);
+
       // Fallback to localStorage if backend fails
       const savedSettings = localStorage.getItem('cn_terminal_security_settings');
       if (savedSettings) {
@@ -426,7 +425,7 @@ const AdminDashboardPage = () => {
           setSecuritySettings(prev => ({ ...prev, ...parsed }));
           setIsEditingSecurity(true);
         } catch (parseError) {
-          console.error('Error parsing saved settings:', parseError);
+
         }
       }
     }
@@ -455,7 +454,7 @@ const AdminDashboardPage = () => {
       setWhatsappSettings(prev => ({ ...prev, ...loadedSettings }));
       setIsEditingWhatsapp(true);
     } catch (error) {
-      console.error('Error loading WhatsApp settings from backend:', error);
+
       // Fallback to localStorage if backend fails
       const savedSettings = localStorage.getItem('cn_terminal_whatsapp_settings');
       if (savedSettings) {
@@ -464,7 +463,7 @@ const AdminDashboardPage = () => {
           setWhatsappSettings(prev => ({ ...prev, ...parsed }));
           setIsEditingWhatsapp(true);
         } catch (parseError) {
-          console.error('Error parsing saved settings:', parseError);
+
         }
       }
     }
@@ -493,7 +492,7 @@ const AdminDashboardPage = () => {
       setOrganisationSettings(prev => ({ ...prev, ...loadedSettings }));
       setIsEditingOrganisation(true);
     } catch (error) {
-      console.error('Error loading organisation settings from backend:', error);
+
       // Fallback to localStorage if backend fails
       const savedSettings = localStorage.getItem('cn_terminal_organisation_settings');
       if (savedSettings) {
@@ -502,7 +501,7 @@ const AdminDashboardPage = () => {
           setOrganisationSettings(prev => ({ ...prev, ...parsed }));
           setIsEditingOrganisation(true);
         } catch (parseError) {
-          console.error('Error parsing saved settings:', parseError);
+
         }
       }
     }
@@ -530,7 +529,7 @@ const AdminDashboardPage = () => {
       setClearingSettings(prev => ({ ...prev, ...loadedSettings }));
       setIsEditingClearing(true);
     } catch (error) {
-      console.error('Error loading clearing settings from backend:', error);
+
       // Fallback to localStorage if backend fails
       const savedSettings = localStorage.getItem('cn_terminal_clearing_settings');
       if (savedSettings) {
@@ -539,7 +538,7 @@ const AdminDashboardPage = () => {
           setClearingSettings(prev => ({ ...prev, ...parsed }));
           setIsEditingClearing(true);
         } catch (parseError) {
-          console.error('Error parsing saved settings:', parseError);
+
         }
       }
     }
@@ -587,7 +586,7 @@ const AdminDashboardPage = () => {
       
       message.success('General settings saved successfully');
     } catch (error) {
-      console.error('Error saving general settings:', error);
+
       message.error('Failed to save general settings');
       
       // Fallback to localStorage if backend fails
@@ -597,7 +596,7 @@ const AdminDashboardPage = () => {
         setIsEditingPreferences(true);
         message.warning('Settings saved locally (backend unavailable)');
       } catch (fallbackError) {
-        console.error('Error saving to localStorage:', fallbackError);
+
       }
     }
   };
@@ -662,7 +661,7 @@ const AdminDashboardPage = () => {
       setIsEditingNotifications(true);
       message.success('Notification settings saved successfully');
     } catch (error) {
-      console.error('Error saving notification settings:', error);
+
       message.error('Failed to save notification settings');
       
       // Fallback to localStorage if backend fails
@@ -672,7 +671,7 @@ const AdminDashboardPage = () => {
         setIsEditingNotifications(true);
         message.warning('Settings saved locally (backend unavailable)');
       } catch (fallbackError) {
-        console.error('Error saving to localStorage:', fallbackError);
+
       }
     }
   };
@@ -722,7 +721,7 @@ const AdminDashboardPage = () => {
       setIsEditingSecurity(true);
       message.success('Security settings saved successfully');
     } catch (error) {
-      console.error('Error saving security settings:', error);
+
       message.error('Failed to save security settings');
       
       // Fallback to localStorage if backend fails
@@ -732,7 +731,7 @@ const AdminDashboardPage = () => {
         setIsEditingSecurity(true);
         message.warning('Settings saved locally (backend unavailable)');
       } catch (fallbackError) {
-        console.error('Error saving to localStorage:', fallbackError);
+
       }
     }
   };
@@ -790,7 +789,7 @@ const AdminDashboardPage = () => {
       setIsEditingWhatsapp(true);
       message.success('WhatsApp Web settings saved successfully');
     } catch (error) {
-      console.error('Error saving WhatsApp settings:', error);
+
       message.error('Failed to save WhatsApp settings');
       
       // Fallback to localStorage if backend fails
@@ -800,7 +799,7 @@ const AdminDashboardPage = () => {
         setIsEditingWhatsapp(true);
         message.warning('Settings saved locally (backend unavailable)');
       } catch (fallbackError) {
-        console.error('Error saving to localStorage:', fallbackError);
+
       }
     }
   };
@@ -854,7 +853,7 @@ const AdminDashboardPage = () => {
       setIsEditingOrganisation(true);
       message.success('Organisation settings saved successfully');
     } catch (error) {
-      console.error('Error saving organisation settings:', error);
+
       message.error('Failed to save organisation settings');
       
       // Fallback to localStorage if backend fails
@@ -864,7 +863,7 @@ const AdminDashboardPage = () => {
         setIsEditingOrganisation(true);
         message.warning('Settings saved locally (backend unavailable)');
       } catch (fallbackError) {
-        console.error('Error saving to localStorage:', fallbackError);
+
       }
     }
   };
@@ -921,7 +920,7 @@ const AdminDashboardPage = () => {
       setIsEditingClearing(true);
       message.success('Clearing settings saved successfully');
     } catch (error) {
-      console.error('Error saving clearing settings:', error);
+
       message.error('Failed to save clearing settings');
       
       // Fallback to localStorage if backend fails
@@ -931,7 +930,7 @@ const AdminDashboardPage = () => {
         setIsEditingClearing(true);
         message.warning('Settings saved locally (backend unavailable)');
       } catch (fallbackError) {
-        console.error('Error saving to localStorage:', fallbackError);
+
       }
     }
   };

@@ -50,8 +50,6 @@ const EnquiriesPage = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
-
-
   const { customers } = useCustomers();
   const [enquiries, setEnquiries] = useState([]);
 
@@ -241,7 +239,7 @@ const EnquiriesPage = () => {
       setIsModalVisible(false);
       form.resetFields();
     } catch (error) {
-      console.error('Failed to save enquiry:', error);
+
       message.error(error.message || 'Failed to save enquiry');
     } finally {
       setLoading(false);

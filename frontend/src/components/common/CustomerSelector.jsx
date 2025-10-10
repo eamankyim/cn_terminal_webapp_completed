@@ -61,7 +61,6 @@ const CustomerSelector = ({
     }
   };
 
-
   const handleCreateCustomer = async () => {
     try {
       const values = await createForm.validateFields();
@@ -80,7 +79,7 @@ const CustomerSelector = ({
       handleCustomerSelect(newCustomer.id);
       
     } catch (error) {
-      console.error('Failed to create customer:', error);
+
       message.error(error.message || 'Failed to create customer');
     }
   };

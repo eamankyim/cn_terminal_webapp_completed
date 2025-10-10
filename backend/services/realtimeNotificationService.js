@@ -16,6 +16,7 @@ class RealtimeNotificationService {
 
       // Send real-time notification via WebSocket
       if (global.io) {
+        console.log(`🌐 Sending WebSocket notification to user_${userId}`);
         global.io.to(`user_${userId}`).emit('new_notification', {
           id: notification.id,
           title: notification.title,
@@ -29,13 +30,13 @@ class RealtimeNotificationService {
           invoice: notification.invoice,
           payment: notification.payment
         });
-        
-        console.log(`📡 Real-time notification sent to user ${userId}: ${notification.title}`);
+        console.log(`✅ WebSocket notification sent to user_${userId}`);
+      } else {
+        console.log('⚠️ Global.io not available - notification saved to database only');
       }
 
       return notification;
     } catch (error) {
-      console.error('Error sending real-time notification:', error);
       throw error;
     }
   }
@@ -56,7 +57,6 @@ class RealtimeNotificationService {
 
       return notifications;
     } catch (error) {
-      console.error('Error sending real-time notifications to multiple users:', error);
       throw error;
     }
   }
@@ -85,13 +85,10 @@ class RealtimeNotificationService {
           createdAt: new Date().toISOString(),
           metadata: notificationData.metadata
         });
-        
-        console.log(`📡 System-wide real-time notification sent: ${notificationData.title}`);
       }
 
       return notifications;
     } catch (error) {
-      console.error('Error sending system-wide real-time notification:', error);
       throw error;
     }
   }
@@ -117,13 +114,10 @@ class RealtimeNotificationService {
           metadata: notification.metadata,
           job: notification.job
         });
-        
-        console.log(`📡 Job assignment notification sent to user ${assignedToUserId}`);
       }
 
       return notification;
     } catch (error) {
-      console.error('Error sending job assignment notification:', error);
       throw error;
     }
   }
@@ -149,13 +143,10 @@ class RealtimeNotificationService {
           metadata: notification.metadata,
           job: notification.job
         });
-        
-        console.log(`📡 Job status change notification sent to user ${notification.userId}`);
       }
 
       return notification;
     } catch (error) {
-      console.error('Error sending job status change notification:', error);
       throw error;
     }
   }
@@ -181,13 +172,10 @@ class RealtimeNotificationService {
           metadata: notification.metadata,
           invoice: notification.invoice
         });
-        
-        console.log(`📡 Invoice created notification sent to user ${createdByUserId}`);
       }
 
       return notification;
     } catch (error) {
-      console.error('Error sending invoice created notification:', error);
       throw error;
     }
   }
@@ -213,13 +201,10 @@ class RealtimeNotificationService {
           metadata: notification.metadata,
           payment: notification.payment
         });
-        
-        console.log(`📡 Payment received notification sent to user ${createdByUserId}`);
       }
 
       return notification;
     } catch (error) {
-      console.error('Error sending payment received notification:', error);
       throw error;
     }
   }
@@ -243,11 +228,8 @@ class RealtimeNotificationService {
         global.io.to(`user_${userId}`).emit('unread_count_update', {
           count: count
         });
-        
-        console.log(`📡 Unread count update sent to user ${userId}: ${count}`);
       }
     } catch (error) {
-      console.error('Error sending unread count update:', error);
     }
   }
 
@@ -262,11 +244,8 @@ class RealtimeNotificationService {
           isRead: isRead,
           readAt: isRead ? new Date().toISOString() : null
         });
-        
-        console.log(`📡 Notification read status update sent to user ${userId}: ${notificationId} - ${isRead}`);
       }
     } catch (error) {
-      console.error('Error sending notification read update:', error);
     }
   }
 }

@@ -175,7 +175,7 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get enquiries error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -206,7 +206,7 @@ router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
 
     res.json({ enquiry });
   } catch (error) {
-    console.error('Get enquiry error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -268,7 +268,7 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
       enquiry
     });
   } catch (error) {
-    console.error('Create enquiry error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -321,7 +321,7 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
       enquiry: updatedEnquiry
     });
   } catch (error) {
-    console.error('Update enquiry error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -356,7 +356,7 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
       enquiry: updatedEnquiry
     });
   } catch (error) {
-    console.error('Update enquiry status error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -382,7 +382,7 @@ router.delete('/:id', authenticateToken, requireStaff, async (req, res) => {
 
     res.json({ message: 'Enquiry deleted successfully' });
   } catch (error) {
-    console.error('Delete enquiry error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });

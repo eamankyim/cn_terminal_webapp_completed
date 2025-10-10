@@ -184,7 +184,7 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get shipments error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -212,7 +212,7 @@ router.get('/:id', authenticateToken, requireStaff, async (req, res) => {
 
     res.json({ shipment });
   } catch (error) {
-    console.error('Get shipment error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -284,7 +284,7 @@ router.post('/', authenticateToken, requireStaff, async (req, res) => {
       shipment
     });
   } catch (error) {
-    console.error('Create shipment error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -362,7 +362,7 @@ router.put('/:id', authenticateToken, requireStaff, async (req, res) => {
       shipment: updatedShipment
     });
   } catch (error) {
-    console.error('Update shipment error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -400,7 +400,7 @@ router.put('/:id/status', authenticateToken, requireStaff, async (req, res) => {
       shipment: updatedShipment
     });
   } catch (error) {
-    console.error('Update shipment status error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -440,7 +440,7 @@ router.delete('/:id', authenticateToken, requireStaff, async (req, res) => {
 
     res.json({ message: 'Shipment deleted successfully' });
   } catch (error) {
-    console.error('Delete shipment error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });

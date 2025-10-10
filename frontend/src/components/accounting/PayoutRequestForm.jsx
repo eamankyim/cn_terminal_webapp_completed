@@ -57,7 +57,7 @@ const PayoutRecordForm = ({ visible, onCancel, onSuccess, initialData = null }) 
       const response = await jobService.getJobs({ status: 'INVOICED,RELEASED,CLEARED' });
       setJobs(response.jobs || []);
     } catch (error) {
-      console.error('Error loading jobs:', error);
+
       message.error('Failed to load jobs');
     }
   };
@@ -92,7 +92,7 @@ const PayoutRecordForm = ({ visible, onCancel, onSuccess, initialData = null }) 
       onSuccess();
       onCancel();
     } catch (error) {
-        console.error('Error creating payout record:', error);
+
         message.error(error.response?.data?.error || 'Failed to create payout record');
     } finally {
       setLoading(false);

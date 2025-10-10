@@ -58,7 +58,7 @@ class NotificationService {
 
       return notification;
     } catch (error) {
-      console.error('Error creating notification:', error);
+
       throw error;
     }
   }
@@ -293,7 +293,7 @@ class NotificationService {
 
       return notifications;
     } catch (error) {
-      console.error('Error creating system alert:', error);
+
       throw error;
     }
   }
@@ -311,10 +311,9 @@ class NotificationService {
         }
       });
 
-      console.log(`Cleaned up ${result.count} expired notifications`);
       return result.count;
     } catch (error) {
-      console.error('Error cleaning up expired notifications:', error);
+
       throw error;
     }
   }

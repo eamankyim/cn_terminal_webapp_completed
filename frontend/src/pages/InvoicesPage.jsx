@@ -79,7 +79,7 @@ const PaymentForm = React.forwardRef(({ invoice, onSuccess }, ref) => {
       
       await onSuccess(values);
     } catch (error) {
-      console.error('Form validation failed:', error);
+
     }
   };
 
@@ -198,21 +198,12 @@ const InvoicesPage = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('🔄 Loading invoices...');
-      console.log('🔑 Token present:', !!localStorage.getItem('cn_terminal_token'));
-      console.log('🔑 Token preview:', localStorage.getItem('cn_terminal_token') ? `${localStorage.getItem('cn_terminal_token').substring(0, 20)}...` : 'None');
-      
+
       const response = await invoiceService.getInvoices({ limit: 100 });
-      console.log('✅ Invoices loaded successfully:', response);
+
       setInvoices(response.invoices || []);
     } catch (error) {
-      console.error('❌ Error loading invoices:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-      
+
       // Check if it's an authentication error
       if (error.message.includes('Access token required') || error.message.includes('401')) {
         setError('Authentication required. Please log in again.');
@@ -231,12 +222,10 @@ const InvoicesPage = () => {
   const loadJobs = async () => {
     try {
       setJobsLoading(true);
-      console.log('🔄 Loading all jobs...');
-      
+
       // Fetch all jobs
       const response = await jobService.getJobs({ limit: 100 });
-      console.log('✅ All jobs loaded successfully:', response);
-      
+
       const allJobsData = response.jobs || [];
       
       // Set all jobs for display in table (status comes from database)
@@ -247,11 +236,10 @@ const InvoicesPage = () => {
         !job.isDraft &&
         !invoices.some(invoice => invoice.jobId === job.id)
       );
-      
-      console.log(`📊 Found ${jobsForInvoicing.length} jobs available for invoicing`);
+
       setJobs(jobsForInvoicing);
     } catch (error) {
-      console.error('❌ Error loading jobs:', error);
+
     } finally {
       setJobsLoading(false);
     }
@@ -262,10 +250,10 @@ const InvoicesPage = () => {
       const response = await configurationService.getConfigurations();
       if (response.success) {
         setConfigurations(response.data);
-        console.log('✅ Configurations loaded:', response.data);
+
       }
     } catch (error) {
-      console.error('❌ Error loading configurations:', error);
+
     }
   };
 
@@ -362,7 +350,6 @@ const InvoicesPage = () => {
     return statusIcons[status] || <FileTextOutlined />;
   };
 
-
   const handleSearch = (value) => {
     setSearchText(value);
     // In a real implementation, this would trigger an API call with search parameters
@@ -380,13 +367,16 @@ const InvoicesPage = () => {
   };
 
   const handleViewInvoice = async (invoice) => {
+    // Open drawer immediately with basic invoice data
+    setSelectedInvoice(invoice);
+    setIsModalVisible(true);
+    
+    // Load detailed data in the background
     try {
-      // Fetch full invoice details from the API
       const response = await invoiceService.getInvoice(invoice.id);
       setSelectedInvoice(response); // response is already the invoice object
-    setIsModalVisible(true);
     } catch (error) {
-      console.error('Error fetching invoice details:', error);
+
       message.error('Failed to load invoice details');
     }
   };
@@ -528,11 +518,11 @@ const InvoicesPage = () => {
           // Revert job status back to PREINVOICED if invoice was deleted
           if (invoice && invoice.jobId) {
             try {
-              console.log('🔄 Reverting job status to PREINVOICED for job:', invoice.jobId);
+
               const statusResponse = await jobService.updateJobStatus(invoice.jobId, 'PREINVOICED', 'Invoice deleted', null);
-              console.log('✅ Job status reverted to PREINVOICED:', statusResponse);
+
             } catch (statusError) {
-              console.error('⚠️ Failed to revert job status:', statusError);
+
               message.error('Invoice deleted but failed to revert job status');
               // Don't fail the entire operation if status update fails
             }
@@ -593,7 +583,7 @@ const InvoicesPage = () => {
               
               modal.destroy();
             } catch (error) {
-              console.error('Error marking invoice as paid:', error);
+
               message.error('Failed to mark invoice as paid');
             }
           }}
@@ -657,8 +647,6 @@ const InvoicesPage = () => {
           }
         };
 
-        
-        console.log('📄 Creating invoice with data:', invoiceData);
         await invoiceService.createInvoice(invoiceData);
         
         // Invoice creation is now independent - no automatic status update
@@ -670,14 +658,13 @@ const InvoicesPage = () => {
       form.resetFields();
       loadInvoices(); // Reload invoices (this will also reload jobs due to useEffect)
     } catch (error) {
-      console.error('❌ Error creating invoice:', error);
+
       message.error(error.message || 'Failed to save invoice');
     }
   };
 
   const handleCreateInvoiceFromJob = (job) => {
-    console.log('📄 Creating invoice for job:', job);
-    
+
     // Check if job is a draft
     if (job.isDraft) {
       message.warning('Draft jobs cannot be used to create invoices');
@@ -1613,7 +1600,7 @@ const InvoicesPage = () => {
                 loading={jobsLoading}
                 notFoundContent={jobsLoading ? 'Loading jobs...' : 'No jobs available for invoicing'}
                 onChange={(jobId) => {
-                  console.log('🔍 Job selected:', jobId);
+
                   setSelectedJobId(jobId);
                   const selectedJob = jobs.find(job => job.id === jobId);
                   if (selectedJob) {
@@ -1671,8 +1658,7 @@ const InvoicesPage = () => {
             if (!selectedJob && editingInvoice?.job) {
               selectedJob = editingInvoice.job;
             }
-            
-            console.log('🔍 Selected job:', selectedJob);
+
             return selectedJob ? (
               <Card size="small" title="Job Information" style={{ marginBottom: 16 }}>
                 <Row gutter={[16, 8]}>
@@ -1775,7 +1761,6 @@ const InvoicesPage = () => {
               </Card>
             );
           })()}
-
 
           {/* Invoice Details - Show when job is selected or when editing */}
           {(selectedJobId || editingInvoice) && (
@@ -2426,7 +2411,6 @@ const InvoicesPage = () => {
                 </table>
               </div>
             </div>
-
 
             {/* Footer */}
             <div style={{ 

@@ -61,7 +61,7 @@ async function getUserPermissions(userId) {
     
     return uniquePermissions;
   } catch (error) {
-    console.error('Error getting user permissions:', error);
+
     return [];
   }
 }
@@ -110,7 +110,7 @@ async function getAllPermissions() {
       ]
     });
   } catch (error) {
-    console.error('Error getting all permissions:', error);
+
     return [];
   }
 }
@@ -120,7 +120,7 @@ async function getAllPermissions() {
  */
 async function getAllRoles() {
   try {
-    console.log('🔍 DATABASE PERMISSIONS - Fetching all roles from database...');
+
     const roles = await prisma.role.findMany({
       where: { isActive: true },
       include: {
@@ -133,11 +133,10 @@ async function getAllRoles() {
       },
       orderBy: { name: 'asc' }
     });
-    console.log('🔍 DATABASE PERMISSIONS - Found roles:', roles.length);
-    console.log('🔍 DATABASE PERMISSIONS - Roles data:', JSON.stringify(roles, null, 2));
+
     return roles;
   } catch (error) {
-    console.error('❌ DATABASE PERMISSIONS - Error getting all roles:', error);
+
     return [];
   }
 }
@@ -170,7 +169,7 @@ async function updateRolePermissions(roleId, permissionIds, updatedBy) {
     
     return true;
   } catch (error) {
-    console.error('Error updating role permissions:', error);
+
     throw error;
   }
 }
@@ -205,7 +204,7 @@ async function grantUserPermission(userId, permissionId, grantedBy, expiresAt = 
     
     return true;
   } catch (error) {
-    console.error('Error granting user permission:', error);
+
     throw error;
   }
 }
@@ -230,7 +229,7 @@ async function revokeUserPermission(userId, permissionId) {
     
     return true;
   } catch (error) {
-    console.error('Error revoking user permission:', error);
+
     throw error;
   }
 }
@@ -255,5 +254,4 @@ module.exports = {
   revokeUserPermission,
   clearPermissionsCache
 };
-
 

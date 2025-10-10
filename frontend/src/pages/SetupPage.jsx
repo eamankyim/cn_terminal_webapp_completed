@@ -48,7 +48,6 @@ const SetupPage = () => {
         }, 2000);
       }
     } catch (error) {
-      console.error('Failed to check initialization status:', error);
       message.error('Failed to check system status');
     } finally {
       setCheckingStatus(false);
@@ -244,5 +243,4 @@ const SetupPage = () => {
 };
 
 export default SetupPage;
-
 

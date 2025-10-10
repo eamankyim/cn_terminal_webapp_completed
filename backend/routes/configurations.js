@@ -29,7 +29,7 @@ router.get('/', authenticateToken, async (req, res) => {
       data: groupedConfigs
     });
   } catch (error) {
-    console.error('Error fetching configurations:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch configurations',
@@ -58,7 +58,7 @@ router.get('/:key', authenticateToken, async (req, res) => {
       data: configuration
     });
   } catch (error) {
-    console.error('Error fetching configuration:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch configuration',
@@ -121,7 +121,7 @@ router.post('/', authenticateToken, async (req, res) => {
       data: configuration
     });
   } catch (error) {
-    console.error('Error saving configuration:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to save configuration',
@@ -209,7 +209,7 @@ router.put('/bulk', authenticateToken, async (req, res) => {
       data: results
     });
   } catch (error) {
-    console.error('Error bulk updating configurations:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to bulk update configurations',
@@ -243,7 +243,7 @@ router.delete('/:key', authenticateToken, async (req, res) => {
       message: 'Configuration deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting configuration:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to delete configuration',
@@ -310,7 +310,7 @@ router.post('/init', authenticateToken, async (req, res) => {
       data: results
     });
   } catch (error) {
-    console.error('Error initializing configurations:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to initialize configurations',

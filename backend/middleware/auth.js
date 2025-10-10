@@ -13,7 +13,7 @@ async function checkUserPermission(userId, permissionName) {
     });
 
     if (!permission) {
-      console.log(`Permission not found: ${permissionName}`);
+
       return false;
     }
 
@@ -43,7 +43,7 @@ async function checkUserPermission(userId, permissionName) {
 
     return !!userPermission;
   } catch (error) {
-    console.error('Error checking user permission:', error);
+
     return false;
   }
 }
@@ -87,7 +87,7 @@ const authenticateToken = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
+
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ error: 'Invalid token' });
     }
@@ -152,7 +152,7 @@ const requirePermission = (permission) => {
       
       next();
     } catch (error) {
-      console.error('Permission check error:', error);
+
       return res.status(500).json({ error: 'Permission check failed' });
     }
   };
@@ -184,7 +184,7 @@ const requireAnyPermission = (permissions) => {
 
       next();
     } catch (error) {
-      console.error('Permission check error:', error);
+
       return res.status(500).json({ error: 'Permission check failed' });
     }
   };
@@ -216,7 +216,7 @@ const requireAllPermissions = (permissions) => {
 
       next();
     } catch (error) {
-      console.error('Permission check error:', error);
+
       return res.status(500).json({ error: 'Permission check failed' });
     }
   };
@@ -226,19 +226,17 @@ const requireAllPermissions = (permissions) => {
  * Middleware to require admin or IT consultant role
  */
 const requireAdminOrIT = (req, res, next) => {
-  console.log('🔍 AUTH MIDDLEWARE - Checking admin/IT access for user:', req.user?.email, 'Role:', req.user?.role);
-  
+
   if (!req.user) {
-    console.log('❌ AUTH MIDDLEWARE - No user found in request');
+
     return res.status(401).json({ error: 'Authentication required' });
   }
 
   if (!['ADMIN', 'IT_CONSULTANT'].includes(req.user.role)) {
-    console.log('❌ AUTH MIDDLEWARE - User role not authorized:', req.user.role);
+
     return res.status(403).json({ error: 'Admin or IT Consultant access required' });
   }
 
-  console.log('✅ AUTH MIDDLEWARE - User authorized:', req.user.email);
   next();
 };
 

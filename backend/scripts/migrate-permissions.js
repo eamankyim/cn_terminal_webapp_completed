@@ -70,10 +70,9 @@ const PERMISSION_MODULES = {
 
 async function migratePermissions() {
   try {
-    console.log('🚀 Starting permissions migration...');
-    
+
     // Step 1: Create all permissions
-    console.log('📝 Creating permissions...');
+
     const permissionMap = {};
     
     for (const [key, permissionName] of Object.entries(PERMISSIONS)) {
@@ -104,11 +103,11 @@ async function migratePermissions() {
       });
       
       permissionMap[permissionName] = permission.id;
-      console.log(`  ✅ Created permission: ${permissionName}`);
+
     }
     
     // Step 2: Create all roles
-    console.log('👥 Creating roles...');
+
     const roleMap = {};
     
     for (const [roleName, info] of Object.entries(ROLE_INFO)) {
@@ -128,12 +127,11 @@ async function migratePermissions() {
       });
       
       roleMap[roleName] = role.id;
-      console.log(`  ✅ Created role: ${roleName}`);
+
     }
     
     // Step 3: Create role-permission mappings
-    console.log('🔗 Creating role-permission mappings...');
-    
+
     // Get the first admin user to use as creator
     const adminUser = await prisma.user.findFirst({
       where: { role: 'ADMIN' }
@@ -163,18 +161,11 @@ async function migratePermissions() {
           }
         });
       }
-      
-      console.log(`  ✅ Mapped ${permissions.length} permissions to role: ${roleName}`);
+
     }
-    
-    console.log('🎉 Permissions migration completed successfully!');
-    console.log(`📊 Summary:`);
-    console.log(`  - ${Object.keys(PERMISSIONS).length} permissions created`);
-    console.log(`  - ${Object.keys(ROLE_INFO).length} roles created`);
-    console.log(`  - ${Object.values(ROLE_PERMISSIONS).flat().length} role-permission mappings created`);
-    
+
   } catch (error) {
-    console.error('❌ Migration failed:', error);
+
     throw error;
   } finally {
     await prisma.$disconnect();
@@ -185,15 +176,14 @@ async function migratePermissions() {
 if (require.main === module) {
   migratePermissions()
     .then(() => {
-      console.log('✅ Migration completed successfully');
+
       process.exit(0);
     })
     .catch((error) => {
-      console.error('❌ Migration failed:', error);
+
       process.exit(1);
     });
 }
 
 module.exports = { migratePermissions };
-
 

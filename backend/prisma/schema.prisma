@@ -406,6 +406,7 @@ model ExpenseRequest {
   status          ExpenseStatus   @default(PENDING)
   approvedById    String?
   approvedAt      DateTime?
+  approvalComment String?
   rejectionReason String?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -451,7 +452,6 @@ model Expense {
   jobId                String?
   receiptUrl           String?
   createdAt            DateTime              @default(now())
-  cashflowTransactions CashflowTransaction[]
   job                  Job?                  @relation(fields: [jobId], references: [id])
   request              ExpenseRequest        @relation(fields: [requestId], references: [id])
 
@@ -470,7 +470,6 @@ model Payout {
   processedById        String
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
-  cashflowTransactions CashflowTransaction[]
   job                  Job?                  @relation(fields: [jobId], references: [id])
   processedBy          User                  @relation("PayoutProcessedBy", fields: [processedById], references: [id])
 
@@ -487,8 +486,6 @@ model CashflowTransaction {
   jobId           String?
   transactionDate DateTime           @default(now())
   createdAt       DateTime           @default(now())
-  expense         Expense?           @relation(fields: [sourceId], references: [id], map: "cashflow_expense_fkey")
-  payout          Payout?            @relation(fields: [sourceId], references: [id], map: "cashflow_payout_fkey")
   job             Job?               @relation(fields: [jobId], references: [id])
 
   @@map("cashflow_transactions")

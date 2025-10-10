@@ -8,7 +8,7 @@ class UserService {
       const response = await apiService.get('/auth/users');
       return response;
     } catch (error) {
-      console.error('Failed to fetch users:', error);
+
       throw error;
     }
   }
@@ -22,7 +22,7 @@ class UserService {
       );
       return { users: staffMembers };
     } catch (error) {
-      console.error('Failed to fetch staff members:', error);
+
       throw error;
     }
   }
@@ -33,7 +33,7 @@ class UserService {
       const response = await apiService.get('/auth/assignable-users');
       return response;
     } catch (error) {
-      console.error('Failed to fetch assignable users:', error);
+
       throw error;
     }
   }
@@ -44,7 +44,7 @@ class UserService {
       const response = await apiService.get(`/auth/users/${userId}`);
       return response;
     } catch (error) {
-      console.error('Failed to fetch user:', error);
+
       throw error;
     }
   }
@@ -55,7 +55,7 @@ class UserService {
       const response = await apiService.put(`/auth/users/${userId}`, userData);
       return response;
     } catch (error) {
-      console.error('Failed to update user:', error);
+
       throw error;
     }
   }
@@ -66,7 +66,7 @@ class UserService {
       const response = await apiService.put(`/auth/users/${userId}/status`, { isActive });
       return response;
     } catch (error) {
-      console.error('Failed to update user status:', error);
+
       throw error;
     }
   }
@@ -77,7 +77,7 @@ class UserService {
       const response = await apiService.delete(`/auth/users/${userId}`);
       return response;
     } catch (error) {
-      console.error('Failed to delete user:', error);
+
       throw error;
     }
   }

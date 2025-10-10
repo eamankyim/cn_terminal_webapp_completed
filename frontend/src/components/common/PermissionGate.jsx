@@ -64,4 +64,3 @@ const PermissionGate = ({
 
 export default PermissionGate;
 
-

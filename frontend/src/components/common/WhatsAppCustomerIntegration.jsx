@@ -30,7 +30,7 @@ const WhatsAppCustomerIntegration = ({ visible, onClose }) => {
       const response = await apiService.get('/customers');
       setCustomers(response.customers || []);
     } catch (error) {
-      console.error('Error loading customers:', error);
+
       message.error('Failed to load customers');
     } finally {
       setLoading(false);

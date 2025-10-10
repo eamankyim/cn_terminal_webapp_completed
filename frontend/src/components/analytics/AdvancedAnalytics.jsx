@@ -80,7 +80,7 @@ const AdvancedAnalytics = ({ dateRange, onDateRangeChange }) => {
         forecasts: forecastData
       });
     } catch (error) {
-      console.error('Error loading analytics data:', error);
+
     } finally {
       setLoading(false);
     }
@@ -162,7 +162,7 @@ const AdvancedAnalytics = ({ dateRange, onDateRangeChange }) => {
 
   const exportAnalytics = () => {
     // Export functionality for analytics data
-    console.log('Exporting analytics data...');
+
   };
 
   return (

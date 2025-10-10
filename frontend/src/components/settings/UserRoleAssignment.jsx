@@ -79,7 +79,7 @@ const UserRoleAssignment = ({ currentUserRole, users, onUserUpdate }) => {
       }
     } catch (error) {
       message.error('Failed to update user role');
-      console.error('Error updating user:', error);
+
     } finally {
       setLoading(false);
     }

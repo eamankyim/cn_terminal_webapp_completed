@@ -54,42 +54,24 @@ const router = express.Router();
 router.get('/summary', authenticateToken, requirePermission(UI_PERMISSIONS.REPORTS), async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    
-    console.log('\n' + '='.repeat(80));
-    console.log('📊 REPORTS SUMMARY REQUEST');
-    console.log('='.repeat(80));
-    console.log('📅 Raw startDate:', startDate);
-    console.log('📅 Raw endDate:', endDate);
-    console.log('⏰ Request time:', new Date().toISOString());
-    
+
     if (!startDate || !endDate) {
-      console.log('❌ Missing date parameters');
-      console.log('='.repeat(80) + '\n');
+
       return res.status(400).json({ error: 'Start date and end date are required' });
     }
 
     // Create dates that include the full day (start at 00:00:00, end at 23:59:59.999)
     const startDateTime = new Date(startDate + 'T00:00:00.000Z');
     const endDateTime = new Date(endDate + 'T23:59:59.999Z');
-    
-    console.log('🕐 Parsed startDateTime:', startDateTime.toISOString());
-    console.log('🕐 Parsed endDateTime:', endDateTime.toISOString());
-    console.log('📊 Date range span:', Math.ceil((endDateTime - startDateTime) / (1000 * 60 * 60 * 24)), 'days');
-    
+
     const stats = await ReportService.getSummaryStats(
       startDateTime,
       endDateTime
     );
 
-    console.log('📈 Summary stats result:', JSON.stringify(stats, null, 2));
-    console.log('='.repeat(80));
-    console.log('✅ REPORTS SUMMARY SUCCESS');
-    console.log('='.repeat(80) + '\n');
-
     res.json(stats);
   } catch (error) {
-    console.error('❌ Error getting summary stats:', error);
-    console.log('='.repeat(80) + '\n');
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -155,7 +137,7 @@ router.get('/job-status', authenticateToken, requirePermission(UI_PERMISSIONS.RE
 
     res.json(data);
   } catch (error) {
-    console.error('Error getting job status summary:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -224,7 +206,7 @@ router.get('/daily-activity', authenticateToken, requirePermission(UI_PERMISSION
 
     res.json(data);
   } catch (error) {
-    console.error('Error getting daily activity:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -299,7 +281,7 @@ router.get('/revenue', authenticateToken, requirePermission(UI_PERMISSIONS.REPOR
 
     res.json(data);
   } catch (error) {
-    console.error('Error getting revenue summary:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -370,7 +352,7 @@ router.get('/invoices', authenticateToken, requirePermission(UI_PERMISSIONS.REPO
 
     res.json(data);
   } catch (error) {
-    console.error('Error getting invoice reports:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -439,7 +421,7 @@ router.get('/customers', authenticateToken, requirePermission(UI_PERMISSIONS.REP
 
     res.json(data);
   } catch (error) {
-    console.error('Error getting customer activity:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -495,7 +477,7 @@ router.get('/processing-time', authenticateToken, requirePermission(UI_PERMISSIO
       data
     });
   } catch (error) {
-    console.error('Error fetching processing time report:', error);
+
     res.status(500).json({ error: 'Failed to fetch processing time report' });
   }
 });
@@ -551,7 +533,7 @@ router.get('/monthly-trends', authenticateToken, requirePermission(UI_PERMISSION
       data
     });
   } catch (error) {
-    console.error('Error fetching monthly trends report:', error);
+
     res.status(500).json({ error: 'Failed to fetch monthly trends report' });
   }
 });

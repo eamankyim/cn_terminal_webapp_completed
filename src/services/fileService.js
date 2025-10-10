@@ -36,7 +36,7 @@ class FileService {
 
       return response.data;
     } catch (error) {
-      console.error('File upload error:', error);
+
       throw new Error(error.response?.data?.message || 'Failed to upload file');
     }
   }
@@ -47,7 +47,7 @@ class FileService {
       const results = await Promise.all(uploadPromises);
       return results;
     } catch (error) {
-      console.error('Multiple file upload error:', error);
+
       throw new Error('Failed to upload files');
     }
   }
@@ -59,7 +59,7 @@ class FileService {
       });
       return response.data;
     } catch (error) {
-      console.error('File delete error:', error);
+
       throw new Error('Failed to delete file');
     }
   }
@@ -69,7 +69,7 @@ class FileService {
       const response = await api.get(`/files/${fileId}`);
       return response.data;
     } catch (error) {
-      console.error('Get file info error:', error);
+
       throw new Error('Failed to get file information');
     }
   }
@@ -79,7 +79,7 @@ class FileService {
       const response = await api.get(`/files/entity/${entityType}/${entityId}`);
       return response.data;
     } catch (error) {
-      console.error('Get files by entity error:', error);
+
       throw new Error('Failed to get files');
     }
   }
@@ -91,7 +91,7 @@ class FileService {
       });
       return response.data;
     } catch (error) {
-      console.error('File download error:', error);
+
       throw new Error('Failed to download file');
     }
   }

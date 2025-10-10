@@ -52,12 +52,15 @@ const AccountingPage = () => {
 
   const loadDashboardData = async () => {
     try {
+      console.log('🔍 AccountingPage: Starting loadDashboardData...');
       setLoading(true);
+      // Remove date filters to show all-time data like AccountingDashboard
       const params = {
-        period,
-        startDate: dateRange[0].format('YYYY-MM-DD'),
-        endDate: dateRange[1].format('YYYY-MM-DD')
+        period
+        // Removed startDate and endDate to get all-time data
       };
+
+      console.log('📋 AccountingPage: API call parameters:', params);
 
       const [cashflowResponse, expenseResponse, payoutResponse] = await Promise.all([
         cashflowService.getSummary(params),
@@ -65,11 +68,23 @@ const AccountingPage = () => {
         payoutService.getPayoutStats(params)
       ]);
 
+      console.log('📊 AccountingPage: API responses received:');
+      console.log('  - Cashflow Response:', cashflowResponse);
+      console.log('  - Expense Response:', expenseResponse);
+      console.log('  - Payout Response:', payoutResponse);
+
       setCashflowData(cashflowResponse);
       setExpenseStats(expenseResponse);
       setPayoutStats(payoutResponse);
+
+      console.log('✅ AccountingPage: State updated successfully');
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      console.error('❌ AccountingPage: Error in loadDashboardData:', error);
+      console.error('❌ AccountingPage: Error details:', {
+        message: error.message,
+        stack: error.stack,
+        response: error.response?.data
+      });
       message.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
@@ -261,7 +276,11 @@ const AccountingPage = () => {
               Payout Management
             </Title>
             <p>Payout management interface will be implemented in the next phase.</p>
-            <PermissionGate userRole={currentUser?.role} permissions={PERMISSIONS.PAYOUT_CREATE}>
+            <PermissionGate 
+              userRole={currentUser?.role} 
+              userPermissions={currentUser?.permissions}
+              permissions={PERMISSIONS.PAYOUT_CREATE}
+            >
               <Button type="primary" icon={<PlusOutlined />}>
                 Create New Payout
               </Button>
@@ -302,7 +321,11 @@ const AccountingPage = () => {
           </div>
           
           <div style={{ marginTop: 8 }}>
-            <PermissionGate userRole={currentUser?.role} permissions={PERMISSIONS.EXPENSE_CREATE}>
+            <PermissionGate 
+              userRole={currentUser?.role} 
+              userPermissions={currentUser?.permissions}
+              permissions={PERMISSIONS.EXPENSE_CREATE}
+            >
               <Button
                 type="primary"
                 icon={<PlusOutlined />}

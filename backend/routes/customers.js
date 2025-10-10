@@ -181,7 +181,7 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), as
       }
     });
   } catch (error) {
-    console.error('Get customers error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -276,7 +276,7 @@ router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS),
 
     res.json({ customer });
   } catch (error) {
-    console.error('Get customer error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -284,12 +284,6 @@ router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS),
 // Create new customer
 router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), async (req, res) => {
   try {
-    console.log('\n' + '='.repeat(60));
-    console.log('👥 CREATE CUSTOMER REQUEST');
-    console.log('='.repeat(60));
-    console.log(`👤 User: ${req.user.name} (${req.user.email})`);
-    console.log(`📝 Request body:`, JSON.stringify(req.body, null, 2));
-    console.log(`⏰ Request time: ${new Date().toISOString()}`);
 
     const {
       name,
@@ -306,39 +300,25 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), a
       customerType = 'REGULAR'
     } = req.body;
 
-    console.log(`🔍 Extracted data:`);
-    console.log(`  - name: ${name}`);
-    console.log(`  - email: ${email}`);
-    console.log(`  - phone: ${phone}`);
-    console.log(`  - address: ${address}`);
-    console.log(`  - customerType: ${customerType}`);
-
     // Validate required fields
     if (!name || !email || !phone || !address) {
-      console.log('❌ Validation failed: Missing required fields');
-      console.log(`  - name: ${!!name}`);
-      console.log(`  - email: ${!!email}`);
-      console.log(`  - phone: ${!!phone}`);
-      console.log(`  - address: ${!!address}`);
+
       return res.status(400).json({ error: 'Company name, email, phone, and address are required' });
     }
 
-    console.log('✅ Validation passed');
-
     // Check if customer with email already exists
-    console.log('🔍 Checking if customer with email already exists...');
+
     const existingCustomer = await prisma.customer.findUnique({
       where: { email }
     });
 
     if (existingCustomer) {
-      console.log('❌ Customer with email already exists:', email);
+
       return res.status(400).json({ error: 'Customer with this email already exists' });
     }
-    console.log('✅ Email is unique');
 
     // Create customer
-    console.log('💾 Backend: Creating customer in database...');
+
     const customer = await prisma.customer.create({
       data: {
         name,
@@ -364,8 +344,7 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), a
         }
       }
     });
-    console.log('✅ Customer created successfully:', customer.id);
-    
+
     // Create notification for new customer
     try {
       await NotificationService.createNotification({
@@ -381,30 +360,18 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), a
           createdBy: req.user.name
         }
       });
-      console.log('📢 Notification created for new customer');
+
     } catch (notificationError) {
-      console.error('⚠️ Failed to create notification for new customer:', notificationError);
+
       // Don't fail the customer creation if notification fails
     }
-    
-    console.log('🎉 Customer creation completed successfully');
-    console.log('='.repeat(60) + '\n');
 
     res.status(201).json({
       message: 'Customer created successfully',
       customer
     });
   } catch (error) {
-    console.log('\n' + '='.repeat(60));
-    console.log('💥 CREATE CUSTOMER ERROR');
-    console.log('='.repeat(60));
-    console.error('Error details:', error);
-    console.log('Error message:', error.message);
-    console.log('Error stack:', error.stack);
-    console.log('Error code:', error.code);
-    console.log('Error meta:', error.meta);
-    console.log('='.repeat(60) + '\n');
-    
+
     res.status(500).json({ 
       error: 'Internal server error',
       details: error.message 
@@ -585,9 +552,9 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS),
           updatedBy: req.user.name
         }
       });
-      console.log('📢 Notification created for customer update');
+
     } catch (notificationError) {
-      console.error('⚠️ Failed to create notification for customer update:', notificationError);
+
       // Don't fail the customer update if notification fails
     }
 
@@ -596,7 +563,7 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS),
       customer: updatedCustomer
     });
   } catch (error) {
-    console.error('Update customer error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -674,7 +641,7 @@ router.delete('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENT
 
     res.json({ message: 'Customer deleted successfully' });
   } catch (error) {
-    console.error('Delete customer error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -797,7 +764,7 @@ router.get('/:id/statistics', authenticateToken, requirePermission(UI_PERMISSION
       }
     });
   } catch (error) {
-    console.error('Get customer statistics error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -870,7 +837,7 @@ router.get('/selector', authenticateToken, requirePermission(UI_PERMISSIONS.CLIE
 
     res.json({ customers });
   } catch (error) {
-    console.error('Get customers for selector error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });

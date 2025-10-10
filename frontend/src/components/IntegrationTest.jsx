@@ -137,7 +137,6 @@ const IntegrationTest = () => {
       }
 
     } catch (error) {
-      console.error('Test suite failed:', error);
       setOverallStatus('error');
     } finally {
       setTesting(false);

@@ -55,8 +55,6 @@ const ROLES_TO_CREATE = [
 ];
 
 async function createMissingRoles() {
-  console.log('🔧 Creating missing roles...\n');
-  
   try {
     // Get existing roles
     const existingRoles = await prisma.role.findMany({
@@ -64,51 +62,36 @@ async function createMissingRoles() {
     });
     
     const existingRoleNames = existingRoles.map(r => r.name);
-    console.log('📋 Existing roles:', existingRoleNames);
-    
     // Find roles that need to be created
     const rolesToCreate = ROLES_TO_CREATE.filter(role => 
       !existingRoleNames.includes(role.name)
     );
-    
-    console.log(`\n🔍 Roles to create: ${rolesToCreate.length}`);
     rolesToCreate.forEach(role => console.log(`  - ${role.name}: ${role.displayName}`));
     
     if (rolesToCreate.length === 0) {
-      console.log('\n✅ All roles already exist!');
       return;
     }
     
     // Create missing roles
     for (const roleData of rolesToCreate) {
-      console.log(`\n📝 Creating role: ${roleData.name}`);
-      
       const role = await prisma.role.create({
         data: roleData
       });
-      
-      console.log(`  ✅ Created: ${role.name} (${role.displayName})`);
     }
-    
-    console.log('\n🎉 All missing roles created successfully!');
-    
     // Show final role count
     const finalRoles = await prisma.role.findMany({
       select: { name: true, displayName: true }
     });
-    
-    console.log('\n📊 Final roles in database:');
     finalRoles.forEach(role => {
-      console.log(`  - ${role.name}: ${role.displayName}`);
     });
     
   } catch (error) {
-    console.error('❌ Error creating missing roles:', error);
   } finally {
     await prisma.$disconnect();
   }
 }
 
 createMissingRoles();
+
 
 

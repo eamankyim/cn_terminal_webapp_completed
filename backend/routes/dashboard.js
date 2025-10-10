@@ -189,12 +189,7 @@ router.get('/stats', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOA
       recentActivities: activities
     });
   } catch (error) {
-    console.error('Get dashboard stats error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
+
     res.status(500).json({ 
       error: 'Internal server error',
       message: error.message,
@@ -257,12 +252,7 @@ router.get('/recent-shipments', authenticateToken, requirePermission(UI_PERMISSI
 
     res.json({ shipments: formattedShipments });
   } catch (error) {
-    console.error('Get recent shipments error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
+
     res.status(500).json({ 
       error: 'Internal server error',
       message: error.message,
@@ -336,12 +326,7 @@ router.get('/recent-jobs', authenticateToken, requirePermission(UI_PERMISSIONS.D
 
     res.json({ jobs });
   } catch (error) {
-    console.error('Get jobs in progress error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
+
     res.status(500).json({ 
       error: 'Internal server error',
       message: error.message,
@@ -413,12 +398,7 @@ router.get('/assigned-jobs', authenticateToken, requirePermission(UI_PERMISSIONS
 
     res.json({ jobs });
   } catch (error) {
-    console.error('Get assigned jobs error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
+
     res.status(500).json({ 
       error: 'Internal server error',
       message: error.message,

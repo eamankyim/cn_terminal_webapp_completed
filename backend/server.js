@@ -80,20 +80,14 @@ app.use('/api/files', fileRoutes);
 app.use('/api/configurations', configurationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/roles', roleRoutes);
-console.log('🔧 Registering accounting routes...');
+
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/cashflow', cashflowRoutes);
-console.log('✅ Accounting routes registered successfully');
 
 // Add catch-all route for debugging
 app.use('/api/*', (req, res, next) => {
-  console.log('🚨 UNMATCHED ROUTE:', req.method, req.originalUrl);
-  console.log('🚨 Available routes should include:', [
-    '/api/expenses/stats/summary',
-    '/api/payouts/stats/summary', 
-    '/api/cashflow/summary'
-  ]);
+
   next();
 });
 
@@ -332,14 +326,14 @@ app.get('/api/track/:trackingId', async (req, res) => {
       estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     });
   } catch (error) {
-    console.error('Tracking error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+
   res.status(500).json({ 
     error: 'Something went wrong!',
     message: err.message 
@@ -355,27 +349,23 @@ app.use((req, res) => {
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log(`🔌 User connected: ${socket.id}`);
 
   // Handle user authentication and join user room
   socket.on('authenticate', (userId) => {
     if (userId) {
       socket.join(`user_${userId}`);
-      console.log(`👤 User ${userId} joined their notification room`);
+
     }
   });
 
   // Handle disconnect
   socket.on('disconnect', () => {
-    console.log(`🔌 User disconnected: ${socket.id}`);
+
   });
 });
 
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
-  console.log(`🔌 Socket.IO server ready for real-time notifications`);
+
 });

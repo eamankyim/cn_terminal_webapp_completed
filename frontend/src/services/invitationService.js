@@ -8,7 +8,7 @@ class InvitationService {
       const response = await apiService.get('/invitations');
       return response;
     } catch (error) {
-      console.error('Failed to fetch pending invitations:', error);
+
       throw error;
     }
   }
@@ -19,7 +19,7 @@ class InvitationService {
       const response = await apiService.post('/invitations', inviteData);
       return response;
     } catch (error) {
-      console.error('Failed to send invitation:', error);
+
       throw error;
     }
   }
@@ -30,7 +30,7 @@ class InvitationService {
       const response = await apiService.delete(`/invitations/${invitationId}`);
       return response;
     } catch (error) {
-      console.error('Failed to cancel invitation:', error);
+
       throw error;
     }
   }
@@ -41,7 +41,7 @@ class InvitationService {
       const response = await apiService.post(`/invitations/${invitationId}/resend`);
       return response;
     } catch (error) {
-      console.error('Failed to resend invitation:', error);
+
       throw error;
     }
   }
@@ -52,7 +52,7 @@ class InvitationService {
       const response = await apiService.get(`/invitations/${invitationId}`);
       return response;
     } catch (error) {
-      console.error('Failed to get invitation:', error);
+
       throw error;
     }
   }
@@ -63,7 +63,7 @@ class InvitationService {
       const response = await apiService.get(`/invitations/${invitationId}/validate`);
       return response;
     } catch (error) {
-      console.error('Failed to validate invitation:', error);
+
       throw error;
     }
   }
@@ -74,7 +74,7 @@ class InvitationService {
       const response = await apiService.post(`/invitations/${invitationId}/accept`, userData);
       return response;
     } catch (error) {
-      console.error('Failed to accept invitation:', error);
+
       throw error;
     }
   }
@@ -85,7 +85,7 @@ class InvitationService {
       const response = await apiService.get('/invitations/stats');
       return response;
     } catch (error) {
-      console.error('Failed to get invitation stats:', error);
+
       throw error;
     }
   }
@@ -96,7 +96,7 @@ class InvitationService {
       const response = await apiService.get('/invitations/logs/file');
       return response;
     } catch (error) {
-      console.error('Failed to fetch invitation logs:', error);
+
       throw error;
     }
   }

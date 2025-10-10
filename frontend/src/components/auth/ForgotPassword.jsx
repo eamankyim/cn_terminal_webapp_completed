@@ -234,11 +234,3 @@ export default ForgotPassword;
 
 
 
-
-
-
-
-
-
-
-

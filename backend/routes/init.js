@@ -128,15 +128,14 @@ router.post('/super-admin', async (req, res) => {
     });
 
     // Set up permissions and roles for the admin user
-    console.log('🔧 Setting up permissions and roles for admin user...');
-    
+
     try {
       // Import and run the permissions setup
       const setupPermissions = require('../scripts/setup-permissions');
       await setupPermissions();
-      console.log('✅ Permissions and roles set up successfully');
+
     } catch (permissionError) {
-      console.error('⚠️ Warning: Failed to set up permissions:', permissionError.message);
+
       // Don't fail the admin creation if permissions setup fails
     }
 
@@ -146,7 +145,7 @@ router.post('/super-admin', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Create super admin error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -189,17 +188,10 @@ router.get('/check', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Check initialization error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 module.exports = router;
-
-
-
-
-
-
-
 

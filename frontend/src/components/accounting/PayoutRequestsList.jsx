@@ -70,7 +70,7 @@ const PayoutRecordsList = () => {
       const response = await payoutService.getPayoutRecords(params);
       setPayoutRecords(response.payouts || []);
     } catch (error) {
-      console.error('Error loading payout records:', error);
+
       message.error('Failed to load payout records');
     } finally {
       setLoading(false);
@@ -82,7 +82,7 @@ const PayoutRecordsList = () => {
       const response = await payoutService.getPayoutStats();
       setStats(response);
     } catch (error) {
-      console.error('Error loading payout stats:', error);
+
     }
   };
 

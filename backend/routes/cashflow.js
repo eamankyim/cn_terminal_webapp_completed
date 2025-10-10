@@ -5,7 +5,6 @@ const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 
 const router = express.Router();
 
-
 // Get cashflow transactions (with filtering and pagination)
 router.get('/transactions', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
@@ -60,7 +59,7 @@ router.get('/transactions', authenticateToken, requirePermission(UI_PERMISSIONS.
       }
     });
   } catch (error) {
-    console.error('Error fetching cashflow transactions:', error);
+
     res.status(500).json({ error: 'Failed to fetch cashflow transactions' });
   }
 });
@@ -110,16 +109,7 @@ router.get('/transactions', authenticateToken, requirePermission(UI_PERMISSIONS.
 // Get cashflow summary/dashboard data
 router.get('/summary', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
-    console.log('\n' + '='.repeat(60));
-    console.log('🔍 CASHFLOW SUMMARY ROUTE HIT');
-    console.log('='.repeat(60));
-    console.log('📡 Method:', req.method);
-    console.log('🔗 URL:', req.url);
-    console.log('🌐 Full URL:', req.originalUrl);
-    console.log('📋 Headers:', req.headers);
-    console.log('📊 Query params:', req.query);
-    console.log('👤 User:', req.user ? { id: req.user.id, email: req.user.email, role: req.user.role } : 'No user');
-    console.log('='.repeat(60));
+
     const { period = 'month', startDate, endDate } = req.query;
 
     let dateFilter = {};
@@ -249,7 +239,7 @@ router.get('/summary', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOU
       }))
     });
   } catch (error) {
-    console.error('Error fetching cashflow summary:', error);
+
     res.status(500).json({ error: 'Failed to fetch cashflow summary' });
   }
 });
@@ -300,7 +290,7 @@ router.get('/balance', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOU
       balanceHistory: balanceHistory.slice(-50) // Last 50 transactions
     });
   } catch (error) {
-    console.error('Error calculating account balance:', error);
+
     res.status(500).json({ error: 'Failed to calculate account balance' });
   }
 });
@@ -395,7 +385,7 @@ router.get('/job-profitability/:jobId', authenticateToken, requirePermission(UI_
       }))
     });
   } catch (error) {
-    console.error('Error calculating job profitability:', error);
+
     res.status(500).json({ error: 'Failed to calculate job profitability' });
   }
 });
@@ -460,7 +450,7 @@ router.get('/trends', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUN
       trends: processedTrends
     });
   } catch (error) {
-    console.error('Error fetching cashflow trends:', error);
+
     res.status(500).json({ error: 'Failed to fetch cashflow trends' });
   }
 });
@@ -515,7 +505,7 @@ router.post('/transactions', authenticateToken, requirePermission(UI_PERMISSIONS
 
     res.status(201).json(transaction);
   } catch (error) {
-    console.error('Error creating cashflow transaction:', error);
+
     res.status(500).json({ error: 'Failed to create cashflow transaction' });
   }
 });

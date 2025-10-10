@@ -136,7 +136,7 @@ const ReportsPage = () => {
       setProcessingTimeData(processingTime);
       setMonthlyTrendsData(monthlyTrends);
     } catch (error) {
-      console.error('Error loading reports:', error);
+
       message.error('Failed to load reports');
     } finally {
       setLoading(false);
@@ -148,7 +148,7 @@ const ReportsPage = () => {
       const data = await reportService.getJobStatusSummary(dateRange[0], dateRange[1]);
       setJobStatusData(data);
     } catch (error) {
-      console.error('Error loading job status summary:', error);
+
       message.error('Failed to load job status summary');
     }
   };
@@ -158,7 +158,7 @@ const ReportsPage = () => {
       const data = await reportService.getDailyActivity(dateRange[0], dateRange[1]);
       setDailyActivityData(data);
     } catch (error) {
-      console.error('Error loading daily activity:', error);
+
       message.error('Failed to load daily activity');
     }
   };
@@ -168,7 +168,7 @@ const ReportsPage = () => {
       const data = await reportService.getRevenueSummary(dateRange[0], dateRange[1]);
       setRevenueData(data);
     } catch (error) {
-      console.error('Error loading revenue summary:', error);
+
       message.error('Failed to load revenue summary');
     }
   };
@@ -178,7 +178,7 @@ const ReportsPage = () => {
       const data = await reportService.getInvoiceReports(dateRange[0], dateRange[1]);
       setInvoiceData(data);
     } catch (error) {
-      console.error('Error loading invoice reports:', error);
+
       message.error('Failed to load invoice reports');
     }
   };
@@ -188,7 +188,7 @@ const ReportsPage = () => {
       const data = await reportService.getCustomerActivity(dateRange[0], dateRange[1]);
       setCustomerData(data);
     } catch (error) {
-      console.error('Error loading customer activity:', error);
+
       message.error('Failed to load customer activity');
     }
   };
@@ -211,7 +211,7 @@ const ReportsPage = () => {
         cashflow
       });
     } catch (error) {
-      console.error('Error loading financial data:', error);
+
       message.error('Failed to load financial data');
     }
   };
@@ -418,7 +418,7 @@ const ReportsPage = () => {
       
       setExportModalVisible(false);
     } catch (error) {
-      console.error('Export error:', error);
+
       message.error('Failed to export reports');
     } finally {
       setExportLoading(false);
@@ -728,7 +728,6 @@ const ReportsPage = () => {
         `;
       }
     }
-
 
     // Daily Activity Tab
     if (selectedReports.dailyActivity) {
@@ -1086,7 +1085,6 @@ const ReportsPage = () => {
         </Row>
       </Card>
 
-
       {/* Reports Tabs */}
       <Card>
         <Tabs activeKey={activeTab} onChange={setActiveTab}>
@@ -1158,7 +1156,6 @@ const ReportsPage = () => {
               </Col>
             </Row>
 
-            
             {loading ? (
               <div style={{ textAlign: 'center', padding: '50px' }}>
                 <Spin size="large" />
@@ -1341,7 +1338,6 @@ const ReportsPage = () => {
         </Col>
       </Row>
 
-
             {/* Data Tables */}
             <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
               <Col xs={24} lg={12}>
@@ -1404,7 +1400,6 @@ const ReportsPage = () => {
               />
             </Card>
           </TabPane>
-
 
           <TabPane tab="Real-Time Analytics" key="realtime">
             <RealTimeAnalytics 
@@ -1583,7 +1578,6 @@ const ReportsPage = () => {
             }
           </Text>
         </div>
-
 
         <div style={{ marginBottom: '16px' }}>
           <Text strong>Select Tabs to Include in PDF:</Text>

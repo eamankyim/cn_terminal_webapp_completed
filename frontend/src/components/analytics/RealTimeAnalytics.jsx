@@ -95,7 +95,7 @@ const RealTimeAnalytics = ({ dateRange }) => {
 
       setLastUpdate(dayjs());
     } catch (error) {
-      console.error('Error loading live data:', error);
+
     }
   };
 

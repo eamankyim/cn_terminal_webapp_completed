@@ -69,28 +69,13 @@ const FileUpload = ({
   };
 
   const handleUpload = async (file) => {
-    console.log('\n' + '='.repeat(60));
-    console.log('📤 FILE UPLOAD COMPONENT');
-    console.log('='.repeat(60));
-    console.log('📄 File details:', {
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      uid: file.uid
-    });
-    console.log('⚙️ Upload options:', {
-      hasCustomHandler: !!onFileUpload,
-      multiple,
-      maxCount,
-      accept
-    });
 
     setUploading(true);
     try {
       let response;
       
       if (onFileUpload) {
-        console.log('🔧 Using custom upload handler...');
+
         response = await onFileUpload(file);
         
         const newFile = {
@@ -103,26 +88,20 @@ const FileUpload = ({
           type: file.type,
           originFileObj: file // Keep reference to original file
         };
-        
-        console.log('📄 New file object created:', newFile);
+
         const newFileList = [...fileList, newFile];
-        console.log('📋 Updated file list:', newFileList);
-        
+
         setFileList(newFileList);
         
         if (onFileChange) {
-          console.log('📞 Calling onFileChange callback...');
+
           onFileChange(newFileList);
         }
-        
-        console.log('✅ File upload completed successfully!');
-        console.log('='.repeat(60) + '\n');
-        
+
         message.success(`${file.name} uploaded successfully`);
         return false; // Prevent default upload
       } else {
-        console.log('🔧 No custom upload handler - storing file locally for later upload...');
-        
+
         // For new jobs, store the file locally without uploading
         const newFile = {
           uid: file.uid,
@@ -134,35 +113,21 @@ const FileUpload = ({
           type: file.type,
           originFileObj: file // Keep reference to original file for later upload
         };
-        
-        console.log('📄 New file object created (local):', newFile);
+
         const newFileList = [...fileList, newFile];
-        console.log('📋 Updated file list:', newFileList);
-        
+
         setFileList(newFileList);
         
         if (onFileChange) {
-          console.log('📞 Calling onFileChange callback...');
+
           onFileChange(newFileList);
         }
-        
-        console.log('✅ File stored locally for later upload!');
-        console.log('='.repeat(60) + '\n');
-        
+
         message.success(`${file.name} added (will upload when job is created)`);
         return false; // Prevent default upload
       }
     } catch (error) {
-      console.log('\n' + '='.repeat(60));
-      console.log('💥 FILE UPLOAD COMPONENT ERROR');
-      console.log('='.repeat(60));
-      console.error('❌ Upload failed:', error);
-      console.log('📄 Error details:', {
-        message: error.message,
-        stack: error.stack
-      });
-      console.log('='.repeat(60) + '\n');
-      
+
       message.error(`Failed to upload ${file.name}`);
       return false;
     } finally {
@@ -190,17 +155,23 @@ const FileUpload = ({
       message.success('File removed successfully');
     } catch (error) {
       message.error('Failed to remove file');
-      console.error('Remove error:', error);
+
     }
   };
 
   const handlePreview = async (file) => {
-    if (!file.url && !file.preview) {
-      file.preview = await getBase64(file.originFileObj);
+    // Open file in new tab instead of showing in modal
+    if (file.url) {
+      const url = file.url.startsWith('http') ? file.url : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${file.url}`;
+      window.open(url, '_blank');
+    } else if (file.originFileObj) {
+      // For new files that haven't been uploaded yet, show in modal
+      if (!file.preview) {
+        file.preview = await getBase64(file.originFileObj);
+      }
+      setPreviewFile(file);
+      setPreviewVisible(true);
     }
-
-    setPreviewFile(file);
-    setPreviewVisible(true);
   };
 
   const getBase64 = (file) => {

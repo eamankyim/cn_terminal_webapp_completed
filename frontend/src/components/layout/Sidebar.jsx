@@ -92,8 +92,8 @@ const Sidebar = ({ collapsed }) => {
   const filteredMenuItems = menuItems.filter(item => {
     if (!item.permission) return true; // Show items without permission requirements
     
-    // Hide Requests tab for admin and IT consultant users since they don't send requests
-    if (item.key === '/requests' && (currentUser?.role === 'ADMIN' || currentUser?.role === 'IT_CONSULTANT')) {
+    // Hide Requests tab for admin, accountant, and IT consultant users since they don't send requests
+    if (item.key === '/requests' && (currentUser?.role === 'ADMIN' || currentUser?.role === 'ACCOUNTANT' || currentUser?.role === 'IT_CONSULTANT')) {
       return false;
     }
     

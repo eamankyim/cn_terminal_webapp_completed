@@ -74,27 +74,14 @@ const upload = multer({
 // Upload single file
 router.post('/upload', authenticateToken, upload.single('file'), async (req, res) => {
   try {
-    console.log('\n' + '='.repeat(80));
-    console.log('📤 FILE UPLOAD - BACKEND');
-    console.log('='.repeat(80));
-    
+
     if (!req.file) {
-      console.log('❌ No file uploaded');
+
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
     const { folder = 'general', category, entityId, entityType } = req.body;
-    
-    console.log('🔍 Upload details:');
-    console.log('  - File name:', req.file.originalname);
-    console.log('  - File size:', req.file.size);
-    console.log('  - File type:', req.file.mimetype);
-    console.log('  - Folder:', folder);
-    console.log('  - Category:', category);
-    console.log('  - Entity ID:', entityId);
-    console.log('  - Entity Type:', entityType);
-    console.log('  - Uploaded by:', req.user.id);
-    
+
     // Create file record in database
     const fileRecord = await prisma.file.create({
       data: {
@@ -113,12 +100,6 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
       }
     });
 
-    console.log('✅ File record created in database:');
-    console.log('  - File ID:', fileRecord.id);
-    console.log('  - Entity ID:', fileRecord.entityId);
-    console.log('  - Entity Type:', fileRecord.entityType);
-    console.log('  - URL:', fileRecord.url);
-
     const response = {
       success: true,
       message: 'File uploaded successfully',
@@ -135,19 +116,9 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
       }
     };
 
-    console.log('📤 Response being sent:', response);
-    console.log('='.repeat(80) + '\n');
-
     res.json(response);
   } catch (error) {
-    console.log('\n' + '='.repeat(80));
-    console.log('💥 FILE UPLOAD ERROR - BACKEND');
-    console.log('='.repeat(80));
-    console.error('❌ File upload error:', error);
-    console.log('📄 Error message:', error.message);
-    console.log('📊 Error stack:', error.stack);
-    console.log('='.repeat(80) + '\n');
-    
+
     // Clean up uploaded file if database operation fails
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
@@ -208,8 +179,7 @@ router.post('/upload-multiple', authenticateToken, upload.array('files', 5), asy
       files: uploadedFiles
     });
   } catch (error) {
-    console.error('Multiple file upload error:', error);
-    
+
     // Clean up uploaded files if database operation fails
     if (req.files) {
       req.files.forEach(file => {
@@ -258,7 +228,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get file error:', error);
+
     res.status(500).json({ 
       success: false, 
       message: 'Failed to get file',
@@ -270,16 +240,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
 // Get files by entity
 router.get('/entity/:entityType/:entityId', authenticateToken, async (req, res) => {
   try {
-    console.log('\n' + '='.repeat(80));
-    console.log('📁 GET FILES BY ENTITY - BACKEND');
-    console.log('='.repeat(80));
-    
+
     const { entityType, entityId } = req.params;
-    
-    console.log('🔍 Request params:');
-    console.log('  - entityType:', entityType);
-    console.log('  - entityId (string):', entityId);
-    console.log('  - user ID:', req.user.id);
 
     const files = await prisma.file.findMany({
       where: {
@@ -288,15 +250,6 @@ router.get('/entity/:entityType/:entityId', authenticateToken, async (req, res) 
       },
       orderBy: { uploadedAt: 'desc' }
     });
-
-    console.log('📄 Files found in database:', files.length);
-    console.log('📄 Files details:', files.map(f => ({
-      id: f.id,
-      originalName: f.originalName,
-      entityType: f.entityType,
-      entityId: f.entityId,
-      url: f.url
-    })));
 
     const response = {
       success: true,
@@ -313,22 +266,9 @@ router.get('/entity/:entityType/:entityId', authenticateToken, async (req, res) 
       }))
     };
 
-    console.log('📤 Response being sent:', {
-      success: response.success,
-      filesCount: response.files.length
-    });
-    console.log('='.repeat(80) + '\n');
-
     res.json(response);
   } catch (error) {
-    console.log('\n' + '='.repeat(80));
-    console.log('💥 GET FILES BY ENTITY ERROR - BACKEND');
-    console.log('='.repeat(80));
-    console.error('❌ Get files by entity error:', error);
-    console.log('📄 Error message:', error.message);
-    console.log('📊 Error stack:', error.stack);
-    console.log('='.repeat(80) + '\n');
-    
+
     res.status(500).json({ 
       success: false, 
       message: 'Failed to get files',
@@ -357,7 +297,7 @@ router.get('/download/:id', authenticateToken, async (req, res) => {
 
     res.download(file.path, file.originalName);
   } catch (error) {
-    console.error('File download error:', error);
+
     res.status(500).json({ 
       success: false, 
       message: 'Failed to download file',
@@ -406,7 +346,7 @@ router.delete('/delete', authenticateToken, async (req, res) => {
       message: 'File deleted successfully'
     });
   } catch (error) {
-    console.error('File delete error:', error);
+
     res.status(500).json({ 
       success: false, 
       message: 'Failed to delete file',
@@ -419,8 +359,4 @@ router.delete('/delete', authenticateToken, async (req, res) => {
 router.use('/uploads', express.static(uploadsDir));
 
 module.exports = router;
-
-
-
-
 

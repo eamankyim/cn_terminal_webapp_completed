@@ -66,8 +66,7 @@ const PERMISSIONS = {
   
   CASHFLOW_VIEW: 'cashflow:view',
   CASHFLOW_CREATE: 'cashflow:create',
-  
-  
+
 };
 
 // Role permissions mapping

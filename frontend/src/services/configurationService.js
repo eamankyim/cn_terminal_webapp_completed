@@ -7,7 +7,7 @@ const configurationService = {
       const response = await api.get('/configurations');
       return response;
     } catch (error) {
-      console.error('Error fetching configurations:', error);
+
       throw error;
     }
   },
@@ -18,7 +18,7 @@ const configurationService = {
       const response = await api.get(`/configurations/${key}`);
       return response;
     } catch (error) {
-      console.error(`Error fetching configuration ${key}:`, error);
+
       throw error;
     }
   },
@@ -29,7 +29,7 @@ const configurationService = {
       const response = await api.post('/configurations', configData);
       return response;
     } catch (error) {
-      console.error('Error saving configuration:', error);
+
       throw error;
     }
   },
@@ -40,7 +40,7 @@ const configurationService = {
       const response = await api.put('/configurations/bulk', { configurations });
       return response;
     } catch (error) {
-      console.error('Error saving configurations:', error);
+
       throw error;
     }
   },
@@ -51,7 +51,7 @@ const configurationService = {
       const response = await api.delete(`/configurations/${key}`);
       return response;
     } catch (error) {
-      console.error(`Error deleting configuration ${key}:`, error);
+
       throw error;
     }
   },
@@ -62,7 +62,7 @@ const configurationService = {
       const response = await api.post('/configurations/init');
       return response;
     } catch (error) {
-      console.error('Error initializing default configurations:', error);
+
       throw error;
     }
   },
@@ -76,7 +76,7 @@ const configurationService = {
       }
       return defaultValue;
     } catch (error) {
-      console.warn(`Configuration ${key} not found, using default:`, defaultValue);
+
       return defaultValue;
     }
   },
@@ -131,7 +131,7 @@ const configurationService = {
       }
       return [];
     } catch (error) {
-      console.error(`Error fetching configurations for category ${category}:`, error);
+
       return [];
     }
   },

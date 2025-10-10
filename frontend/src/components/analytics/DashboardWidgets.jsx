@@ -87,7 +87,7 @@ const DashboardWidgets = ({ dateRange }) => {
         performanceMetrics
       });
     } catch (error) {
-      console.error('Error loading widget data:', error);
+
     }
   };
 

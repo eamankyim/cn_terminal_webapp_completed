@@ -79,22 +79,12 @@ const InvoiceManagementPage = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('🔄 Loading invoices for Invoice Management...');
-      console.log('🔑 User authenticated:', isAuthenticated);
-      console.log('🔑 Current user:', currentUser);
-      console.log('🔑 Token present:', !!localStorage.getItem('cn_terminal_token'));
-      
+
       const response = await invoiceService.getInvoices({ limit: 100 });
-      console.log('✅ Invoices loaded successfully:', response);
+
       setInvoices(response.invoices || []);
     } catch (error) {
-      console.error('❌ Error loading invoices:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-      
+
       // Check if it's an authentication error
       if (error.message.includes('Access token required') || error.message.includes('401')) {
         setError('Authentication required. Please log in again.');
@@ -320,7 +310,7 @@ const InvoiceManagementPage = () => {
       // Refresh invoices list
       loadInvoices();
     } catch (error) {
-      console.error('Error creating invoice:', error);
+
       message.error('Failed to generate invoice. Please try again.');
     }
   };

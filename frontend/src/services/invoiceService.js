@@ -6,7 +6,7 @@ class InvoiceService {
       const response = await apiService.getInvoices(params);
       return response;
     } catch (error) {
-      console.error('Error fetching invoices:', error);
+
       throw error;
     }
   }
@@ -16,7 +16,7 @@ class InvoiceService {
       const response = await apiService.getInvoice(id);
       return response.invoice;
     } catch (error) {
-      console.error('Error fetching invoice:', error);
+
       throw error;
     }
   }
@@ -26,7 +26,7 @@ class InvoiceService {
       const response = await apiService.createInvoice(data);
       return response.invoice;
     } catch (error) {
-      console.error('Error creating invoice:', error);
+
       throw error;
     }
   }
@@ -36,7 +36,7 @@ class InvoiceService {
       const response = await apiService.updateInvoice(id, data);
       return response.invoice;
     } catch (error) {
-      console.error('Error updating invoice:', error);
+
       throw error;
     }
   }
@@ -46,7 +46,7 @@ class InvoiceService {
       const response = await apiService.updateInvoiceStatus(id, status, paymentDate, paymentMethod);
       return response.invoice;
     } catch (error) {
-      console.error('Error updating invoice status:', error);
+
       throw error;
     }
   }
@@ -56,7 +56,7 @@ class InvoiceService {
       const response = await apiService.deleteInvoice(id);
       return response;
     } catch (error) {
-      console.error('Error deleting invoice:', error);
+
       throw error;
     }
   }
@@ -66,7 +66,7 @@ class InvoiceService {
       const response = await apiService.getJobsForInvoice(search);
       return response;
     } catch (error) {
-      console.error('Error fetching jobs for invoice creation:', error);
+
       throw error;
     }
   }
@@ -76,7 +76,7 @@ class InvoiceService {
       const response = await apiService.createPayment(invoiceId, paymentData);
       return response;
     } catch (error) {
-      console.error('Error creating payment:', error);
+
       throw error;
     }
   }

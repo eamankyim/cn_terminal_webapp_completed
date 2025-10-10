@@ -63,8 +63,7 @@ export const PERMISSIONS = {
   // Notifications
   NOTIFICATION_VIEW: 'notification:view',
   NOTIFICATION_SEND: 'notification:send',
-  
-  
+
   // Accounting & Finance
   EXPENSE_VIEW: 'expense:view',
   EXPENSE_CREATE: 'expense:create',        // For recording expenses directly (admins/accountants)
@@ -136,6 +135,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.EXPENSE_APPROVE,
     PERMISSIONS.EXPENSE_EDIT,
     PERMISSIONS.EXPENSE_DELETE,
+    // ❌ REMOVED: EXPENSE_REQUEST (admin should not create expense requests)
     
     PERMISSIONS.PAYOUT_VIEW,
     PERMISSIONS.PAYOUT_CREATE,
@@ -147,7 +147,7 @@ export const ROLE_PERMISSIONS = {
   ],
   
   IT_CONSULTANT: [
-    // Same as ADMIN - full access to everything
+    // IT Consultant - Full access to everything except expense requests
     PERMISSIONS.USER_VIEW,
     PERMISSIONS.USER_CREATE,
     PERMISSIONS.USER_EDIT,
@@ -191,12 +191,13 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.NOTIFICATION_VIEW,
     PERMISSIONS.NOTIFICATION_SEND,
     
-    // Accounting & Finance
+    // Accounting & Finance - IT Consultant can record expenses directly
     PERMISSIONS.EXPENSE_VIEW,
-    PERMISSIONS.EXPENSE_CREATE,
+    PERMISSIONS.EXPENSE_CREATE,        // Record expenses directly (no approval needed)
     PERMISSIONS.EXPENSE_APPROVE,
     PERMISSIONS.EXPENSE_EDIT,
     PERMISSIONS.EXPENSE_DELETE,
+    // ❌ REMOVED: EXPENSE_REQUEST (cannot request expenses, only record directly)
     
     PERMISSIONS.PAYOUT_VIEW,
     PERMISSIONS.PAYOUT_CREATE,

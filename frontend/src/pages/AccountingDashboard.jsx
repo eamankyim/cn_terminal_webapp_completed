@@ -40,15 +40,12 @@ const AccountingDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  console.log('AccountingDashboard: Component rendering', { currentUser, loading });
   const [dashboardData, setDashboardData] = useState({
     financialStats: {
       totalExpenses: 0,
-      totalPayouts: 0,
+      totalCashIn: 0,
       pendingExpenses: 0,
       approvedExpenses: 0,
-      monthlyRevenue: 0,
-      monthlyExpenses: 0,
       netProfit: 0,
       cashflow: 0
     },
@@ -61,76 +58,51 @@ const AccountingDashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('AccountingDashboard: Loading dashboard data...');
-      
+
       // Load financial statistics
-      const [expensesResponse, payoutsResponse, cashflowResponse] = await Promise.all([
-        apiService.get('/expenses'),
-        apiService.get('/payouts'),
-        apiService.get('/cashflow/transactions')
+      const [expensesResponse, payoutsResponse, cashflowResponse, recentExpensesResponse, recentPayoutsResponse] = await Promise.all([
+        apiService.get('/expenses/stats/summary'),
+        apiService.get('/payouts/stats/summary'),
+        apiService.get('/cashflow/summary'),
+        apiService.get('/expenses?limit=5'),
+        apiService.get('/payouts?limit=5')
       ]);
 
-      console.log('AccountingDashboard: API responses received', {
-        expenses: expensesResponse.data,
-        payouts: payoutsResponse.data,
-        cashflow: cashflowResponse.data
-      });
+      // Get pre-calculated stats from backend
+      const expenseStats = expensesResponse;
+      const payoutStats = payoutsResponse;
+      const cashflowStats = cashflowResponse;
 
-      // Calculate financial metrics
-      const expenses = expensesResponse.data?.expenses || [];
-      const payouts = payoutsResponse.data?.payouts || [];
-      const cashflow = cashflowResponse.data?.transactions || [];
-
-      const totalExpenses = expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
-      const totalPayouts = payouts.reduce((sum, payout) => sum + (payout.amount || 0), 0);
-      const pendingExpenses = expenses.filter(expense => expense.status === 'PENDING').length;
-      const approvedExpenses = expenses.filter(expense => expense.status === 'APPROVED').length;
+      // Use pre-calculated backend stats
+      const totalExpenses = cashflowStats.summary?.totalOutflows || 0; // Use cashflow data for consistency
+      const pendingExpenses = expenseStats.pendingRequests || 0;
+      const approvedExpenses = expenseStats.approvedRequests || 0;
+      const netCashflow = cashflowStats.summary?.netCashflow || 0;
+      const totalCashIn = cashflowStats.summary?.totalInflows || 0;
       
-      // Calculate monthly metrics
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-      
-      const monthlyExpenses = expenses
-        .filter(expense => {
-          const expenseDate = new Date(expense.createdAt);
-          return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
-        })
-        .reduce((sum, expense) => sum + (expense.amount || 0), 0);
-
-      const monthlyRevenue = payouts
-        .filter(payout => {
-          const payoutDate = new Date(payout.createdAt);
-          return payoutDate.getMonth() === currentMonth && payoutDate.getFullYear() === currentYear;
-        })
-        .reduce((sum, payout) => sum + (payout.amount || 0), 0);
-
-      const netProfit = monthlyRevenue - monthlyExpenses;
-      const currentCashflow = cashflow.length > 0 ? cashflow[0].balance : 0;
-
+      // Calculate net profit based on cashflow (inflows - outflows)
+      const netProfit = netCashflow;
       setDashboardData({
         financialStats: {
           totalExpenses,
-          totalPayouts,
+          totalCashIn,
           pendingExpenses,
           approvedExpenses,
-          monthlyRevenue,
-          monthlyExpenses,
           netProfit,
-          cashflow: currentCashflow
+          cashflow: netCashflow
         },
-        recentExpenses: expenses.slice(0, 5),
-        recentPayouts: payouts.slice(0, 5),
-        pendingApprovals: expenses.filter(expense => expense.status === 'PENDING')
+        recentExpenses: recentExpensesResponse.data || [],
+        recentPayouts: recentPayoutsResponse.data || [],
+        pendingApprovals: pendingExpenses
       });
 
     } catch (error) {
-      console.error('AccountingDashboard: Error loading dashboard data:', error);
+
       setError(error.message || 'Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
   };
-
 
   useEffect(() => {
     loadDashboardData();
@@ -174,18 +146,11 @@ const AccountingDashboard = () => {
       color: '#cf1322'
     },
     {
-      title: 'Total Payouts',
-      value: dashboardData.financialStats.totalPayouts,
+      title: 'Total Cash In',
+      value: dashboardData.financialStats.totalCashIn,
       prefix: <MoneyCollectOutlined />,
       suffix: 'GHS',
       color: '#389e0d'
-    },
-    {
-      title: 'Monthly Revenue',
-      value: dashboardData.financialStats.monthlyRevenue,
-      prefix: <RiseOutlined />,
-      suffix: 'GHS',
-      color: '#1890ff'
     },
     {
       title: 'Net Profit',
@@ -294,8 +259,6 @@ const AccountingDashboard = () => {
     }
   ];
 
-  console.log('AccountingDashboard: Rendering main content', { dashboardData });
-
   // Temporary bypass for debugging
   if (!currentUser) {
     return (
@@ -323,7 +286,7 @@ const AccountingDashboard = () => {
         {/* Financial Statistics Cards */}
         <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
           {stats.map((stat, index) => (
-            <Col xs={24} sm={12} lg={6} key={index}>
+            <Col xs={24} sm={8} lg={8} key={index}>
               <Card>
                 <Statistic
                   title={stat.title}
@@ -447,7 +410,6 @@ const AccountingDashboard = () => {
             </Card>
           </Col>
         </Row>
-
 
         {/* Pending Approvals Alert */}
         {dashboardData.pendingApprovals.length > 0 && (

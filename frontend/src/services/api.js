@@ -5,7 +5,6 @@ class ApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
     this.token = localStorage.getItem('cn_terminal_token');
-    console.log('🔧 API Service initialized with token:', this.token ? 'Present' : 'Missing');
   }
 
   // Set authentication token
@@ -31,18 +30,14 @@ class ApiService {
     
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
-    } else {
-      console.warn('⚠️ No authentication token found!');
     }
     
-    console.log('🔧 Headers being constructed:', headers);
     return headers;
   }
 
   // Refresh token from localStorage
   refreshToken() {
     this.token = localStorage.getItem('cn_terminal_token');
-    console.log('🔄 Token refreshed:', this.token ? 'Present' : 'Missing');
   }
 
   // Generic request method
@@ -57,54 +52,17 @@ class ApiService {
       ...options,
     };
 
-    console.log('\n' + '='.repeat(60));
-    console.log('🌐 API REQUEST');
-    console.log('='.repeat(60));
-    console.log(`📡 Method: ${options.method || 'GET'}`);
-    console.log(`🔗 URL: ${url}`);
-    console.log('📋 Headers:', config.headers);
-    console.log('🔑 Token present:', !!this.token);
-    console.log('🔑 Token preview:', this.token ? `${this.token.substring(0, 20)}...` : 'None');
-    console.log('⚙️ Options:', {
-      body: options.body ? 'Present' : 'None',
-      method: options.method || 'GET'
-    });
-
     try {
       const response = await fetch(url, config);
       
-      console.log(`📊 Response Status: ${response.status} ${response.statusText}`);
-      console.log('📋 Response Headers:', Object.fromEntries(response.headers.entries()));
-      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.log('\n' + '='.repeat(60));
-        console.log('💥 API ERROR RESPONSE');
-        console.log('='.repeat(60));
-        console.error(`❌ Status: ${response.status} ${response.statusText}`);
-        console.error('📄 Error Data:', errorData);
-        console.log('='.repeat(60) + '\n');
-        
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
-      console.log('✅ API Success Response:');
-      console.log('📄 Data:', data);
-      console.log('='.repeat(60) + '\n');
-      
       return data;
     } catch (error) {
-      console.log('\n' + '='.repeat(60));
-      console.log('💥 API REQUEST ERROR');
-      console.log('='.repeat(60));
-      console.error('❌ Error:', error);
-      console.log('📄 Error details:', {
-        message: error.message,
-        stack: error.stack
-      });
-      console.log('='.repeat(60) + '\n');
-      
       throw error;
     }
   }
@@ -114,7 +72,6 @@ class ApiService {
     const { params = {} } = options;
     const queryString = new URLSearchParams(params).toString();
     const url = queryString ? `${endpoint}?${queryString}` : endpoint;
-    console.log('🔍 FRONTEND GET REQUEST:', { endpoint, params, queryString, url });
     return this.request(url, { method: 'GET' });
   }
 
@@ -195,10 +152,7 @@ class ApiService {
   }
 
   async createCustomer(data) {
-    console.log('🌐 ApiService: Creating customer with data:', data);
-    const response = await this.post('/customers', data);
-    console.log('📡 ApiService: Customer creation response:', response);
-    return response;
+    return this.post('/customers', data);
   }
 
   async updateCustomer(id, data) {
@@ -292,16 +246,6 @@ class ApiService {
       data.driverContact = driverContact;
     }
     
-    console.log('🔍 updateJobStatus data being sent:', data);
-    console.log('🔍 demurrageFreeDays type:', typeof demurrageFreeDays, 'value:', demurrageFreeDays);
-    console.log('🔍 releaseMoneyReceived type:', typeof releaseMoneyReceived, 'value:', releaseMoneyReceived);
-    console.log('🔍 shipperName type:', typeof shipperName, 'value:', shipperName);
-    console.log('🔍 invoiceNumber type:', typeof invoiceNumber, 'value:', invoiceNumber);
-    console.log('🔍 terminalName type:', typeof terminalName, 'value:', terminalName);
-    console.log('🔍 scheduleTime type:', typeof scheduleTime, 'value:', scheduleTime);
-    console.log('🔍 driverName type:', typeof driverName, 'value:', driverName);
-    console.log('🔍 driverContact type:', typeof driverContact, 'value:', driverContact);
-    
     return this.put(`/jobs/${id}/status`, data);
   }
 
@@ -337,7 +281,6 @@ class ApiService {
   async deleteConsignment(id) {
     return this.delete(`/consignments/${id}`);
   }
-
 
   // Invoice endpoints
   async getInvoices(params = {}) {
@@ -391,7 +334,6 @@ class ApiService {
     return this.get('/dashboard/recent-shipments', { limit });
   }
 
-
   async getRecentJobs(limit = 10) {
     return this.get('/dashboard/recent-jobs', { limit });
   }
@@ -404,7 +346,6 @@ class ApiService {
   async getReportsOverview(startDate, endDate) {
     return this.get('/reports/overview', { startDate, endDate });
   }
-
 
   async getRevenueAnalysis(period = 'monthly', months = 12) {
     return this.get('/reports/revenue-analysis', { period, months });

@@ -26,42 +26,26 @@ const ResetPassword = () => {
   const [searchParams] = useSearchParams();
 
   // Debug log to confirm component is mounting
-  console.log('🚀 ResetPassword component mounted!');
-  console.log('🔗 Current URL:', window.location.href);
-  console.log('🔗 Current pathname:', window.location.pathname);
-  console.log('🔗 Search params:', window.location.search);
 
   useEffect(() => {
     const verifyToken = async () => {
       const token = searchParams.get('token');
-      
-      console.log('🔍 ResetPassword: Component mounted, verifying token...');
-      console.log('🔑 Full URL:', window.location.href);
-      console.log('🔑 Token from URL:', token ? token.substring(0, 20) + '...' : 'MISSING');
-      console.log('🔑 Full token:', token);
-      
+
       if (!token) {
-        console.log('❌ ResetPassword: No token found in URL');
+
         message.error('Invalid reset link. Please request a new password reset.');
         navigate('/login');
         return;
       }
 
       try {
-        console.log('🌐 ResetPassword: Calling verifyResetToken API...');
-        console.log('🌐 ResetPassword: API URL:', '/api/auth/verify-reset-token');
-        console.log('🌐 ResetPassword: Request body:', { token });
-        
+
         const response = await passwordResetService.verifyResetToken(token);
-        console.log('✅ ResetPassword: Token verification successful:', response);
+
         setTokenValid(true);
         setUserEmail(response.email);
       } catch (error) {
-        console.log('❌ ResetPassword: Token verification failed:', error);
-        console.log('❌ ResetPassword: Error response:', error.response?.data);
-        console.log('❌ ResetPassword: Error status:', error.response?.status);
-        console.log('❌ ResetPassword: Error message:', error.message);
-        
+
         // Don't redirect immediately - let user see the error
         message.error(error.response?.data?.error || 'Invalid or expired reset link.');
         
@@ -79,27 +63,22 @@ const ResetPassword = () => {
 
   const handleSubmit = async (values) => {
     const token = searchParams.get('token');
-    
-    console.log('🔐 ResetPassword: Submitting password reset...');
-    console.log('🔑 Token:', token ? token.substring(0, 20) + '...' : 'MISSING');
-    console.log('🔒 Password length:', values.password ? values.password.length : 'MISSING');
-    
+
     if (!token) {
-      console.log('❌ ResetPassword: No token found');
+
       message.error('Invalid reset link.');
       return;
     }
 
     setLoading(true);
     try {
-      console.log('🌐 ResetPassword: Calling resetPassword API...');
+
       const response = await passwordResetService.resetPassword(token, values.password);
-      console.log('✅ ResetPassword: Password reset successful:', response);
+
       message.success('Password reset successfully! You can now sign in with your new password.');
       navigate('/login');
     } catch (error) {
-      console.log('❌ ResetPassword: Password reset failed:', error);
-      console.log('❌ ResetPassword: Error response:', error.response?.data);
+
       message.error(error.response?.data?.error || 'Failed to reset password. Please try again.');
     } finally {
       setLoading(false);

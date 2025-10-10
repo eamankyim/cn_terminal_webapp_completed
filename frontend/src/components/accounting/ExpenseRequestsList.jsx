@@ -13,6 +13,8 @@ import {
   Input,
   DatePicker,
   Modal,
+  Drawer,
+  Form,
   message,
   Tooltip,
   Popconfirm,
@@ -38,7 +40,7 @@ import { PERMISSIONS } from '../../utils/permissions';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
-const { Search } = Input;
+const { Search, TextArea } = Input;
 const { RangePicker } = DatePicker;
 
 const ExpenseRequestsList = () => {
@@ -57,9 +59,11 @@ const ExpenseRequestsList = () => {
   });
   const [stats, setStats] = useState({});
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [detailDrawerVisible, setDetailDrawerVisible] = useState(false);
   const [approvalModalVisible, setApprovalModalVisible] = useState(false);
   const [approvalAction, setApprovalAction] = useState(null);
+  const [approvalComment, setApprovalComment] = useState('');
+  const [approvalForm] = Form.useForm();
   const { currentUser } = useAuth();
 
   const expenseCategories = expenseService.getExpenseCategories();
@@ -92,7 +96,7 @@ const ExpenseRequestsList = () => {
         total: response.pagination?.total || 0
       }));
     } catch (error) {
-      console.error('Error loading expense requests:', error);
+
       message.error('Failed to load expense requests');
     } finally {
       setLoading(false);
@@ -104,7 +108,7 @@ const ExpenseRequestsList = () => {
       const response = await expenseService.getExpenseStats();
       setStats(response);
     } catch (error) {
-      console.error('Error loading expense stats:', error);
+
     }
   };
 
@@ -124,12 +128,16 @@ const ExpenseRequestsList = () => {
   };
 
   const handleViewDetails = async (record) => {
+    // Open drawer immediately with basic record data
+    setSelectedRequest(record);
+    setDetailDrawerVisible(true);
+    
+    // Load detailed data in the background
     try {
       const response = await expenseService.getExpenseRequest(record.id);
       setSelectedRequest(response);
-      setDetailModalVisible(true);
     } catch (error) {
-      console.error('Error loading request details:', error);
+
       message.error('Failed to load request details');
     }
   };
@@ -137,27 +145,59 @@ const ExpenseRequestsList = () => {
   const handleApproval = (record, action) => {
     setSelectedRequest(record);
     setApprovalAction(action);
+    setApprovalComment('');
+    approvalForm.resetFields();
     setApprovalModalVisible(true);
   };
 
   const confirmApproval = async () => {
     try {
+      // Validate form before proceeding
+      await approvalForm.validateFields();
+      
       if (approvalAction === 'approve') {
-        await expenseService.approveExpenseRequest(selectedRequest.id);
+        const updatedRequest = await expenseService.approveExpenseRequest(selectedRequest.id, approvalComment);
         message.success('Expense request approved successfully');
+        
+        // Update the selected request status immediately
+        if (updatedRequest) {
+          setSelectedRequest(updatedRequest);
+          // Show a brief success indicator in the drawer
+          message.success('Status updated to APPROVED', 2);
+        }
       } else {
-        // For rejection, we would need a reason input
-        await expenseService.rejectExpenseRequest(selectedRequest.id, 'Rejected by admin');
+        const updatedRequest = await expenseService.rejectExpenseRequest(selectedRequest.id, approvalComment || 'Rejected by admin');
         message.success('Expense request rejected');
+        
+        // Update the selected request status immediately
+        if (updatedRequest) {
+          setSelectedRequest(updatedRequest);
+          // Show a brief success indicator in the drawer
+          message.success('Status updated to REJECTED', 2);
+        }
       }
       
       setApprovalModalVisible(false);
-      setSelectedRequest(null);
       setApprovalAction(null);
-      loadRequests();
-      loadStats();
+      setApprovalComment('');
+      approvalForm.resetFields();
+      
+      // Reload data to reflect changes
+      await loadRequests();
+      await loadStats();
+      
+      // Close detail drawer after a short delay to show the updated status
+      setTimeout(() => {
+        setDetailDrawerVisible(false);
+        setSelectedRequest(null);
+      }, 1000);
+      
     } catch (error) {
-      console.error('Error processing approval:', error);
+      if (error.errorFields) {
+        // Form validation error - don't show error message, validation will show
+        return;
+      }
+
       message.error('Failed to process approval');
     }
   };
@@ -241,39 +281,14 @@ const ExpenseRequestsList = () => {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
-        <Space>
-          <Tooltip title="View Details">
             <Button
               type="default"
               size="small"
               icon={<EyeOutlined />}
               onClick={() => handleViewDetails(record)}
-            />
-          </Tooltip>
-          
-          <PermissionGate userRole={currentUser?.role} permissions={PERMISSIONS.EXPENSE_APPROVE}>
-            {record.status === 'PENDING' && (
-              <>
-                <Tooltip title="Approve">
-                  <Button
-                    size="small"
-                    type="primary"
-                    icon={<CheckOutlined />}
-                    onClick={() => handleApproval(record, 'approve')}
-                  />
-                </Tooltip>
-                <Tooltip title="Reject">
-                  <Button
-                    size="small"
-                    danger
-                    icon={<CloseOutlined />}
-                    onClick={() => handleApproval(record, 'reject')}
-                  />
-                </Tooltip>
-              </>
-            )}
-          </PermissionGate>
-        </Space>
+        >
+          View
+        </Button>
       ),
     },
   ];
@@ -402,96 +417,143 @@ const ExpenseRequestsList = () => {
         />
       </Card>
 
-      {/* Detail Modal */}
-      <Modal
+      {/* Detail Drawer */}
+      <Drawer
         title="Expense Request Details"
-        open={detailModalVisible}
-        onCancel={() => setDetailModalVisible(false)}
-        footer={null}
+        open={detailDrawerVisible}
+        onClose={() => setDetailDrawerVisible(false)}
         width={600}
+        placement="right"
       >
         {selectedRequest && (
           <div>
-            <Row gutter={16} style={{ marginBottom: 16 }}>
-              <Col span={12}>
-                <Text strong>Amount:</Text>
-                <br />
-                <Text>{expenseService.formatExpenseAmount(selectedRequest.amount)}</Text>
-              </Col>
-              <Col span={12}>
-                <Text strong>Status:</Text>
-                <br />
-                <Tag color={getStatusColor(selectedRequest.status)}>
-                  {selectedRequest.status}
-                </Tag>
-              </Col>
-            </Row>
-            
-            <Row gutter={16} style={{ marginBottom: 16 }}>
-              <Col span={12}>
-                <Text strong>Category:</Text>
-                <br />
-                <Text>{getCategoryLabel(selectedRequest.category)}</Text>
-              </Col>
-              <Col span={12}>
-                <Text strong>Expense Date:</Text>
-                <br />
-                <Text>{moment(selectedRequest.expenseDate).format('DD/MM/YYYY')}</Text>
-              </Col>
-            </Row>
-
-            <div style={{ marginBottom: 16 }}>
-              <Text strong>Description:</Text>
-              <br />
-              <Text>{selectedRequest.description}</Text>
+            <div style={{ 
+              marginBottom: '24px', 
+              border: '1px solid #d9d9d9', 
+              borderRadius: '8px', 
+              padding: '20px',
+              backgroundColor: '#ffffff'
+            }}>
+              <Title level={4} style={{ 
+                marginBottom: '20px', 
+                borderBottom: '1px solid #d9d9d9',
+                paddingBottom: '8px'
+              }}>
+                Expense Request Details
+              </Title>
+              
+              <div style={{ marginBottom: '16px', display: 'flex' }}>
+                <div style={{ width: '140px', fontWeight: 'bold' }}>Amount:</div>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1890ff' }}>
+                  {expenseService.formatExpenseAmount(selectedRequest.amount)}
+                </div>
+              </div>
+              
+              <div style={{ marginBottom: '16px', display: 'flex' }}>
+                <div style={{ width: '140px', fontWeight: 'bold' }}>Status:</div>
+                <div>
+                  <Tag color={getStatusColor(selectedRequest.status)}>
+                    {selectedRequest.status}
+                  </Tag>
+                </div>
+              </div>
+              
+              <div style={{ marginBottom: '16px', display: 'flex' }}>
+                <div style={{ width: '140px', fontWeight: 'bold' }}>Category:</div>
+                <div>{getCategoryLabel(selectedRequest.category)}</div>
+              </div>
+              
+              <div style={{ marginBottom: '16px', display: 'flex' }}>
+                <div style={{ width: '140px', fontWeight: 'bold' }}>Expense Date:</div>
+                <div>{moment(selectedRequest.expenseDate).format('DD/MM/YYYY')}</div>
+              </div>
+              
+              <div style={{ marginBottom: '16px', display: 'flex' }}>
+                <div style={{ width: '140px', fontWeight: 'bold' }}>Description:</div>
+                <div>{selectedRequest.description}</div>
+              </div>
+              
+              {selectedRequest.job && (
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>Related Job:</div>
+                  <div>{selectedRequest.job.trackingId} - {selectedRequest.job.status}</div>
+                </div>
+              )}
+              
+              <div style={{ marginBottom: '16px', display: 'flex' }}>
+                <div style={{ width: '140px', fontWeight: 'bold' }}>Requested By:</div>
+                <div>{selectedRequest.requestedBy?.name} ({selectedRequest.requestedBy?.role})</div>
+              </div>
+              
+              <div style={{ marginBottom: '16px', display: 'flex' }}>
+                <div style={{ width: '140px', fontWeight: 'bold' }}>Request Date:</div>
+                <div>{moment(selectedRequest.createdAt).format('DD/MM/YYYY HH:mm')}</div>
+              </div>
+              
+              {selectedRequest.approvedBy && (
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>Approved By:</div>
+                  <div>{selectedRequest.approvedBy?.name} ({selectedRequest.approvedBy?.role})</div>
+                </div>
+              )}
+              
+              {selectedRequest.approvedAt && (
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>Approved Date:</div>
+                  <div>{moment(selectedRequest.approvedAt).format('DD/MM/YYYY HH:mm')}</div>
+                </div>
+              )}
+              
+              {selectedRequest.approvalComment && (
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>Approval Comment:</div>
+                  <div style={{ fontStyle: 'italic', color: '#666' }}>
+                    {selectedRequest.approvalComment}
+                  </div>
+                </div>
+              )}
+              
+              {selectedRequest.rejectionReason && (
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>Rejection Reason:</div>
+                  <div style={{ color: '#ff4d4f' }}>{selectedRequest.rejectionReason}</div>
+                </div>
+              )}
             </div>
 
-            {selectedRequest.job && (
-              <div style={{ marginBottom: 16 }}>
-                <Text strong>Related Job:</Text>
-                <br />
-                <Text>{selectedRequest.job.trackingId} - {selectedRequest.job.status}</Text>
-              </div>
-            )}
-
-            <Row gutter={16} style={{ marginBottom: 16 }}>
-              <Col span={12}>
-                <Text strong>Requested By:</Text>
-                <br />
-                <Text>{selectedRequest.requestedBy?.name} ({selectedRequest.requestedBy?.role})</Text>
-              </Col>
-              <Col span={12}>
-                <Text strong>Request Date:</Text>
-                <br />
-                <Text>{moment(selectedRequest.createdAt).format('DD/MM/YYYY HH:mm')}</Text>
-              </Col>
-            </Row>
-
-            {selectedRequest.approvedBy && (
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Text strong>Approved By:</Text>
-                  <br />
-                  <Text>{selectedRequest.approvedBy?.name} ({selectedRequest.approvedBy?.role})</Text>
-                </Col>
-                <Col span={12}>
-                  <Text strong>Approved Date:</Text>
-                  <br />
-                  <Text>{moment(selectedRequest.approvedAt).format('DD/MM/YYYY HH:mm')}</Text>
-                </Col>
-              </Row>
-            )}
-
-            {selectedRequest.rejectionReason && (
-              <div style={{ marginTop: 16 }}>
-                <Text strong>Rejection Reason:</Text>
-                <br />
-                <Text type="danger">{selectedRequest.rejectionReason}</Text>
+            {/* Action Buttons */}
+            {selectedRequest.status === 'PENDING' && (
+              <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
+                <Text strong style={{ marginBottom: 16, display: 'block' }}>Actions:</Text>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <PermissionGate 
+                    userRole={currentUser?.role} 
+                    userPermissions={currentUser?.permissions}
+                    permissions={PERMISSIONS.EXPENSE_APPROVE}
+                  >
+                    <Space size={8}>
+                      <Button
+                        type="primary"
+                        icon={<CheckOutlined />}
+                        onClick={() => handleApproval(selectedRequest, 'approve')}
+                      >
+                        Approve Request
+                      </Button>
+                      <Button
+                        danger
+                        icon={<CloseOutlined />}
+                        onClick={() => handleApproval(selectedRequest, 'reject')}
+                      >
+                        Reject Request
+                      </Button>
+                    </Space>
+                  </PermissionGate>
+                </div>
               </div>
             )}
           </div>
         )}
-      </Modal>
+      </Drawer>
 
       {/* Approval Confirmation Modal */}
       <Modal
@@ -503,15 +565,35 @@ const ExpenseRequestsList = () => {
         okButtonProps={{
           type: approvalAction === 'approve' ? 'primary' : 'danger'
         }}
+        width={500}
       >
-        <p>
-          Are you sure you want to <strong>{approvalAction}</strong> this expense request?
-        </p>
         {selectedRequest && (
           <div>
+            <div style={{ marginBottom: 16 }}>
             <Text strong>Amount:</Text> {expenseService.formatExpenseAmount(selectedRequest.amount)}
             <br />
             <Text strong>Description:</Text> {selectedRequest.description}
+            </div>
+            
+            <Form form={approvalForm} layout="vertical">
+              <Form.Item
+                label={`${approvalAction === 'approve' ? 'Approval' : 'Rejection'} Comment`}
+                name="comment"
+                rules={[
+                  { 
+                    required: true, 
+                    message: `Please provide a ${approvalAction === 'approve' ? 'comment for approval' : 'reason for rejection'}` 
+                  }
+                ]}
+              >
+                <TextArea
+                  rows={4}
+                  placeholder={`Enter your ${approvalAction === 'approve' ? 'approval comment' : 'reason for rejection'}...`}
+                  value={approvalComment}
+                  onChange={(e) => setApprovalComment(e.target.value)}
+                />
+              </Form.Item>
+            </Form>
           </div>
         )}
       </Modal>

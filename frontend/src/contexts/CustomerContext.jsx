@@ -17,7 +17,6 @@ export const CustomerProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const { isAuthenticated } = useAuth();
 
-
   // Load customers when authenticated
   useEffect(() => {
     if (isAuthenticated) {
@@ -34,7 +33,7 @@ export const CustomerProvider = ({ children }) => {
       const response = await apiService.getCustomers();
       setCustomers(response.customers || []);
     } catch (error) {
-      console.error('Failed to load customers:', error);
+
       // Set empty array if API fails
       setCustomers([]);
     } finally {
@@ -45,16 +44,16 @@ export const CustomerProvider = ({ children }) => {
   // Add new customer
   const addCustomer = async (customerData) => {
     try {
-      console.log('🔄 CustomerContext: Creating customer with data:', customerData);
+
       const response = await apiService.createCustomer(customerData);
-      console.log('✅ CustomerContext: API response:', response);
+
       const newCustomer = response.customer;
-      console.log('📝 CustomerContext: New customer:', newCustomer);
+
       setCustomers(prev => [...prev, newCustomer]);
-      console.log('💾 CustomerContext: Updated customers list');
+
       return newCustomer;
     } catch (error) {
-      console.error('💥 CustomerContext: Failed to create customer:', error);
+
       throw error;
     }
   };
@@ -71,7 +70,7 @@ export const CustomerProvider = ({ children }) => {
       );
       return updatedCustomer;
     } catch (error) {
-      console.error('Failed to update customer:', error);
+
       throw error;
     }
   };
@@ -82,7 +81,7 @@ export const CustomerProvider = ({ children }) => {
       await apiService.deleteCustomer(id);
       setCustomers(prev => prev.filter(customer => customer.id !== id));
     } catch (error) {
-      console.error('Failed to delete customer:', error);
+
       throw error;
     }
   };

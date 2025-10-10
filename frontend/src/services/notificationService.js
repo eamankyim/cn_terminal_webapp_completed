@@ -9,7 +9,7 @@ const notificationService = {
       });
       return response; // API service already returns the full response object
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+
       throw error;
     }
   },
@@ -20,7 +20,7 @@ const notificationService = {
       const response = await api.patch(`/notifications/${notificationId}/read`);
       return response;
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+
       throw error;
     }
   },
@@ -28,12 +28,12 @@ const notificationService = {
   // Delete all notifications (clear all)
   async markAllAsRead() {
     try {
-      console.log('🔄 NotificationService: Calling API to delete all notifications...');
+
       const response = await api.patch('/notifications/read-all');
-      console.log('📡 NotificationService: API response:', response);
+
       return response;
     } catch (error) {
-      console.error('❌ NotificationService: Error deleting all notifications:', error);
+
       throw error;
     }
   },
@@ -44,7 +44,7 @@ const notificationService = {
       const response = await api.get('/notifications/unread-count');
       return response;
     } catch (error) {
-      console.error('Error fetching unread count:', error);
+
       throw error;
     }
   },
@@ -55,7 +55,7 @@ const notificationService = {
       const response = await api.delete(`/notifications/${notificationId}`);
       return response;
     } catch (error) {
-      console.error('Error deleting notification:', error);
+
       throw error;
     }
   }

@@ -38,10 +38,10 @@ const RequestsPage = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   
-  // Route guard: Redirect admin and IT consultant users since they don't send requests
+  // Route guard: Redirect admin, accountant, and IT consultant users since they don't send requests
   useEffect(() => {
-    if (currentUser?.role === 'ADMIN' || currentUser?.role === 'IT_CONSULTANT') {
-      message.info('Admins record expenses directly in the Accounting section');
+    if (currentUser?.role === 'ADMIN' || currentUser?.role === 'ACCOUNTANT' || currentUser?.role === 'IT_CONSULTANT') {
+      message.info('Admins and accounting staff manage expenses in the Accounting section');
       navigate('/accounting');
       return;
     }
@@ -69,7 +69,7 @@ const RequestsPage = () => {
       });
       setMyRequests(response.requests || []);
     } catch (error) {
-      console.error('Error loading my requests:', error);
+
       message.error('Failed to load your requests');
     } finally {
       setLoading(false);
@@ -81,7 +81,7 @@ const RequestsPage = () => {
       const response = await expenseService.getMyExpenseStats();
       setStats(response);
     } catch (error) {
-      console.error('Error loading my stats:', error);
+
     }
   };
 
@@ -200,7 +200,11 @@ const RequestsPage = () => {
           </div>
           
           <div style={{ marginTop: 8 }}>
-            <PermissionGate userRole={currentUser?.role} permissions={PERMISSIONS.EXPENSE_REQUEST}>
+            <PermissionGate 
+              userRole={currentUser?.role} 
+              userPermissions={currentUser?.permissions}
+              permissions={PERMISSIONS.EXPENSE_REQUEST}
+            >
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
@@ -272,7 +276,6 @@ const RequestsPage = () => {
           </Card>
         </Col>
       </Row>
-
 
       {/* My Requests Table */}
       <Card>

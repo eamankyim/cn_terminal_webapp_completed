@@ -3,16 +3,6 @@ import api from './api';
 class FileService {
   async uploadFile(file, options = {}) {
     try {
-      console.log('\n' + '='.repeat(60));
-      console.log('📁 FILE UPLOAD REQUEST');
-      console.log('='.repeat(60));
-      console.log('📄 File details:', {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        lastModified: file.lastModified
-      });
-      console.log('⚙️ Upload options:', options);
 
       const formData = new FormData();
       formData.append('file', file);
@@ -20,25 +10,23 @@ class FileService {
       // Add additional options
       if (options.folder) {
         formData.append('folder', options.folder);
-        console.log('📁 Folder:', options.folder);
+
       }
       if (options.category) {
         formData.append('category', options.category);
-        console.log('🏷️ Category:', options.category);
+
       }
       if (options.entityId) {
         formData.append('entityId', options.entityId);
-        console.log('🔗 Entity ID:', options.entityId);
+
       }
       if (options.entityType) {
         formData.append('entityType', options.entityType);
-        console.log('📋 Entity Type:', options.entityType);
+
       }
 
-      console.log('📤 Sending upload request...');
-      console.log('📋 FormData contents:');
       for (let [key, value] of formData.entries()) {
-        console.log(`  ${key}:`, value);
+
       }
       
       const response = await api.post('/files/upload', formData, {
@@ -48,26 +36,15 @@ class FileService {
             const percentCompleted = Math.round(
               (progressEvent.loaded * 100) / progressEvent.total
             );
-            console.log(`📊 Upload progress: ${percentCompleted}%`);
+
             options.onProgress(percentCompleted);
           }
         },
       });
 
-      console.log('✅ Upload successful!');
-      console.log('📄 Response data:', response);
-      console.log('='.repeat(60) + '\n');
-
       return response;
     } catch (error) {
-      console.log('\n' + '='.repeat(60));
-      console.log('💥 FILE UPLOAD ERROR');
-      console.log('='.repeat(60));
-      console.error('❌ Upload failed:', error);
-      console.log('📄 Error response:', error.response?.data);
-      console.log('📊 Error status:', error.response?.status);
-      console.log('='.repeat(60) + '\n');
-      
+
       throw new Error(error.message || 'Failed to upload file');
     }
   }
@@ -78,7 +55,7 @@ class FileService {
       const results = await Promise.all(uploadPromises);
       return results;
     } catch (error) {
-      console.error('Multiple file upload error:', error);
+
       throw new Error('Failed to upload files');
     }
   }
@@ -90,7 +67,7 @@ class FileService {
       });
       return response;
     } catch (error) {
-      console.error('File delete error:', error);
+
       throw new Error('Failed to delete file');
     }
   }
@@ -100,36 +77,19 @@ class FileService {
       const response = await api.get(`/files/${fileId}`);
       return response;
     } catch (error) {
-      console.error('Get file info error:', error);
+
       throw new Error('Failed to get file information');
     }
   }
 
   async getFilesByEntity(entityType, entityId) {
     try {
-      console.log('\n' + '='.repeat(60));
-      console.log('📁 GET FILES BY ENTITY REQUEST');
-      console.log('='.repeat(60));
-      console.log('📋 Entity Type:', entityType);
-      console.log('🔗 Entity ID:', entityId);
-      
+
       const response = await api.get(`/files/entity/${entityType}/${entityId}`);
-      
-      console.log('✅ Files retrieved successfully!');
-      console.log('📄 Response data:', response);
-      console.log('📊 Files count:', response?.files?.length || 0);
-      console.log('='.repeat(60) + '\n');
-      
+
       return response;
     } catch (error) {
-      console.log('\n' + '='.repeat(60));
-      console.log('💥 GET FILES BY ENTITY ERROR');
-      console.log('='.repeat(60));
-      console.error('❌ Failed to get files:', error);
-      console.log('📄 Error response:', error.response?.data);
-      console.log('📊 Error status:', error.response?.status);
-      console.log('='.repeat(60) + '\n');
-      
+
       throw new Error('Failed to get files');
     }
   }
@@ -141,7 +101,7 @@ class FileService {
       });
       return response;
     } catch (error) {
-      console.error('File download error:', error);
+
       throw new Error('Failed to download file');
     }
   }

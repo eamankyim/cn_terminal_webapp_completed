@@ -28,13 +28,9 @@ export const AuthProvider = ({ children }) => {
     const savedUser = localStorage.getItem('cn_terminal_user');
     const savedToken = localStorage.getItem('cn_terminal_token');
     
-    console.log('🔐 Auth Check - Saved User:', savedUser);
-    console.log('🔐 Auth Check - Saved Token:', savedToken ? 'Present' : 'Missing');
-    
     if (savedUser && savedToken) {
       try {
         const user = JSON.parse(savedUser);
-        console.log('🔐 Auth Check - Parsed User:', user);
         setCurrentUser(user);
         setIsAuthenticated(true);
         apiService.setToken(savedToken);
@@ -43,18 +39,12 @@ export const AuthProvider = ({ children }) => {
         
         // Load pending invitations if user is admin
         if (user.role === 'ADMIN') {
-          console.log('🔐 Auth Check - User is ADMIN, loading invitations...');
           loadPendingInvitations();
-        } else {
-          console.log('🔐 Auth Check - User is not ADMIN, role:', user.role);
         }
       } catch (error) {
-        console.error('Error parsing saved user:', error);
         localStorage.removeItem('cn_terminal_user');
         localStorage.removeItem('cn_terminal_token');
       }
-    } else {
-      console.log('🔐 Auth Check - No saved user or token found');
     }
     setLoading(false);
   }, []);
@@ -65,15 +55,9 @@ export const AuthProvider = ({ children }) => {
   // Load pending invitations from API
   const loadPendingInvitations = async () => {
     try {
-      console.log('🔐 Loading pending invitations...');
-      console.log('🔐 Current user:', currentUser);
-      console.log('🔐 Is authenticated:', isAuthenticated);
-      console.log('🔐 Token present:', !!apiService.token);
-      
       const response = await invitationService.getPendingInvitations();
       setPendingInvites(response.invitations || []);
     } catch (error) {
-      console.error('Failed to load pending invitations:', error);
       setPendingInvites([]);
     }
   };
@@ -124,21 +108,16 @@ export const AuthProvider = ({ children }) => {
           // Check if invitation already exists to prevent duplicates
           const exists = prev.some(invite => invite.id === response.invitation.id);
           if (exists) {
-            console.log('📧 Invitation already exists in state, skipping duplicate');
             return prev;
           }
           return [...prev, response.invitation];
         });
         
         // Email is automatically sent by the backend API
-        console.log('📧 Invitation created and email sent by backend');
-      } else {
-        console.warn('No invitation data in response:', response);
       }
       
       return response;
     } catch (error) {
-      console.error('Send invite error:', error);
       throw error;
     }
   };
@@ -153,7 +132,6 @@ export const AuthProvider = ({ children }) => {
       setPendingInvites(prev => prev.filter(inv => inv.id !== inviteId));
       
       // Welcome email is automatically sent by the backend API
-      console.log('📧 User account created and welcome email sent by backend');
       
       return { success: true, user: response.user };
     } catch (error) {
@@ -205,27 +183,21 @@ export const AuthProvider = ({ children }) => {
 
   const hasPermission = (permission) => {
     if (!currentUser) {
-      console.log('❌ hasPermission: No currentUser');
       return false;
     }
-    
+
     // Check if user has specific permissions array from database
     if (currentUser.permissions && Array.isArray(currentUser.permissions)) {
-      const hasPermissionResult = currentUser.permissions.includes(permission);
-      console.log(`🔍 hasPermission(${permission}):`, hasPermissionResult, '| User permissions count:', currentUser.permissions.length);
-      return hasPermissionResult;
+      return currentUser.permissions.includes(permission);
     }
-    
+
     // Fallback to UI-based permissions
-    const fallbackResult = hasUIPermission(currentUser.role, permission);
-    console.log(`🔍 hasPermission(${permission}) [FALLBACK]:`, fallbackResult, '| Role:', currentUser.role);
-    return fallbackResult;
+    return hasUIPermission(currentUser.role, permission);
   };
 
   // Function to refresh user permissions from the server
   const refreshUserPermissions = async () => {
     try {
-      console.log('🔄 Refreshing user permissions...');
       const response = await apiService.get('/auth/me');
       
       if (response && response.user) {
@@ -237,15 +209,9 @@ export const AuthProvider = ({ children }) => {
         setCurrentUser(updatedUser);
         localStorage.setItem('cn_terminal_user', JSON.stringify(updatedUser));
         
-        console.log('✅ User permissions refreshed:', updatedUser.permissions);
-        console.log('📊 Total permissions count:', updatedUser.permissions.length);
-        console.log('🔍 Has dashboard permission:', updatedUser.permissions.includes('ui:dashboard'));
-        console.log('🔍 Has job edit permission:', updatedUser.permissions.includes('job:edit'));
-        
         return true;
       }
     } catch (error) {
-      console.error('❌ Failed to refresh user permissions:', error);
       return false;
     }
   };
@@ -253,14 +219,7 @@ export const AuthProvider = ({ children }) => {
   // Auto-refresh user permissions when app starts (if user is logged in)
   useEffect(() => {
     if (isAuthenticated && currentUser) {
-      console.log('🔄 Auto-refreshing user permissions on app start...');
-      refreshUserPermissions().then(success => {
-        if (success) {
-          console.log('✅ User permissions auto-refreshed successfully');
-        } else {
-          console.log('⚠️ Failed to auto-refresh user permissions');
-        }
-      });
+      refreshUserPermissions();
     }
   }, [isAuthenticated, currentUser]);
 

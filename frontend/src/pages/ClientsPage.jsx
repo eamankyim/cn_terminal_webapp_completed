@@ -115,7 +115,7 @@ const ClientsPage = () => {
       consignmentForm.resetFields();
     } catch (error) {
       message.error('Failed to create consignment');
-      console.error('Error creating consignment:', error);
+
     }
   };
 
@@ -140,7 +140,7 @@ const ClientsPage = () => {
           message.success('Consignment deleted successfully');
         } catch (error) {
           message.error('Failed to delete consignment');
-          console.error('Error deleting consignment:', error);
+
         }
       }
     });
@@ -169,7 +169,6 @@ const ClientsPage = () => {
       }
     });
   };
-
 
   const handleCreateClient = async (values) => {
     try {
@@ -333,8 +332,6 @@ const ClientsPage = () => {
           </Card>
         </Col>
       </Row>
-      
-
 
       {/* Search and Filters */}
       <Card style={{ marginBottom: '24px' }}>
@@ -697,7 +694,6 @@ const ClientsPage = () => {
             <Input.TextArea placeholder="Enter full address" rows={2} />
           </Form.Item>
 
-
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
@@ -826,7 +822,6 @@ const ClientsPage = () => {
           >
             <Input.TextArea placeholder="Enter consignee address" rows={2} />
           </Form.Item>
-
 
           <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>
             <Space>

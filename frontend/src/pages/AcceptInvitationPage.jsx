@@ -39,9 +39,7 @@ const AcceptInvitationPage = () => {
   const [validated, setValidated] = useState(false);
 
   useEffect(() => {
-    console.log('📧 AcceptInvitationPage useEffect triggered:', { id, validated });
     if (!validated && id) {
-      console.log('📧 Starting invitation validation for ID:', id);
       validateInvitation();
     }
   }, [id, validated]);
@@ -55,7 +53,6 @@ const AcceptInvitationPage = () => {
       const response = await invitationService.validateInvitation(id);
       setInvitation(response.invitation);
     } catch (error) {
-      console.error('Invitation validation error:', error);
       setError(error.message || 'Invalid or expired invitation');
     } finally {
       setLoading(false);
@@ -86,7 +83,6 @@ const AcceptInvitationPage = () => {
       }, 3000);
 
     } catch (error) {
-      console.error('Accept invitation error:', error);
       setError(error.message || 'Failed to create account');
     } finally {
       setSubmitting(false);
@@ -243,7 +239,6 @@ const AcceptInvitationPage = () => {
               backgroundColor: 'rgba(255, 255, 255, 0.95)'
             }}
           >
-
 
             {/* Setup Form */}
             <Form

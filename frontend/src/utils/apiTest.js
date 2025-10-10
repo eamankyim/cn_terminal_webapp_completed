@@ -2,18 +2,11 @@
 import api from '../services/api';
 
 export const testApiConnection = async () => {
-  console.log('🧪 Testing API connection...');
-  
   try {
     // Test 1: Check if API base URL is reachable
-    console.log('📍 Testing API base URL:', api.baseURL);
-    
     // Test 2: Check if we have a token
     const token = localStorage.getItem('cn_terminal_token');
-    console.log('🔑 Token status:', token ? 'Present' : 'Missing');
-    
     if (!token) {
-      console.warn('⚠️ No authentication token found. Please login first.');
       return { success: false, error: 'No authentication token' };
     }
     
@@ -22,11 +15,8 @@ export const testApiConnection = async () => {
       const response = await api.get('/expenses/requests', { 
         params: { limit: 1 } 
       });
-      console.log('✅ API connection successful!');
-      console.log('📊 Response:', response.data);
       return { success: true, data: response.data };
     } catch (error) {
-      console.error('❌ API request failed:', error);
       return { 
         success: false, 
         error: error.message,
@@ -36,15 +26,12 @@ export const testApiConnection = async () => {
     }
     
   } catch (error) {
-    console.error('❌ API connection test failed:', error);
     return { success: false, error: error.message };
   }
 };
 
 // Test specific accounting endpoints
 export const testAccountingEndpoints = async () => {
-  console.log('🧪 Testing Accounting API endpoints...');
-  
   const tests = [
     {
       name: 'Get Expense Requests',
@@ -68,12 +55,9 @@ export const testAccountingEndpoints = async () => {
   
   for (const test of tests) {
     try {
-      console.log(`🔍 Testing: ${test.name}`);
       const response = await test.test();
-      console.log(`✅ ${test.name}: Success`);
       results.push({ name: test.name, success: true, data: response.data });
     } catch (error) {
-      console.error(`❌ ${test.name}: Failed`, error.response?.data || error.message);
       results.push({ 
         name: test.name, 
         success: false, 
@@ -82,8 +66,6 @@ export const testAccountingEndpoints = async () => {
       });
     }
   }
-  
-  console.log('📊 Test Results Summary:', results);
   return results;
 };
 
@@ -91,9 +73,6 @@ export const testAccountingEndpoints = async () => {
 if (typeof window !== 'undefined') {
   window.testApiConnection = testApiConnection;
   window.testAccountingEndpoints = testAccountingEndpoints;
-  console.log('🔧 API test functions available in browser console:');
-  console.log('  - testApiConnection()');
-  console.log('  - testAccountingEndpoints()');
 }
 
 

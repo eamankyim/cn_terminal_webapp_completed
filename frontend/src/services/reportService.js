@@ -12,7 +12,7 @@ class ReportService {
       });
       return response;
     } catch (error) {
-      console.error('Error fetching summary stats:', error);
+
       throw error;
     }
   }
@@ -28,7 +28,7 @@ class ReportService {
       });
       return response;
     } catch (error) {
-      console.error('Error fetching job status summary:', error);
+
       throw error;
     }
   }
@@ -44,7 +44,7 @@ class ReportService {
       });
       return response;
     } catch (error) {
-      console.error('Error fetching daily activity:', error);
+
       throw error;
     }
   }
@@ -60,7 +60,7 @@ class ReportService {
       });
       return response;
     } catch (error) {
-      console.error('Error fetching revenue summary:', error);
+
       throw error;
     }
   }
@@ -76,7 +76,7 @@ class ReportService {
       });
       return response;
     } catch (error) {
-      console.error('Error fetching invoice reports:', error);
+
       throw error;
     }
   }
@@ -92,7 +92,7 @@ class ReportService {
       });
       return response;
     } catch (error) {
-      console.error('Error fetching customer activity:', error);
+
       throw error;
     }
   }
@@ -108,7 +108,7 @@ class ReportService {
       });
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error fetching processing time report:', error);
+
       throw error;
     }
   }
@@ -124,7 +124,7 @@ class ReportService {
       });
       return response; // API service returns data directly, not wrapped in .data
     } catch (error) {
-      console.error('Error fetching monthly trends report:', error);
+
       throw error;
     }
   }

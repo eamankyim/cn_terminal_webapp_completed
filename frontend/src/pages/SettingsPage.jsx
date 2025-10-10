@@ -193,7 +193,7 @@ const SettingsPage = () => {
       const response = await userService.getUsers();
       setUsers(response.users || []);
     } catch (error) {
-      console.error('Failed to load users:', error);
+
       message.error('Failed to load team members');
     } finally {
       setUsersLoading(false);
@@ -483,7 +483,6 @@ const SettingsPage = () => {
     ),
   };
 
-
   const rolesTab = {
     key: 'roles',
     label: 'Roles & Permissions',
@@ -599,13 +598,12 @@ const SettingsPage = () => {
           currentUserRole={currentUser?.role}
           onRoleUpdate={() => {
             // Refresh data if needed
-            console.log('Role updated');
+
           }}
         />
       </div>
     ),
   };
-
 
   const invitesTab = {
     key: 'invites',
@@ -702,7 +700,6 @@ const SettingsPage = () => {
       </div>
     ),
   };
-
 
   const preferencesTab = {
     key: 'preferences',

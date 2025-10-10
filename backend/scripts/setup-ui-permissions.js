@@ -131,8 +131,7 @@ const ROLE_UI_PERMISSIONS = {
 
 async function setupUIPermissions() {
   try {
-    console.log('🚀 Setting up UI-based permissions...');
-    
+
     // Find admin user for createdBy field
     const adminUser = await prisma.user.findFirst({
       where: { role: 'ADMIN' }
@@ -141,11 +140,9 @@ async function setupUIPermissions() {
     if (!adminUser) {
       throw new Error('No admin user found. Please create an admin user first.');
     }
-    
-    console.log(`✅ Found admin user: ${adminUser.email}`);
-    
+
     // Create all UI permissions
-    console.log('📝 Creating UI permissions...');
+
     const permissionPromises = Object.entries(UI_PERMISSIONS).map(async ([key, permissionName]) => {
       const [module, action] = permissionName.split(':');
       return prisma.permission.upsert({
@@ -160,21 +157,18 @@ async function setupUIPermissions() {
     });
     
     await Promise.all(permissionPromises);
-    console.log(`✅ Created ${Object.keys(UI_PERMISSIONS).length} UI permissions`);
-    
+
     // Assign permissions to roles
-    console.log('🔗 Assigning permissions to roles...');
-    
+
     for (const [roleName, permissions] of Object.entries(ROLE_UI_PERMISSIONS)) {
-      console.log(`📋 Assigning ${permissions.length} permissions to ${roleName}...`);
-      
+
       // Find the role
       const role = await prisma.role.findFirst({
         where: { name: roleName }
       });
       
       if (!role) {
-        console.log(`⚠️  Role ${roleName} not found, skipping...`);
+
         continue;
       }
       
@@ -211,24 +205,16 @@ async function setupUIPermissions() {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
-      
-      console.log(`✅ Assigned permissions to ${roleName}`);
+
     }
-    
-    console.log('🎉 UI permissions setup completed successfully!');
-    
+
     // Summary
     const totalPermissions = await prisma.permission.count();
     const totalRoles = await prisma.role.count();
     const totalRolePermissions = await prisma.rolePermission.count();
-    
-    console.log('\n📊 Summary:');
-    console.log(`  - Total permissions: ${totalPermissions}`);
-    console.log(`  - Total roles: ${totalRoles}`);
-    console.log(`  - Total role-permission mappings: ${totalRolePermissions}`);
-    
+
   } catch (error) {
-    console.error('❌ Error setting up UI permissions:', error);
+
     throw error;
   } finally {
     await prisma.$disconnect();
@@ -238,10 +224,10 @@ async function setupUIPermissions() {
 // Run the setup
 setupUIPermissions()
   .then(() => {
-    console.log('✅ Setup completed successfully!');
+
     process.exit(0);
   })
   .catch((error) => {
-    console.error('❌ Setup failed:', error);
+
     process.exit(1);
   });

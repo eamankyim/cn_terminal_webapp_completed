@@ -7,7 +7,6 @@ class ConsignmentService {
       const response = await apiService.get(`/consignments/customer/${customerId}`);
       return response;
     } catch (error) {
-      console.error('Failed to fetch consignments:', error);
       throw error;
     }
   }
@@ -18,7 +17,6 @@ class ConsignmentService {
       const response = await apiService.get('/consignments');
       return response;
     } catch (error) {
-      console.error('Failed to fetch all consignments:', error);
       throw error;
     }
   }
@@ -29,7 +27,6 @@ class ConsignmentService {
       const response = await apiService.get(`/consignments/${id}`);
       return response;
     } catch (error) {
-      console.error('Failed to fetch consignment:', error);
       throw error;
     }
   }
@@ -40,7 +37,6 @@ class ConsignmentService {
       const response = await apiService.post('/consignments', consignmentData);
       return response;
     } catch (error) {
-      console.error('Failed to create consignment:', error);
       throw error;
     }
   }
@@ -51,7 +47,6 @@ class ConsignmentService {
       const response = await apiService.put(`/consignments/${id}`, consignmentData);
       return response;
     } catch (error) {
-      console.error('Failed to update consignment:', error);
       throw error;
     }
   }
@@ -62,7 +57,6 @@ class ConsignmentService {
       const response = await apiService.delete(`/consignments/${id}`);
       return response;
     } catch (error) {
-      console.error('Failed to delete consignment:', error);
       throw error;
     }
   }
@@ -73,7 +67,6 @@ class ConsignmentService {
       const response = await apiService.patch(`/consignments/${id}/status`, { status });
       return response;
     } catch (error) {
-      console.error('Failed to update consignment status:', error);
       throw error;
     }
   }
@@ -88,5 +81,4 @@ class ConsignmentService {
 }
 
 export default new ConsignmentService();
-
 

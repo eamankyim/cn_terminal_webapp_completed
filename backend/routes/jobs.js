@@ -136,20 +136,9 @@ const router = express.Router();
 // Get all jobs
 router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
   try {
-    console.log('\n' + '='.repeat(60));
-    console.log('📋 GET JOBS REQUEST');
-    console.log('='.repeat(60));
-    console.log(`👤 User: ${req.user.name} (${req.user.email})`);
-    console.log(`📝 Query params:`, req.query);
-    console.log(`⏰ Request time: ${new Date().toISOString()}`);
 
     const { page = 1, limit = 10, search = '', status, customerId } = req.query;
     const skip = (page - 1) * limit;
-
-    console.log(`📊 Pagination: page=${page}, limit=${limit}, skip=${skip}`);
-    console.log(`🔍 Search: "${search}"`);
-    console.log(`📋 Status filter: ${status || 'none'}`);
-    console.log(`👤 Customer filter: ${customerId || 'none'}`);
 
     // Build where condition
     const where = {};
@@ -204,10 +193,6 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
       where.customerId = customerId;
     }
 
-    console.log(`🔍 Where condition:`, JSON.stringify(where, null, 2));
-
-    console.log('🔍 Executing Prisma queries...');
-    
     // Test query to check if fields exist in database
     const testJob = await prisma.job.findFirst({
       select: {
@@ -222,8 +207,7 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
         jobDescription: true
       }
     });
-    console.log('🔍 Test job query result:', testJob);
-    
+
     const [jobs, totalCount] = await Promise.all([
       prisma.job.findMany({
         where,
@@ -317,10 +301,6 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
       prisma.job.count({ where })
     ]);
 
-    console.log(`✅ Prisma queries completed successfully`);
-    console.log(`📊 Found ${jobs.length} jobs out of ${totalCount} total`);
-    console.log(`📄 Pagination: page ${page}/${Math.ceil(totalCount / limit)}`);
-
     const response = {
       jobs,
       pagination: {
@@ -331,30 +311,13 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
       }
     };
 
-    console.log('✅ Sending successful response');
-    console.log('🔍 First job data being sent:', jobs[0]);
     if (jobs[0]) {
-      console.log('🔍 First job fields check:');
-      console.log('  - mediumOfEnquiry:', jobs[0].mediumOfEnquiry);
-      console.log('  - documentsBrought:', jobs[0].documentsBrought);
-      console.log('  - containerNumber:', jobs[0].containerNumber);
-      console.log('  - blNumber:', jobs[0].blNumber);
-      console.log('  - vesselName:', jobs[0].vesselName);
-      console.log('  - line:', jobs[0].line);
-      console.log('  - jobDescription:', jobs[0].jobDescription);
+
     }
-    console.log('='.repeat(60) + '\n');
 
     res.json(response);
   } catch (error) {
-    console.log('\n' + '='.repeat(60));
-    console.log('💥 GET JOBS ERROR');
-    console.log('='.repeat(60));
-    console.error('Error details:', error);
-    console.log('Error message:', error.message);
-    console.log('Error stack:', error.stack);
-    console.log('='.repeat(60) + '\n');
-    
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -450,7 +413,7 @@ router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
 
     res.json({ job });
   } catch (error) {
-    console.error('Get job error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -458,13 +421,12 @@ router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
 // Generate system job ID
 const generateJobId = async () => {
   try {
-    console.log('🔢 Starting job ID generation...');
+
     const year = new Date().getFullYear();
     const prefix = `JOB-${year}`;
-    console.log(`📅 Year: ${year}, Prefix: ${prefix}`);
-    
+
     // Find the highest job number for this year
-    console.log('🔍 Searching for last job with current year prefix...');
+
     const lastJob = await prisma.job.findFirst({
       where: {
         trackingId: {
@@ -478,19 +440,19 @@ const generateJobId = async () => {
 
     let nextNumber = 1;
     if (lastJob) {
-      console.log(`📋 Found last job: ${lastJob.trackingId}`);
+
       const lastNumber = parseInt(lastJob.trackingId.split('-')[2]) || 0;
       nextNumber = lastNumber + 1;
-      console.log(`🔢 Last number: ${lastNumber}, Next number: ${nextNumber}`);
+
     } else {
-      console.log('📋 No previous jobs found for this year, starting with 1');
+
     }
 
     const generatedId = `${prefix}-${nextNumber.toString().padStart(4, '0')}`;
-    console.log(`✅ Generated job ID: ${generatedId}`);
+
     return generatedId;
   } catch (error) {
-    console.error('💥 Error generating job ID:', error);
+
     throw error;
   }
 };
@@ -498,12 +460,6 @@ const generateJobId = async () => {
 // Create new job
 router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
   try {
-    console.log('\n' + '='.repeat(60));
-    console.log('📋 CREATE JOB REQUEST');
-    console.log('='.repeat(60));
-    console.log(`👤 User: ${req.user.name} (${req.user.email})`);
-    console.log(`📝 Request body:`, JSON.stringify(req.body, null, 2));
-    console.log(`⏰ Request time: ${new Date().toISOString()}`);
 
     const {
       customerId,
@@ -522,25 +478,9 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
       jobDescription
     } = req.body;
 
-    console.log(`🔍 Extracted data:`);
-    console.log(`  - customerId: ${customerId}`);
-    console.log(`  - consignmentId: ${consignmentId}`);
-    console.log(`  - assignedToId: ${assignedToId}`);
-    console.log(`  - status: ${status}`);
-    console.log(`  - isDraft: ${isDraft}`);
-    console.log(`  - goodsTypes:`, goodsTypes);
-    console.log(`  - eta: ${eta}`);
-    console.log(`  - mediumOfEnquiry: ${mediumOfEnquiry}`);
-    console.log(`  - documentsBrought:`, documentsBrought);
-    console.log(`  - containerNumber: ${containerNumber}`);
-    console.log(`  - blNumber: ${blNumber}`);
-    console.log(`  - vesselName: ${vesselName}`);
-    console.log(`  - line: ${line}`);
-    console.log(`  - jobDescription: ${jobDescription}`);
-
     // Validate required fields
     if (!customerId || !assignedToId) {
-      console.log('❌ Validation failed: Missing required fields');
+
       return res.status(400).json({ 
         error: 'Customer and assigned to are required' 
       });
@@ -548,29 +488,26 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
 
     // Validate goods types
     if (!goodsTypes || goodsTypes.length === 0) {
-      console.log('❌ Validation failed: No goods types provided');
+
       return res.status(400).json({ 
         error: 'At least one goods type is required' 
       });
     }
 
-    console.log('✅ Validation passed');
-
     // Check if customer exists
-    console.log('🔍 Checking if customer exists...');
+
     const customer = await prisma.customer.findUnique({
       where: { id: customerId }
     });
 
     if (!customer) {
-      console.log('❌ Customer not found:', customerId);
+
       return res.status(400).json({ error: 'Customer not found' });
     }
-    console.log('✅ Customer found:', customer.name);
 
     // Check if consignment exists and belongs to customer (if provided)
     if (consignmentId) {
-      console.log('🔍 Checking if consignment exists...');
+
       const consignment = await prisma.consignment.findFirst({
         where: {
           id: consignmentId,
@@ -579,19 +516,18 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
       });
 
       if (!consignment) {
-        console.log('❌ Consignment not found or does not belong to customer');
+
         return res.status(400).json({ error: 'Consignment not found or does not belong to this customer' });
       }
-      console.log('✅ Consignment found:', consignment.trackingId);
+
     }
 
     // Generate system job ID
-    console.log('🔢 Generating system job ID...');
+
     const trackingId = await generateJobId();
-    console.log('✅ Generated job ID:', trackingId);
 
     // Create job
-    console.log('💾 Creating job in database...');
+
     const jobData = {
       customerId,
       consignmentId,
@@ -611,15 +547,6 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
       createdById: req.user.id,
       submittedDate: isDraft ? null : new Date() // Only set submittedDate if not a draft
     };
-    console.log('📝 Job data to create:', JSON.stringify(jobData, null, 2));
-    console.log('🔍 Individual field values:');
-    console.log('  - mediumOfEnquiry:', mediumOfEnquiry);
-    console.log('  - documentsBrought:', documentsBrought);
-    console.log('  - containerNumber:', containerNumber);
-    console.log('  - blNumber:', blNumber);
-    console.log('  - vesselName:', vesselName);
-    console.log('  - line:', line);
-    console.log('  - jobDescription:', jobDescription);
 
     const job = await prisma.job.create({
       data: jobData,
@@ -657,11 +584,8 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
       }
     });
 
-    console.log('✅ Job created successfully:', job.id);
-    console.log('🔍 Created job data:', JSON.stringify(job, null, 2));
-
     // Create initial status history
-    console.log('📝 Creating initial status history...');
+
     await prisma.jobStatusHistory.create({
       data: {
         jobId: job.id,
@@ -669,13 +593,11 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
         updatedById: req.user.id
       }
     });
-    console.log('✅ Status history created');
 
     // Create notifications for job creation and assignment with real-time updates
     try {
       // Notify the assigned user about the new job
       await RealtimeNotificationService.notifyJobAssignmentRealtime(job.id, job.assignedToId, req.user.id);
-      console.log('📢 Job assignment notification created with real-time updates');
 
       // Notify all staff about new job creation (optional - for visibility)
       await NotificationService.createNotification({
@@ -692,30 +614,18 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
           createdBy: req.user.name
         }
       });
-      console.log('📢 Job creation notification created');
+
     } catch (notificationError) {
-      console.error('⚠️ Failed to create job notifications:', notificationError);
+
       // Don't fail the job creation if notifications fail
     }
-
-    console.log('🎉 Job creation completed successfully');
-    console.log('='.repeat(60) + '\n');
 
     res.status(201).json({
       message: 'Job created successfully',
       job
     });
   } catch (error) {
-    console.log('\n' + '='.repeat(60));
-    console.log('💥 CREATE JOB ERROR');
-    console.log('='.repeat(60));
-    console.error('Error details:', error);
-    console.log('Error message:', error.message);
-    console.log('Error stack:', error.stack);
-    console.log('Error code:', error.code);
-    console.log('Error meta:', error.meta);
-    console.log('='.repeat(60) + '\n');
-    
+
     res.status(500).json({ 
       error: 'Internal server error',
       details: error.message 
@@ -913,7 +823,7 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
       job: updatedJob
     });
   } catch (error) {
-    console.error('Update job error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -923,12 +833,6 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
   try {
     const { id } = req.params;
     const { status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact } = req.body;
-
-    console.log('🔍 Status update request:');
-    console.log('  - Job ID:', id);
-    console.log('  - Status:', status);
-    console.log('  - Demurrage/Free Days:', demurrageFreeDays);
-    console.log('  - Release Money Received:', releaseMoneyReceived);
 
     if (!status) {
       return res.status(400).json({ error: 'Status is required' });
@@ -1063,13 +967,13 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
     // Add ETA if provided
     if (eta !== undefined) {
       updateData.eta = eta ? new Date(eta) : null;
-      console.log('🔍 ETA being saved:', updateData.eta);
+
     }
 
     // Add assignedToId if provided
     if (assignedToId !== undefined) {
       updateData.assignedToId = assignedToId;
-      console.log('🔍 AssignedToId being updated:', assignedToId);
+
     }
 
     // Add demurrage/free days if provided
@@ -1109,10 +1013,6 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
       where: { id },
       data: updateData
     });
-
-    console.log('🔍 Updated job ETA:', updatedJob.eta);
-    console.log('🔍 Updated job shipperName:', updatedJob.shipperName);
-    console.log('🔍 Updated job invoiceNumber:', updatedJob.invoiceNumber);
 
     // Create status history entry
     await prisma.jobStatusHistory.create({
@@ -1198,10 +1098,6 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
       }
     });
 
-    console.log('🔍 Complete job ETA:', completeJob?.eta);
-    console.log('🔍 Complete job shipperName:', completeJob?.shipperName);
-    console.log('🔍 Complete job invoiceNumber:', completeJob?.invoiceNumber);
-
     // Create notification for job status change with real-time updates
     try {
       await RealtimeNotificationService.notifyJobStatusChangeRealtime(
@@ -1210,9 +1106,9 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
         status, 
         req.user.id
       );
-      console.log('📢 Job status change notification created with real-time updates');
+
     } catch (notificationError) {
-      console.error('⚠️ Failed to create job status change notification:', notificationError);
+
       // Don't fail the status update if notification fails
     }
 
@@ -1221,10 +1117,7 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
       job: completeJob
     });
   } catch (error) {
-    console.error('Update job status error:', error);
-    console.error('Error stack:', error.stack);
-    console.error('Error message:', error.message);
-    console.error('Error details:', error);
+
     res.status(500).json({ 
       error: 'Internal server error',
       details: error.message,
@@ -1263,7 +1156,7 @@ router.get('/customer/:customerId/consignments', authenticateToken, requirePermi
 
     res.json({ consignments });
   } catch (error) {
-    console.error('Get customer consignments error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1305,7 +1198,7 @@ router.delete('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS),
 
     res.json({ message: 'Job deleted successfully' });
   } catch (error) {
-    console.error('Delete job error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });

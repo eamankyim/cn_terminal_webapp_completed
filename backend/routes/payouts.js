@@ -2,9 +2,10 @@ const express = require('express');
 const { prisma } = require('../config/database');
 const { authenticateToken, requirePermission } = require('../middleware/auth');
 const { UI_PERMISSIONS } = require('../utils/uiPermissions');
+const NotificationService = require('../services/notificationService');
+const RealtimeNotificationService = require('../services/realtimeNotificationService');
 
 const router = express.Router();
-
 
 // Get all payouts (with filtering and pagination)
 router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
@@ -51,7 +52,7 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING),
       }
     });
   } catch (error) {
-    console.error('Error fetching payouts:', error);
+
     res.status(500).json({ error: 'Failed to fetch payouts' });
   }
 });
@@ -101,16 +102,7 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING),
 // Get payout statistics (MUST come before /:id route)
 router.get('/stats/summary', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
   try {
-    console.log('\n' + '='.repeat(60));
-    console.log('🔍 PAYOUT STATS ROUTE HIT');
-    console.log('='.repeat(60));
-    console.log('📡 Method:', req.method);
-    console.log('🔗 URL:', req.url);
-    console.log('🌐 Full URL:', req.originalUrl);
-    console.log('📋 Headers:', req.headers);
-    console.log('📊 Query params:', req.query);
-    console.log('👤 User:', req.user ? { id: req.user.id, email: req.user.email, role: req.user.role } : 'No user');
-    console.log('='.repeat(60));
+
     const { startDate, endDate } = req.query;
 
     // Build date filter
@@ -163,7 +155,7 @@ router.get('/stats/summary', authenticateToken, requirePermission(UI_PERMISSIONS
       }))
     });
   } catch (error) {
-    console.error('Error fetching payout statistics:', error);
+
     res.status(500).json({ error: 'Failed to fetch payout statistics' });
   }
 });
@@ -191,7 +183,7 @@ router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTIN
 
     res.json(payout);
   } catch (error) {
-    console.error('Error fetching payout:', error);
+
     res.status(500).json({ error: 'Failed to fetch payout' });
   }
 });
@@ -244,25 +236,46 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING)
       }
     });
 
-    // Create notification
-    await prisma.notification.create({
-      data: {
-        title: 'New Payout Created',
-        message: `Payout of ${amount} GHS to ${payee} has been created`,
-        type: 'INFO',
-        category: 'PAYOUT_CREATED',
-        metadata: {
-          payoutId: payout.id,
-          amount: payout.amount,
-          payee: payout.payee,
-          paymentMethod: payout.paymentMethod
-        }
-      }
-    });
+    // Create notification for accounting staff
+    try {
+      // Get all accounting staff (ACCOUNTANT, ADMIN roles)
+      const accountingStaff = await prisma.user.findMany({
+        where: {
+          OR: [
+            { role: 'ACCOUNTANT' },
+            { role: 'ADMIN' }
+          ],
+          isActive: true
+        },
+        select: { id: true, name: true }
+      });
+
+      // Create notifications for all accounting staff
+      const notifications = await Promise.all(
+        accountingStaff.map(staff => 
+          RealtimeNotificationService.sendRealtimeNotification(staff.id, {
+            title: 'New Payout Created',
+            message: `Payout of GH₵${amount.toFixed(2)} to ${payee} has been created by ${req.user.name}`,
+            type: 'INFO',
+            category: 'PAYOUT_CREATED',
+            metadata: {
+              payoutId: payout.id,
+              amount: payout.amount,
+              payee: payout.payee,
+              paymentMethod: payout.paymentMethod,
+              createdBy: req.user.name,
+              createdById: req.user.id
+            }
+          })
+        )
+      );
+    } catch (notificationError) {
+      console.error('Failed to send payout creation notifications:', notificationError);
+    }
 
     res.status(201).json(payout);
   } catch (error) {
-    console.error('Error creating payout:', error);
+
     res.status(500).json({ error: 'Failed to create payout' });
   }
 });
@@ -321,28 +334,49 @@ router.patch('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.
       });
     }
 
-    // Create notification
-    const notificationCategory = status === 'COMPLETED' ? 'PAYOUT_COMPLETED' : 'PAYOUT_FAILED';
-    const notificationType = status === 'COMPLETED' ? 'SUCCESS' : 'ERROR';
+    // Create notification for accounting staff
+    try {
+      const notificationCategory = status === 'COMPLETED' ? 'PAYOUT_COMPLETED' : 'PAYOUT_FAILED';
+      const notificationType = status === 'COMPLETED' ? 'SUCCESS' : 'ERROR';
 
-    await prisma.notification.create({
-      data: {
-        title: `Payout ${status}`,
-        message: `Payout of ${payout.amount} GHS to ${payout.payee} has been ${status.toLowerCase()}`,
-        type: notificationType,
-        category: notificationCategory,
-        metadata: {
-          payoutId: payout.id,
-          amount: payout.amount,
-          payee: payout.payee,
-          status: payout.status
-        }
-      }
-    });
+      // Get all accounting staff (ACCOUNTANT, ADMIN roles)
+      const accountingStaff = await prisma.user.findMany({
+        where: {
+          OR: [
+            { role: 'ACCOUNTANT' },
+            { role: 'ADMIN' }
+          ],
+          isActive: true
+        },
+        select: { id: true, name: true }
+      });
+
+      // Create notifications for all accounting staff
+      const notifications = await Promise.all(
+        accountingStaff.map(staff => 
+          RealtimeNotificationService.sendRealtimeNotification(staff.id, {
+            title: `Payout ${status}`,
+            message: `Payout of GH₵${payout.amount.toFixed(2)} to ${payout.payee} has been ${status.toLowerCase()}`,
+            type: notificationType,
+            category: notificationCategory,
+            metadata: {
+              payoutId: payout.id,
+              amount: payout.amount,
+              payee: payout.payee,
+              status: payout.status,
+              updatedBy: req.user.name,
+              updatedById: req.user.id
+            }
+          })
+        )
+      );
+    } catch (notificationError) {
+      console.error('Failed to send payout status notifications:', notificationError);
+    }
 
     res.json(payout);
   } catch (error) {
-    console.error('Error updating payout status:', error);
+
     res.status(500).json({ error: 'Failed to update payout status' });
   }
 });
@@ -400,7 +434,7 @@ router.patch('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNT
 
     res.json(payout);
   } catch (error) {
-    console.error('Error updating payout:', error);
+
     res.status(500).json({ error: 'Failed to update payout' });
   }
 });
@@ -429,7 +463,7 @@ router.delete('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUN
 
     res.json({ message: 'Payout deleted successfully' });
   } catch (error) {
-    console.error('Error deleting payout:', error);
+
     res.status(500).json({ error: 'Failed to delete payout' });
   }
 });
@@ -547,7 +581,7 @@ router.get('/records', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOU
       }
     });
   } catch (error) {
-    console.error('Error fetching payout records:', error);
+
     res.status(500).json({ error: 'Failed to fetch payout records' });
   }
 });
@@ -660,7 +694,7 @@ router.post('/records', authenticateToken, requirePermission(UI_PERMISSIONS.ACCO
 
     res.status(201).json(payout);
   } catch (error) {
-    console.error('Error creating payout record:', error);
+
     res.status(500).json({ error: 'Failed to create payout record' });
   }
 });
@@ -718,7 +752,7 @@ router.get('/records/:id', authenticateToken, requirePermission(UI_PERMISSIONS.A
 
     res.json(payout);
   } catch (error) {
-    console.error('Error fetching payout record:', error);
+
     res.status(500).json({ error: 'Failed to fetch payout record' });
   }
 });

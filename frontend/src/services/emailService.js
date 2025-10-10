@@ -42,7 +42,7 @@ class EmailService {
 
       if (this.devMode) {
         // Development mode - log email instead of sending
-        console.log('📧 Email would be sent:', emailData);
+
         return { success: true, messageId: 'dev-mode-' + Date.now() };
       }
 
@@ -63,7 +63,7 @@ class EmailService {
       const messageId = response.headers.get('x-message-id') || 'sent-' + Date.now();
       return { success: true, messageId };
     } catch (error) {
-      console.error('Email sending failed:', error);
+
       throw new Error('Failed to send invitation email');
     }
   }
@@ -95,7 +95,7 @@ class EmailService {
       };
 
       if (this.devMode) {
-        console.log('📧 Password reset email would be sent:', emailData);
+
         return { success: true, messageId: 'dev-mode-' + Date.now() };
       }
 
@@ -116,7 +116,7 @@ class EmailService {
       const messageId = response.headers.get('x-message-id') || 'sent-' + Date.now();
       return { success: true, messageId };
     } catch (error) {
-      console.error('Password reset email failed:', error);
+
       throw new Error('Failed to send password reset email');
     }
   }
@@ -150,7 +150,7 @@ class EmailService {
       };
 
       if (this.devMode) {
-        console.log('📧 Welcome email would be sent:', emailData);
+
         return { success: true, messageId: 'dev-mode-' + Date.now() };
       }
 
@@ -171,7 +171,7 @@ class EmailService {
       const messageId = response.headers.get('x-message-id') || 'sent-' + Date.now();
       return { success: true, messageId };
     } catch (error) {
-      console.error('Welcome email failed:', error);
+
       throw new Error('Failed to send welcome email');
     }
   }

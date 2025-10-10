@@ -135,52 +135,33 @@ const router = express.Router();
 // Get all invoices
 router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), async (req, res) => {
   try {
-    console.log('\n' + '='.repeat(80));
-    console.log('🧾 GET INVOICES REQUEST - START');
-    console.log('='.repeat(80));
-    console.log(`👤 User: ${req.user.name} (${req.user.email})`);
-    console.log(`👤 User ID: ${req.user.id}`);
-    console.log(`👤 User Role: ${req.user.role}`);
-    console.log(`📝 Query params:`, req.query);
-    console.log(`⏰ Request time: ${new Date().toISOString()}`);
 
     const { page = 1, limit = 10, search = '', status, customerId } = req.query;
     const skip = (page - 1) * limit;
 
-    console.log(`📊 Pagination: page=${page}, limit=${limit}, skip=${skip}`);
-    console.log(`🔍 Search: "${search}"`);
-    console.log(`📋 Status filter: ${status || 'none'}`);
-    console.log(`👤 Customer filter: ${customerId || 'none'}`);
-
     // Build where condition
     const where = {};
-    console.log('🔧 Building where condition...');
-    
+
     if (search) {
       where.OR = [
         { invoiceNumber: { contains: search, mode: 'insensitive' } },
         { customer: { name: { contains: search, mode: 'insensitive' } } }
       ];
-      console.log('🔍 Added search condition');
+
     }
 
     if (status) {
       where.status = status;
-      console.log('📋 Added status filter');
+
     }
 
     if (customerId) {
       where.customerId = customerId;
-      console.log('👤 Added customer filter');
+
     }
 
-    console.log(`🔍 Final where condition:`, JSON.stringify(where, null, 2));
-
-    console.log('🔍 Testing Prisma connection...');
     await prisma.$connect();
-    console.log('✅ Prisma connected successfully');
 
-    console.log('🔍 Executing Prisma invoice query...');
     const startTime = Date.now();
     
     const invoices = await prisma.invoice.findMany({
@@ -237,16 +218,8 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), a
       take: parseInt(limit)
     });
 
-    console.log(`✅ Invoice query completed in ${Date.now() - startTime}ms`);
-    console.log(`📊 Found ${invoices.length} invoices`);
-
-    console.log('🔍 Executing Prisma count query...');
     const countStartTime = Date.now();
     const totalCount = await prisma.invoice.count({ where });
-    console.log(`✅ Count query completed in ${Date.now() - countStartTime}ms`);
-    console.log(`📊 Total invoices in database: ${totalCount}`);
-
-    console.log(`📄 Pagination: page ${page}/${Math.ceil(totalCount / limit)}`);
 
     const response = {
       invoices,
@@ -258,36 +231,17 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), a
       }
     };
 
-    console.log('✅ Response prepared successfully');
-    console.log(`📊 Response contains ${response.invoices.length} invoices`);
-    console.log('📄 Sample invoice data:', response.invoices[0] || 'No invoices found');
-    console.log('✅ Sending successful response');
-    console.log('='.repeat(80) + '\n');
-
     res.json(response);
   } catch (error) {
-    console.log('\n' + '='.repeat(80));
-    console.log('💥 GET INVOICES ERROR - DETAILED');
-    console.log('='.repeat(80));
-    console.error('❌ Error name:', error.name);
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error code:', error.code);
-    console.error('❌ Error stack:', error.stack);
-    
+
     if (error.meta) {
-      console.error('❌ Error meta:', error.meta);
+
     }
     
     if (error.cause) {
-      console.error('❌ Error cause:', error.cause);
+
     }
-    
-    console.log('🔍 Request details:');
-    console.log('  - User:', req.user?.name, req.user?.email);
-    console.log('  - Query params:', req.query);
-    console.log('  - Headers:', req.headers);
-    console.log('='.repeat(80) + '\n');
-    
+
     res.status(500).json({ 
       error: 'Internal server error',
       details: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
@@ -298,16 +252,8 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), a
 // Get jobs for invoice creation dropdown (only jobs without invoices)
 router.get('/jobs', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), async (req, res) => {
   try {
-    console.log('\n' + '='.repeat(60));
-    console.log('📋 GET JOBS FOR INVOICE CREATION');
-    console.log('='.repeat(60));
-    console.log(`👤 User: ${req.user.name} (${req.user.email})`);
-    console.log(`📝 Query params:`, req.query);
 
     const { search = '', limit = 50 } = req.query;
-
-    console.log(`🔍 Search term: "${search}"`);
-    console.log(`📊 Limit: ${limit}`);
 
     // Build search conditions
     const searchConditions = search ? [
@@ -350,18 +296,9 @@ router.get('/jobs', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES
       take: parseInt(limit)
     });
 
-    console.log(`✅ Found ${jobs.length} jobs without invoices`);
-    console.log('📄 Sample job data:', jobs[0] || 'No jobs found');
-    console.log('='.repeat(60) + '\n');
-
     res.json({ jobs });
   } catch (error) {
-    console.log('\n' + '='.repeat(60));
-    console.log('💥 GET JOBS FOR INVOICE ERROR');
-    console.log('='.repeat(60));
-    console.error('❌ Error:', error);
-    console.log('='.repeat(60) + '\n');
-    
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -441,10 +378,9 @@ router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES)
       }
     };
 
-
     res.json({ invoice: transformedInvoice });
   } catch (error) {
-    console.error('Get invoice error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -465,7 +401,6 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), 
       transactionReference,
       paymentNotes
     } = req.body;
-
 
     // Validate required fields
     if (!jobId || !amount || !issueDate || !dueDate) {
@@ -520,7 +455,6 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), 
       createdById: req.user.id
     };
 
-
     const invoice = await prisma.invoice.create({
       data: invoiceData,
       include: {
@@ -568,14 +502,13 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), 
     });
 
     // Invoice creation is now independent - no automatic status update
-    console.log('📄 Invoice created independently for job:', jobId);
 
     // Create notification for invoice creation with real-time updates
     try {
       await RealtimeNotificationService.notifyInvoiceCreatedRealtime(invoice.id, req.user.id);
-      console.log('📢 Invoice creation notification created with real-time updates');
+
     } catch (notificationError) {
-      console.error('⚠️ Failed to create invoice creation notification:', notificationError);
+
       // Don't fail the invoice creation if notification fails
     }
 
@@ -584,7 +517,7 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), 
       invoice
     });
   } catch (error) {
-    console.error('Create invoice error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -660,7 +593,7 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES)
       invoice: updatedInvoice
     });
   } catch (error) {
-    console.error('Update invoice error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -702,9 +635,9 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.IN
         status, 
         req.user.id
       );
-      console.log('📢 Invoice status change notification created');
+
     } catch (notificationError) {
-      console.error('⚠️ Failed to create invoice status change notification:', notificationError);
+
       // Don't fail the status update if notification fails
     }
 
@@ -713,7 +646,7 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.IN
       invoice: updatedInvoice
     });
   } catch (error) {
-    console.error('Update invoice status error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -776,14 +709,26 @@ router.post('/:id/payments', authenticateToken, requirePermission(UI_PERMISSIONS
           paymentMethod
         }
       });
+
+      // Create cashflow INFLOW transaction for paid invoice
+      await prisma.cashflowTransaction.create({
+        data: {
+          type: 'INFLOW',
+          amount: invoice.amount,
+          description: `Invoice Payment: ${invoice.invoiceNumber}`,
+          sourceType: 'INVOICE',
+          sourceId: invoice.id,
+          jobId: invoice.jobId
+        }
+      });
     }
 
     // Create notification for payment received with real-time updates
     try {
       await RealtimeNotificationService.notifyPaymentReceivedRealtime(payment.id, req.user.id);
-      console.log('📢 Payment received notification created with real-time updates');
+
     } catch (notificationError) {
-      console.error('⚠️ Failed to create payment notification:', notificationError);
+
       // Don't fail the payment creation if notification fails
     }
 
@@ -792,7 +737,7 @@ router.post('/:id/payments', authenticateToken, requirePermission(UI_PERMISSIONS
       payment
     });
   } catch (error) {
-    console.error('Create payment error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -832,7 +777,7 @@ router.delete('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.INVOIC
 
     res.json({ message: 'Invoice deleted successfully' });
   } catch (error) {
-    console.error('Delete invoice error:', error);
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
