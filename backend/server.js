@@ -11,6 +11,12 @@ const { Server } = require('socket.io');
 // Load environment variables
 dotenv.config();
 
+// Initialize file logging (logs will be saved to backend/logs/)
+require('./logger');
+console.log('='.repeat(80));
+console.log('SERVER STARTING - Logs will be saved to backend/logs/');
+console.log('='.repeat(80));
+
 // Test database connection on startup
 testConnection();
 

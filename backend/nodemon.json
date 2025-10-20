@@ -1,0 +1,25 @@
+{
+  "verbose": false,
+  "ignore": [
+    ".git",
+    "node_modules/**/node_modules",
+    "logs/*",
+    "uploads/*"
+  ],
+  "delay": 2000,
+  "watch": [
+    "*.js",
+    "routes/*.js",
+    "middleware/*.js",
+    "config/*.js",
+    "services/*.js",
+    "utils/*.js"
+  ],
+  "ext": "js,json",
+  "env": {
+    "NODE_ENV": "development"
+  }
+}
+
+
+

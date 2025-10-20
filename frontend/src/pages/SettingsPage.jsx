@@ -94,6 +94,11 @@ const SettingsPage = () => {
   // Using centralized status color utilities
 
   const handleUpdateUser = async (values) => {
+    console.log('🔷 [SettingsPage] handleUpdateUser called');
+    console.log('  - Editing User:', editingUser);
+    console.log('  - Form Values:', values);
+    console.log('  - Password in values:', values.password ? 'YES (***' + values.password.slice(-4) + ')' : 'NO');
+    
     setUsersLoading(true);
     try {
       const userData = {
@@ -102,7 +107,10 @@ const SettingsPage = () => {
       };
       delete userData.status;
 
+      console.log('  - Final userData to send:', { ...userData, password: userData.password ? '***PROVIDED***' : 'NOT PROVIDED' });
+
       await userService.updateUser(editingUser.id, userData);
+      console.log('✅ [SettingsPage] User updated successfully');
       message.success('User updated successfully');
       
       await loadUsers();
@@ -110,6 +118,8 @@ const SettingsPage = () => {
       setEditingUser(null);
       form.resetFields();
     } catch (error) {
+      console.error('❌ [SettingsPage] handleUpdateUser error:', error);
+      console.error('  - Error response:', error.response?.data);
       message.error(error.response?.data?.error || 'Failed to update user');
     } finally {
       setUsersLoading(false);
@@ -158,12 +168,22 @@ const SettingsPage = () => {
   };
 
   const handlePasswordChange = async (values) => {
+    console.log('🔷 [SettingsPage] handlePasswordChange called');
+    console.log('  - Form Values:', { 
+      currentPassword: values.currentPassword ? '***' + values.currentPassword.slice(-4) : 'NONE',
+      newPassword: values.newPassword ? '***' + values.newPassword.slice(-4) : 'NONE',
+      confirmPassword: values.confirmPassword ? '***' + values.confirmPassword.slice(-4) : 'NONE'
+    });
+    
     setPasswordLoading(true);
     try {
       await userService.changePassword(values);
+      console.log('✅ [SettingsPage] Password changed successfully');
       message.success('Password updated successfully');
       passwordForm.resetFields();
     } catch (error) {
+      console.error('❌ [SettingsPage] handlePasswordChange error:', error);
+      console.error('  - Error response:', error.response?.data);
       message.error(error.response?.data?.error || 'Failed to update password');
     } finally {
       setPasswordLoading(false);
@@ -188,24 +208,38 @@ const SettingsPage = () => {
 
   // Load users from API
   const loadUsers = async () => {
+    // Prevent multiple simultaneous calls
+    if (usersLoading) {
+      console.log('⏭️ [SettingsPage] loadUsers already in progress, skipping...');
+      return;
+    }
+    
+    console.log('🔷 [SettingsPage] loadUsers called');
     try {
+      console.log('  - Setting usersLoading to true');
       setUsersLoading(true);
+      console.log('  - Calling userService.getUsers()');
       const response = await userService.getUsers();
+      console.log('  - Response received:', response);
+      console.log('  - Setting users state with', response?.users?.length || 0, 'users');
       setUsers(response.users || []);
+      console.log('✅ [SettingsPage] loadUsers completed successfully');
     } catch (error) {
-
+      console.error('❌ [SettingsPage] loadUsers error:', error);
       message.error('Failed to load team members');
     } finally {
+      console.log('  - Setting usersLoading to false');
       setUsersLoading(false);
     }
   };
 
-  // Load users when component mounts
+  // Load users when component mounts (only when role changes to ADMIN)
   useEffect(() => {
-    if (currentUser && currentUser.role === 'ADMIN') {
+    if (currentUser?.role === 'ADMIN') {
       loadUsers();
     }
-  }, [currentUser]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.role]); // Only depend on role, not entire user object
 
   const userColumns = [
     {

@@ -11,7 +11,12 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:push": "prisma db push",
-    "db:seed": "node scripts/seed.js"
+    "db:seed": "node scripts/seed.js",
+    "create-admin": "node scripts/create-admin.js",
+    "update-admin-password": "node scripts/update-admin-password.js",
+    "reset-all-passwords": "node scripts/reset-all-passwords.js",
+    "update-email-domains": "node scripts/update-email-domains.js",
+    "view-logs": "node scripts/view-logs.js"
   },
   "keywords": [
     "api",

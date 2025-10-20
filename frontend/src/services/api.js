@@ -139,7 +139,19 @@ class ApiService {
   }
 
   async changePassword(currentPassword, newPassword) {
-    return this.put('/auth/change-password', { currentPassword, newPassword });
+    console.log('🔷 [API] changePassword called');
+    console.log('  - Current password:', currentPassword ? '***' + currentPassword.slice(-4) : 'NONE');
+    console.log('  - New password:', newPassword ? '***' + newPassword.slice(-4) : 'NONE');
+    console.log('  - Endpoint: /auth/change-password');
+    try {
+      const response = await this.put('/auth/change-password', { currentPassword, newPassword });
+      console.log('✅ [API] changePassword response:', response);
+      return response;
+    } catch (error) {
+      console.error('❌ [API] changePassword error:', error);
+      console.error('  - Error response:', error.response?.data);
+      throw error;
+    }
   }
 
   // Customer endpoints

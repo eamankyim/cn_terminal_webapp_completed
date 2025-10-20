@@ -78,12 +78,18 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    console.log('=== LOGIN ATTEMPT ===');
+    console.log('Email received:', email);
+    console.log('Password received:', password ? '***' + password.slice(-4) : 'NONE');
+    console.log('Password length:', password ? password.length : 0);
 
+    if (!email || !password) {
+      console.log('❌ Missing email or password');
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
     // Find user by email with permissions
+    console.log('🔍 Looking up user with email:', email);
 
     const user = await prisma.user.findUnique({
       where: { email },
@@ -99,23 +105,44 @@ router.post('/login', async (req, res) => {
     });
 
     if (!user) {
-
+      console.log('❌ User not found with email:', email);
+      console.log('Checking all users in database...');
+      const allUsers = await prisma.user.findMany({
+        select: { email: true, name: true, isActive: true }
+      });
+      console.log('Available users:', allUsers);
       return res.status(401).json({ error: 'Invalid credentials or inactive user' });
     }
 
-    if (!user.isActive) {
+    console.log('✅ User found:');
+    console.log('  - ID:', user.id);
+    console.log('  - Name:', user.name);
+    console.log('  - Email:', user.email);
+    console.log('  - Role:', user.role);
+    console.log('  - Active:', user.isActive);
+    console.log('  - Hashed password (first 20 chars):', user.password.substring(0, 20) + '...');
 
+    if (!user.isActive) {
+      console.log('❌ User account is inactive');
       return res.status(401).json({ error: 'Invalid credentials or inactive user' });
     }
 
     // Check password
+    console.log('🔐 Comparing passwords...');
+    console.log('  - Input password:', password);
+    console.log('  - Stored hash:', user.password);
 
     const isValidPassword = await bcrypt.compare(password, user.password);
 
-    if (!isValidPassword) {
+    console.log('Password comparison result:', isValidPassword);
 
+    if (!isValidPassword) {
+      console.log('❌ Password does not match');
+      console.log('=== LOGIN FAILED ===\n');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+
+    console.log('✅ Password matches!');
 
     // Create JWT token
 
@@ -132,6 +159,10 @@ router.post('/login', async (req, res) => {
     // Extract permissions from the role
     const permissions = user.assignedRole?.rolePermissions?.map(rp => rp.permission.name) || [];
     
+    console.log('✅ Login successful!');
+    console.log('  - Permissions count:', permissions.length);
+    console.log('=== LOGIN SUCCESSFUL ===\n');
+
     // Return user data (without password) and token
     const { password: _, assignedRole, ...userData } = user;
     res.json({
@@ -143,7 +174,9 @@ router.post('/login', async (req, res) => {
       token
     });
   } catch (error) {
-
+    console.error('❌ LOGIN ERROR:', error);
+    console.error('Error stack:', error.stack);
+    console.log('=== LOGIN ERROR ===\n');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -552,13 +585,25 @@ router.put('/change-password', authenticateToken, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
+    console.log('=== PASSWORD CHANGE ATTEMPT ===');
+    console.log('User ID:', req.user.id);
+    console.log('User Email:', req.user.email);
+    console.log('Current Password provided:', currentPassword ? 'Yes (***' + currentPassword.slice(-4) + ')' : 'No');
+    console.log('New Password provided:', newPassword ? 'Yes (***' + newPassword.slice(-4) + ')' : 'No');
+    console.log('New Password length:', newPassword ? newPassword.length : 0);
+
     if (!currentPassword || !newPassword) {
+      console.log('❌ Missing current or new password');
       return res.status(400).json({ error: 'Current password and new password are required' });
     }
 
     // Validate new password strength
+    console.log('🔍 Validating new password strength...');
     const passwordValidation = validatePassword(newPassword);
+    console.log('Password validation result:', passwordValidation);
+    
     if (!passwordValidation.isValid) {
+      console.log('❌ Password validation failed:', passwordValidation.errors);
       return res.status(400).json({ 
         error: 'New password validation failed',
         details: passwordValidation.errors
@@ -566,28 +611,52 @@ router.put('/change-password', authenticateToken, async (req, res) => {
     }
 
     // Get user with password
+    console.log('🔍 Fetching user from database...');
     const user = await prisma.user.findUnique({
       where: { id: req.user.id }
     });
 
+    if (!user) {
+      console.log('❌ User not found in database');
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    console.log('✅ User found:', user.name, user.email);
+    console.log('Stored password hash (first 20 chars):', user.password.substring(0, 20) + '...');
+
     // Verify current password
+    console.log('🔐 Verifying current password...');
     const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+    console.log('Current password verification result:', isValidPassword);
+
     if (!isValidPassword) {
+      console.log('❌ Current password is incorrect');
+      console.log('=== PASSWORD CHANGE FAILED ===\n');
       return res.status(400).json({ error: 'Current password is incorrect' });
     }
 
+    console.log('✅ Current password verified!');
+
     // Hash new password
+    console.log('🔐 Hashing new password...');
     const hashedPassword = await bcrypt.hash(newPassword, 12);
+    console.log('New password hashed (first 20 chars):', hashedPassword.substring(0, 20) + '...');
 
     // Update password
+    console.log('💾 Updating password in database...');
     await prisma.user.update({
       where: { id: req.user.id },
       data: { password: hashedPassword }
     });
 
+    console.log('✅ Password updated successfully!');
+    console.log('=== PASSWORD CHANGE SUCCESSFUL ===\n');
+
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
-
+    console.error('❌ PASSWORD CHANGE ERROR:', error);
+    console.error('Error stack:', error.stack);
+    console.log('=== PASSWORD CHANGE ERROR ===\n');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -621,7 +690,10 @@ router.put('/change-password', authenticateToken, async (req, res) => {
  */
 // Get all users (admin only)
 router.get('/users', authenticateToken, requireAdmin, async (req, res) => {
+  console.log('🔷 [API] GET /auth/users called');
+  console.log('  - Requesting user:', req.user?.email);
   try {
+    console.log('  - Fetching users from database...');
     const users = await prisma.user.findMany({
       select: {
         id: true,
@@ -634,10 +706,13 @@ router.get('/users', authenticateToken, requireAdmin, async (req, res) => {
       },
       orderBy: { createdAt: 'desc' }
     });
-
+    console.log('✅ [API] Found', users.length, 'users');
+    console.log('  - Sending response...');
     res.json({ users });
+    console.log('✅ [API] GET /auth/users completed\n');
   } catch (error) {
-
+    console.error('❌ [API] GET /auth/users error:', error);
+    console.error('  - Error stack:', error.stack);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -857,7 +932,12 @@ router.put('/users/:id/status', authenticateToken, requireAdmin, async (req, res
 router.put('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, role, isActive } = req.body;
+    const { name, email, role, isActive, password } = req.body;
+
+    console.log('=== ADMIN USER UPDATE ATTEMPT ===');
+    console.log('Admin User:', req.user.email);
+    console.log('Target User ID:', id);
+    console.log('Request Body:', JSON.stringify({ name, email, role, isActive, password: password ? '***PROVIDED***' : 'NOT PROVIDED' }));
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -865,28 +945,47 @@ router.put('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
     });
 
     if (!existingUser) {
+      console.log('❌ User not found with ID:', id);
       return res.status(404).json({ error: 'User not found' });
     }
 
+    console.log('✅ User found:', existingUser.name, existingUser.email);
+
     // Check if email is already taken by another user
     if (email && email !== existingUser.email) {
+      console.log('🔍 Checking if new email already exists...');
       const emailExists = await prisma.user.findUnique({
         where: { email }
       });
 
       if (emailExists) {
+        console.log('❌ Email already exists:', email);
         return res.status(400).json({ error: 'Email already exists' });
       }
     }
 
+    // Prepare update data
+    const updateData = {
+      ...(name && { name }),
+      ...(email && { email }),
+      ...(role && { role }),
+      ...(isActive !== undefined && { isActive })
+    };
+
+    // Handle password update if provided
+    if (password) {
+      console.log('🔐 Password provided - hashing...');
+      const hashedPassword = await bcrypt.hash(password, 12);
+      updateData.password = hashedPassword;
+      console.log('✅ Password hashed and will be updated');
+    }
+
+    console.log('💾 Updating user in database...');
+    console.log('Update data:', JSON.stringify({ ...updateData, password: updateData.password ? '***HASHED***' : undefined }));
+
     const updatedUser = await prisma.user.update({
       where: { id },
-      data: {
-        ...(name && { name }),
-        ...(email && { email }),
-        ...(role && { role }),
-        ...(isActive !== undefined && { isActive })
-      },
+      data: updateData,
       select: {
         id: true,
         name: true,
@@ -898,12 +997,136 @@ router.put('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
       }
     });
 
+    console.log('✅ User updated successfully!');
+    console.log('=== ADMIN USER UPDATE SUCCESSFUL ===\n');
+
     res.json({
       message: 'User updated successfully',
       user: updatedUser
     });
   } catch (error) {
+    console.error('❌ ADMIN USER UPDATE ERROR:', error);
+    console.error('Error stack:', error.stack);
+    console.log('=== ADMIN USER UPDATE ERROR ===\n');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
+/**
+ * @swagger
+ * /api/auth/users/{id}/reset-password:
+ *   put:
+ *     summary: Reset user password (Admin only)
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - newPassword
+ *             properties:
+ *               newPassword:
+ *                 type: string
+ *                 minLength: 8
+ *                 pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)"
+ *                 description: New password for the user
+ *                 example: NewPassword123@
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *       400:
+ *         description: Invalid password or missing fields
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
+ */
+// Reset user password (admin only)
+router.put('/users/:id/reset-password', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    console.log('=== ADMIN PASSWORD RESET ATTEMPT ===');
+    console.log('Admin User:', req.user.email);
+    console.log('Target User ID:', id);
+    console.log('New Password provided:', newPassword ? 'Yes (***' + newPassword.slice(-4) + ')' : 'No');
+    console.log('New Password length:', newPassword ? newPassword.length : 0);
+
+    if (!newPassword) {
+      console.log('❌ Missing new password');
+      return res.status(400).json({ error: 'New password is required' });
+    }
+
+    // Validate new password strength
+    console.log('🔍 Validating new password strength...');
+    const passwordValidation = validatePassword(newPassword);
+    console.log('Password validation result:', passwordValidation);
+    
+    if (!passwordValidation.isValid) {
+      console.log('❌ Password validation failed:', passwordValidation.errors);
+      return res.status(400).json({ 
+        error: 'New password validation failed',
+        details: passwordValidation.errors
+      });
+    }
+
+    // Check if user exists
+    console.log('🔍 Checking if user exists...');
+    const existingUser = await prisma.user.findUnique({
+      where: { id }
+    });
+
+    if (!existingUser) {
+      console.log('❌ User not found with ID:', id);
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    console.log('✅ User found:');
+    console.log('  - Name:', existingUser.name);
+    console.log('  - Email:', existingUser.email);
+    console.log('  - Role:', existingUser.role);
+
+    // Hash new password
+    console.log('🔐 Hashing new password...');
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+    console.log('New password hashed (first 20 chars):', hashedPassword.substring(0, 20) + '...');
+
+    // Update password
+    console.log('💾 Updating password in database...');
+    await prisma.user.update({
+      where: { id },
+      data: { password: hashedPassword }
+    });
+
+    console.log('✅ Password reset successfully by admin!');
+    console.log('=== ADMIN PASSWORD RESET SUCCESSFUL ===\n');
+
+    res.json({ 
+      message: 'Password reset successfully',
+      user: {
+        id: existingUser.id,
+        name: existingUser.name,
+        email: existingUser.email
+      }
+    });
+  } catch (error) {
+    console.error('❌ ADMIN PASSWORD RESET ERROR:', error);
+    console.error('Error stack:', error.stack);
+    console.log('=== ADMIN PASSWORD RESET ERROR ===\n');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
