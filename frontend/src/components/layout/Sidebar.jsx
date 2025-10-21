@@ -92,14 +92,19 @@ const Sidebar = ({ collapsed }) => {
   const filteredMenuItems = menuItems.filter(item => {
     if (!item.permission) return true; // Show items without permission requirements
     
+    // Hide Dashboard for ENQUIRY_OFFICER and ENTRY_OFFICER (Jobs page is their main page)
+    if (item.key === '/dashboard' && (currentUser?.role === 'ENQUIRY_OFFICER' || currentUser?.role === 'ENTRY_OFFICER')) {
+      return false;
+    }
+    
     // Hide Requests tab for admin, accountant, and IT consultant users since they don't send requests
     if (item.key === '/requests' && (currentUser?.role === 'ADMIN' || currentUser?.role === 'ACCOUNTANT' || currentUser?.role === 'IT_CONSULTANT')) {
       return false;
     }
     
-    // Hide Accounting tab for employee roles (STAFF, DRIVER, WAREHOUSE, ENQUIRY_OFFICER, RELEASE_OFFICER, REVIEW_OFFICER, INVOICE_OFFICER, CLEARING_OFFICER)
+    // Hide Accounting tab for employee roles (STAFF, DRIVER, WAREHOUSE, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, REVIEW_OFFICER, INVOICE_OFFICER, CLEARING_OFFICER)
     if (item.key === '/accounting') {
-      const employeeRoles = ['STAFF', 'DRIVER', 'WAREHOUSE', 'ENQUIRY_OFFICER', 'RELEASE_OFFICER', 'REVIEW_OFFICER', 'INVOICE_OFFICER', 'CLEARING_OFFICER'];
+      const employeeRoles = ['STAFF', 'DRIVER', 'WAREHOUSE', 'ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'TRANSPORT_COORDINATOR', 'RELEASE_OFFICER', 'REVIEW_OFFICER', 'INVOICE_OFFICER', 'CLEARING_OFFICER'];
       if (employeeRoles.includes(currentUser?.role)) {
         return false;
       }

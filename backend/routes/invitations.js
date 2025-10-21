@@ -284,7 +284,7 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
     }
 
     // Validate role
-    const validRoles = ['ADMIN', 'IT_CONSULTANT', 'ENQUIRY_OFFICER', 'RELEASE_OFFICER', 'REVIEW_OFFICER', 'INVOICE_OFFICER', 'CLEARING_OFFICER', 'STAFF'];
+    const validRoles = ['ADMIN', 'IT_CONSULTANT', 'ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'TRANSPORT_COORDINATOR', 'RELEASE_OFFICER', 'REVIEW_OFFICER', 'INVOICE_OFFICER', 'CLEARING_OFFICER', 'STAFF'];
     if (!validRoles.includes(role)) {
 
       return res.status(400).json({ error: 'Invalid role specified' });

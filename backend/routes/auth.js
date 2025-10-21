@@ -162,7 +162,7 @@ router.post('/login', async (req, res) => {
     console.log('✅ Login successful!');
     console.log('  - Permissions count:', permissions.length);
     console.log('=== LOGIN SUCCESSFUL ===\n');
-
+    
     // Return user data (without password) and token
     const { password: _, assignedRole, ...userData } = user;
     res.json({
@@ -688,10 +688,10 @@ router.put('/change-password', authenticateToken, async (req, res) => {
  *       500:
  *         description: Internal server error
  */
-// Get all users (admin only)
-router.get('/users', authenticateToken, requireAdmin, async (req, res) => {
+// Get all users (all authenticated users can view, only admins can edit)
+router.get('/users', authenticateToken, async (req, res) => {
   console.log('🔷 [API] GET /auth/users called');
-  console.log('  - Requesting user:', req.user?.email);
+  console.log('  - Requesting user:', req.user?.email, 'Role:', req.user?.role);
   try {
     console.log('  - Fetching users from database...');
     const users = await prisma.user.findMany({
@@ -966,10 +966,10 @@ router.put('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
 
     // Prepare update data
     const updateData = {
-      ...(name && { name }),
-      ...(email && { email }),
-      ...(role && { role }),
-      ...(isActive !== undefined && { isActive })
+        ...(name && { name }),
+        ...(email && { email }),
+        ...(role && { role }),
+        ...(isActive !== undefined && { isActive })
     };
 
     // Handle password update if provided

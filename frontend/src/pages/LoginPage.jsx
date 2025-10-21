@@ -42,9 +42,19 @@ const LoginPage = () => {
   const handleLogin = async (values) => {
     setLoading(true);
     try {
-      await login(values.email, values.password);
+      const response = await login(values.email, values.password);
       message.success('Login successful!');
-      navigate(from, { replace: true });
+      
+      // Redirect based on user role
+      const user = response.user;
+      let redirectPath = from;
+      
+      // ENQUIRY_OFFICER and ENTRY_OFFICER should go to Jobs page instead of Dashboard
+      if ((user.role === 'ENQUIRY_OFFICER' || user.role === 'ENTRY_OFFICER') && from === '/dashboard') {
+        redirectPath = '/enquiries';
+      }
+      
+      navigate(redirectPath, { replace: true });
     } catch (error) {
       message.error(error.message || 'Login failed. Please try again.');
     } finally {

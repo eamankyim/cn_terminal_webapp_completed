@@ -66,6 +66,10 @@ const ReportsPage = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('30days');
   const [activeTab, setActiveTab] = useState('overview');
   
+  // Check if user should see revenue data
+  const employeeRoles = ['ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'TRANSPORT_COORDINATOR', 'RELEASE_OFFICER', 'REVIEW_OFFICER', 'INVOICE_OFFICER', 'CLEARING_OFFICER', 'STAFF', 'DRIVER', 'WAREHOUSE'];
+  const shouldHideRevenue = employeeRoles.includes(currentUser?.role);
+  
   // Export functionality
   const [exportModalVisible, setExportModalVisible] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
@@ -430,16 +434,19 @@ const ReportsPage = () => {
     
     // Summary Statistics
     if (selectedReports.summary) {
-      const summaryData = [{
+      const summaryData = {
         'Total Jobs': summaryStats.totalJobs,
         'Completed Jobs': summaryStats.completedJobs,
         'Completion Rate (%)': summaryStats.totalJobs > 0 ? ((summaryStats.completedJobs / summaryStats.totalJobs) * 100).toFixed(1) : 0,
         'Average Processing Time (Days)': summaryStats.avgProcessingTime || 0,
-        'Total Revenue (GHS)': revenueData?.totalRevenue || 0,
-        'Active Customers': summaryStats.activeCustomers,
-        'Revenue per Job (GHS)': summaryStats.totalJobs > 0 ? ((revenueData?.totalRevenue || 0) / summaryStats.totalJobs).toFixed(0) : 0
-      }];
-      const ws1 = XLSX.utils.json_to_sheet(summaryData);
+        'Active Customers': summaryStats.activeCustomers
+      };
+      // Only include revenue if user should see it
+      if (!shouldHideRevenue) {
+        summaryData['Total Revenue (GHS)'] = revenueData?.totalRevenue || 0;
+        summaryData['Revenue per Job (GHS)'] = summaryStats.totalJobs > 0 ? ((revenueData?.totalRevenue || 0) / summaryStats.totalJobs).toFixed(0) : 0;
+      }
+      const ws1 = XLSX.utils.json_to_sheet([summaryData]);
       XLSX.utils.book_append_sheet(wb, ws1, 'Summary Statistics');
     }
 
@@ -456,18 +463,24 @@ const ReportsPage = () => {
 
     // Daily Activity
     if (selectedReports.dailyActivity) {
-      const dailyActivityExport = dailyActivityData.map(item => ({
-        'Date': dayjs(item.date).format('MMM DD, YYYY'),
-        'New Jobs': item.newJobs,
-        'Completed Jobs': item.completedJobs,
-        'Revenue (GHS)': item.revenue
-      }));
+      const dailyActivityExport = dailyActivityData.map(item => {
+        const data = {
+          'Date': dayjs(item.date).format('MMM DD, YYYY'),
+          'New Jobs': item.newJobs,
+          'Completed Jobs': item.completedJobs
+        };
+        // Only include revenue if user should see it
+        if (!shouldHideRevenue) {
+          data['Revenue (GHS)'] = item.revenue;
+        }
+        return data;
+      });
       const ws3 = XLSX.utils.json_to_sheet(dailyActivityExport);
       XLSX.utils.book_append_sheet(wb, ws3, 'Daily Activity');
     }
 
-    // Invoices
-    if (selectedReports.invoices) {
+    // Invoices (only if user should see revenue)
+    if (selectedReports.invoices && !shouldHideRevenue) {
       const invoiceExport = invoiceData.map(item => ({
         'Invoice ID': item.id,
         'Customer': item.customer,
@@ -481,12 +494,18 @@ const ReportsPage = () => {
 
     // Customers
     if (selectedReports.customers) {
-      const customerExport = customerData.map(item => ({
-        'Customer Name': item.name,
-        'Total Jobs': item.jobs,
-        'Total Revenue (GHS)': item.revenue,
-        'Last Activity': dayjs(item.lastActivity).format('MMM DD, YYYY')
-      }));
+      const customerExport = customerData.map(item => {
+        const data = {
+          'Customer Name': item.name,
+          'Total Jobs': item.jobs,
+          'Last Activity': dayjs(item.lastActivity).format('MMM DD, YYYY')
+        };
+        // Only include revenue if user should see it
+        if (!shouldHideRevenue) {
+          data['Total Revenue (GHS)'] = item.revenue;
+        }
+        return data;
+      });
       const ws5 = XLSX.utils.json_to_sheet(customerExport);
       XLSX.utils.book_append_sheet(wb, ws5, 'Customers');
     }
@@ -499,17 +518,21 @@ const ReportsPage = () => {
     const reports = [];
     
     if (selectedReports.summary) {
+      const summaryData = {
+        'Total Jobs': summaryStats.totalJobs,
+        'Completed Jobs': summaryStats.completedJobs,
+        'Completion Rate (%)': summaryStats.totalJobs > 0 ? ((summaryStats.completedJobs / summaryStats.totalJobs) * 100).toFixed(1) : 0,
+        'Average Processing Time (Days)': summaryStats.avgProcessingTime || 0,
+        'Active Customers': summaryStats.activeCustomers
+      };
+      // Only include revenue if user should see it
+      if (!shouldHideRevenue) {
+        summaryData['Total Revenue (GHS)'] = revenueData?.totalRevenue || 0;
+        summaryData['Revenue per Job (GHS)'] = summaryStats.totalJobs > 0 ? ((revenueData?.totalRevenue || 0) / summaryStats.totalJobs).toFixed(0) : 0;
+      }
       reports.push({
         name: 'Summary Statistics',
-        data: [{
-          'Total Jobs': summaryStats.totalJobs,
-          'Completed Jobs': summaryStats.completedJobs,
-          'Completion Rate (%)': summaryStats.totalJobs > 0 ? ((summaryStats.completedJobs / summaryStats.totalJobs) * 100).toFixed(1) : 0,
-          'Average Processing Time (Days)': summaryStats.avgProcessingTime || 0,
-          'Total Revenue (GHS)': revenueData?.totalRevenue || 0,
-          'Active Customers': summaryStats.activeCustomers,
-          'Revenue per Job (GHS)': summaryStats.totalJobs > 0 ? ((revenueData?.totalRevenue || 0) / summaryStats.totalJobs).toFixed(0) : 0
-        }]
+        data: [summaryData]
       });
     }
 
@@ -527,16 +550,21 @@ const ReportsPage = () => {
     if (selectedReports.dailyActivity) {
       reports.push({
         name: 'Daily Activity',
-        data: dailyActivityData.map(item => ({
-          'Date': dayjs(item.date).format('MMM DD, YYYY'),
-          'New Jobs': item.newJobs,
-          'Completed Jobs': item.completedJobs,
-          'Revenue (GHS)': item.revenue
-        }))
+        data: dailyActivityData.map(item => {
+          const data = {
+            'Date': dayjs(item.date).format('MMM DD, YYYY'),
+            'New Jobs': item.newJobs,
+            'Completed Jobs': item.completedJobs
+          };
+          if (!shouldHideRevenue) {
+            data['Revenue (GHS)'] = item.revenue;
+          }
+          return data;
+        })
       });
     }
 
-    if (selectedReports.invoices) {
+    if (selectedReports.invoices && !shouldHideRevenue) {
       reports.push({
         name: 'Invoices',
         data: invoiceData.map(item => ({
@@ -552,12 +580,17 @@ const ReportsPage = () => {
     if (selectedReports.customers) {
       reports.push({
         name: 'Customers',
-        data: customerData.map(item => ({
-          'Customer Name': item.name,
-          'Total Jobs': item.jobs,
-          'Total Revenue (GHS)': item.revenue,
-          'Last Activity': dayjs(item.lastActivity).format('MMM DD, YYYY')
-        }))
+        data: customerData.map(item => {
+          const data = {
+            'Customer Name': item.name,
+            'Total Jobs': item.jobs,
+            'Last Activity': dayjs(item.lastActivity).format('MMM DD, YYYY')
+          };
+          if (!shouldHideRevenue) {
+            data['Total Revenue (GHS)'] = item.revenue;
+          }
+          return data;
+        })
       });
     }
 
@@ -962,12 +995,12 @@ const ReportsPage = () => {
       key: 'completedJobs',
       render: (count) => <Tag color="green">{count}</Tag>
     },
-    {
+    ...(!shouldHideRevenue ? [{
       title: 'Revenue (GHS)',
       dataIndex: 'revenue',
       key: 'revenue',
       render: (amount) => <Text strong>₵{amount.toLocaleString()}</Text>
-    }
+    }] : [])
   ];
 
   const invoiceColumns = [
@@ -1014,12 +1047,12 @@ const ReportsPage = () => {
       key: 'jobs',
       render: (count) => <Tag color="blue">{count}</Tag>
     },
-    {
+    ...(!shouldHideRevenue ? [{
       title: 'Total Revenue (GHS)',
       dataIndex: 'revenue',
       key: 'revenue',
       render: (amount) => <Text strong>₵{amount.toLocaleString()}</Text>
-    },
+    }] : []),
     {
       title: 'Last Activity',
       dataIndex: 'lastActivity',
@@ -1127,20 +1160,22 @@ const ReportsPage = () => {
                   </Text>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-                    title="Total Revenue"
-                    value={revenueData?.totalRevenue || 0}
-                    prefix={<DollarOutlined />}
-                    suffix="GHS"
-              valueStyle={{ color: '#722ed1' }}
-            />
-                  <Text type="secondary" style={{ fontSize: '12px' }}>
-                    ₵{summaryStats.totalJobs > 0 ? ((revenueData?.totalRevenue || 0) / summaryStats.totalJobs).toFixed(0) : 0} per job
-                  </Text>
-          </Card>
-        </Col>
+        {!shouldHideRevenue && (
+          <Col xs={24} sm={12} lg={6}>
+            <Card>
+              <Statistic
+                      title="Total Revenue"
+                      value={revenueData?.totalRevenue || 0}
+                      prefix={<DollarOutlined />}
+                      suffix="GHS"
+                valueStyle={{ color: '#722ed1' }}
+              />
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      ₵{summaryStats.totalJobs > 0 ? ((revenueData?.totalRevenue || 0) / summaryStats.totalJobs).toFixed(0) : 0} per job
+                    </Text>
+            </Card>
+          </Col>
+        )}
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
@@ -1379,16 +1414,18 @@ const ReportsPage = () => {
             </Card>
           </TabPane>
 
-          <TabPane tab="Invoices" key="invoices">
-            <Card title="Invoice Reports" size="small">
-              <Table
-                dataSource={invoiceData}
-                columns={invoiceColumns}
-                pagination={false}
-                size="small"
-              />
-            </Card>
-          </TabPane>
+          {!shouldHideRevenue && (
+            <TabPane tab="Invoices" key="invoices">
+              <Card title="Invoice Reports" size="small">
+                <Table
+                  dataSource={invoiceData}
+                  columns={invoiceColumns}
+                  pagination={false}
+                  size="small"
+                />
+              </Card>
+            </TabPane>
+          )}
 
           <TabPane tab="Customers" key="customers">
             <Card title="Customer Activity" size="small">
@@ -1596,13 +1633,17 @@ const ReportsPage = () => {
               Daily Activity Tab - Daily Activity Report
             </Checkbox>
             <br />
-            <Checkbox
-              checked={selectedReports.invoices}
-              onChange={(e) => handleReportSelectionChange('invoices', e.target.checked)}
-            >
-              Invoices Tab - Invoice Reports
-            </Checkbox>
-            <br />
+            {!shouldHideRevenue && (
+              <>
+                <Checkbox
+                  checked={selectedReports.invoices}
+                  onChange={(e) => handleReportSelectionChange('invoices', e.target.checked)}
+                >
+                  Invoices Tab - Invoice Reports
+                </Checkbox>
+                <br />
+              </>
+            )}
             <Checkbox
               checked={selectedReports.customers}
               onChange={(e) => handleReportSelectionChange('customers', e.target.checked)}

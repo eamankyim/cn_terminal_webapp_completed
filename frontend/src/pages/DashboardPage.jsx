@@ -62,6 +62,13 @@ const DashboardPage = () => {
     assignedJobs: []
   });
 
+  // Redirect ENQUIRY_OFFICER and ENTRY_OFFICER to Jobs page (their main page)
+  useEffect(() => {
+    if (currentUser?.role === 'ENQUIRY_OFFICER' || currentUser?.role === 'ENTRY_OFFICER') {
+      navigate('/enquiries', { replace: true });
+    }
+  }, [currentUser, navigate]);
+
   useEffect(() => {
     loadDashboardData();
   }, []);
@@ -91,7 +98,23 @@ const DashboardPage = () => {
   };
 
   // Clearing agent statistics
-  const stats = [
+  // Employee roles that should NOT see revenue
+  const employeeRoles = [
+    'STAFF', 
+    'DRIVER', 
+    'WAREHOUSE', 
+    'ENQUIRY_OFFICER',
+    'ENTRY_OFFICER',
+    'TRANSPORT_COORDINATOR',
+    'RELEASE_OFFICER', 
+    'REVIEW_OFFICER', 
+    'INVOICE_OFFICER', 
+    'CLEARING_OFFICER'
+  ];
+  
+  const shouldShowRevenue = !employeeRoles.includes(currentUser?.role);
+
+  const allStats = [
     {
       title: 'Total Jobs',
       value: dashboardData.stats.totalJobs,
@@ -117,9 +140,13 @@ const DashboardPage = () => {
       title: 'Revenue This Month',
       value: dashboardData.stats.revenueThisMonth,
       prefix: <DollarOutlined />,
-      suffix: 'GHS'
+      suffix: 'GHS',
+      hideForEmployees: true  // Flag to hide for employee roles
     }
   ];
+
+  // Filter stats based on user role
+  const stats = allStats.filter(stat => !(stat.hideForEmployees && !shouldShowRevenue));
 
   // Using centralized status color utilities
 
@@ -131,7 +158,8 @@ const DashboardPage = () => {
       'NEW': <FileAddOutlined />,
       'PREINVOICED': <FileTextOutlined />,
       'INVOICED': <CalculatorOutlined />,
-      'ENTRY': <ContainerOutlined />,
+      'ENTRY_COMPLETED': <ContainerOutlined />,
+      'READY_FOR_RELEASE': <CarOutlined />,
       'RELEASE': <CheckCircleOutlined />,
       'CLEARED': <ContainerOutlined />,
       'DELIVERED': <CheckCircleFilled />

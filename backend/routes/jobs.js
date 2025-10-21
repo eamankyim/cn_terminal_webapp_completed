@@ -136,6 +136,9 @@ const router = express.Router();
 // Get all jobs
 router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
   try {
+    console.log('🔷 [Jobs API] GET /jobs');
+    console.log('  - User:', req.user?.email, 'Role:', req.user?.role);
+    console.log('  - Query params:', req.query);
 
     const { page = 1, limit = 10, search = '', status, customerId } = req.query;
     const skip = (page - 1) * limit;
@@ -246,7 +249,9 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
               id: true,
               name: true,
               email: true,
-              phone: true
+              phone: true,
+              ghanaCard: true,
+              tin: true
             }
           },
           consignment: {
@@ -255,7 +260,9 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
               trackingId: true,
               consigneeName: true,
               consigneePhone: true,
-              status: true
+              status: true,
+              ghanaCard: true,
+              tin: true
             }
           },
           createdBy: {
@@ -301,6 +308,20 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
       prisma.job.count({ where })
     ]);
 
+    // Log job status distribution
+    const statusCounts = {};
+    jobs.forEach(job => {
+      statusCounts[job.status] = (statusCounts[job.status] || 0) + 1;
+    });
+    console.log('  - Jobs returned by status:', statusCounts);
+    console.log('  - Total jobs:', jobs.length);
+    
+    const preinvoicedJobs = jobs.filter(job => job.status === 'PREINVOICED');
+    console.log('  - PREINVOICED jobs:', preinvoicedJobs.length);
+    preinvoicedJobs.forEach(job => {
+      console.log('    -', job.trackingId, 'isDraft:', job.isDraft);
+    });
+
     const response = {
       jobs,
       pagination: {
@@ -310,10 +331,6 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
         limit: parseInt(limit)
       }
     };
-
-    if (jobs[0]) {
-
-    }
 
     res.json(response);
   } catch (error) {
@@ -361,7 +378,9 @@ router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
             name: true,
             email: true,
             phone: true,
-            address: true
+            address: true,
+            ghanaCard: true,
+            tin: true
           }
         },
         consignment: {
@@ -371,6 +390,7 @@ router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
             consigneeName: true,
             consigneePhone: true,
             status: true,
+            ghanaCard: true,
             tin: true
           }
         },
@@ -418,19 +438,22 @@ router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
   }
 });
 
-// Generate system job ID
+// Generate system job ID with format: YYYYMMDDNNNN
 const generateJobId = async () => {
   try {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const datePrefix = `${year}${month}${day}`;
 
-    const year = new Date().getFullYear();
-    const prefix = `JOB-${year}`;
+    console.log('🔷 [Jobs] Generating job ID for date:', datePrefix);
 
-    // Find the highest job number for this year
-
+    // Find the highest job number for today
     const lastJob = await prisma.job.findFirst({
       where: {
         trackingId: {
-          startsWith: prefix
+          startsWith: datePrefix
         }
       },
       orderBy: {
@@ -440,19 +463,22 @@ const generateJobId = async () => {
 
     let nextNumber = 1;
     if (lastJob) {
-
-      const lastNumber = parseInt(lastJob.trackingId.split('-')[2]) || 0;
+      console.log('  - Last job today:', lastJob.trackingId);
+      // Extract the last 4 digits (the sequential number)
+      const lastNumber = parseInt(lastJob.trackingId.slice(-4)) || 0;
       nextNumber = lastNumber + 1;
-
+      console.log('  - Next number:', nextNumber);
     } else {
-
+      console.log('  - First job of the day');
     }
 
-    const generatedId = `${prefix}-${nextNumber.toString().padStart(4, '0')}`;
+    // Format: YYYYMMDDNNNN (e.g., 202510210001)
+    const generatedId = `${datePrefix}${nextNumber.toString().padStart(4, '0')}`;
+    console.log('✅ Generated job ID:', generatedId);
 
     return generatedId;
   } catch (error) {
-
+    console.error('❌ [Jobs] Error generating job ID:', error);
     throw error;
   }
 };
@@ -832,10 +858,19 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
 router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact } = req.body;
+    const { status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, boeNumber, demurrageType } = req.body;
 
     if (!status) {
       return res.status(400).json({ error: 'Status is required' });
+    }
+
+    // Validate BoE number is required for ENTRY_COMPLETED status
+    if (status === 'ENTRY_COMPLETED') {
+      if (!boeNumber || boeNumber.trim() === '') {
+        return res.status(400).json({ 
+          error: 'BoE number is required when status is ENTRY_COMPLETED' 
+        });
+      }
     }
 
     // Validate demurrage/free days and release money are required for RELEASED status
@@ -925,11 +960,12 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
     const STATUS_HIERARCHY = {
       'NEW': 1,
       'PREINVOICED': 2,
-      'INVOICED': 3,      // Auto-set only when invoice is created
-      'ENTRY': 4,
-      'RELEASED': 5,
-      'CLEARED': 6,
-      'DELIVERED': 7      // Final status - no further changes
+      'INVOICED': 3,           // Auto-set only when invoice is created
+      'ENTRY_COMPLETED': 4,
+      'READY_FOR_RELEASE': 5,  // Transport coordinator assigns and uploads docs
+      'RELEASED': 6,
+      'CLEARED': 7,
+      'DELIVERED': 8           // Final status - no further changes
     };
 
     const currentLevel = STATUS_HIERARCHY[existingJob.status];
@@ -1006,6 +1042,16 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
     }
     if (driverContact !== undefined) {
       updateData.driverContact = driverContact.trim();
+    }
+
+    // Add BoE number if provided (for ENTRY_COMPLETED status)
+    if (boeNumber !== undefined) {
+      updateData.boeNumber = boeNumber.trim();
+    }
+
+    // Add demurrage type if provided (for RELEASED status)
+    if (demurrageType !== undefined) {
+      updateData.demurrageType = demurrageType;
     }
 
     // Update job status

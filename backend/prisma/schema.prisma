@@ -112,6 +112,8 @@ model Job {
   scheduleTime         DateTime?
   shipperName          String?
   terminalName         String?
+  boeNumber            String?
+  demurrageType        String?              // NO_DEMURRAGE, DEMURRAGE, PASSED_FREE_DAYS
   cashflowTransactions CashflowTransaction[]
   expenseRequests      ExpenseRequest[]
   expenses             Expense[]
@@ -497,6 +499,8 @@ enum UserRole {
   DRIVER
   IT_CONSULTANT
   ENQUIRY_OFFICER
+  ENTRY_OFFICER
+  TRANSPORT_COORDINATOR
   RELEASE_OFFICER
   REVIEW_OFFICER
   INVOICE_OFFICER
@@ -525,10 +529,12 @@ enum JobStatus {
   PREINVOICED
   INVOICED
   ENTRY
+  ENTRY_COMPLETED
+  READY_FOR_RELEASE
   RELEASE
+  RELEASED
   CLEARED
   DELIVERED
-  RELEASED
 }
 
 enum EnquiryStatus {

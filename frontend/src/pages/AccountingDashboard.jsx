@@ -15,7 +15,8 @@ import {
   Typography,
   Empty,
   Spin,
-  Alert
+  Alert,
+  Badge
 } from 'antd';
 import { 
   DollarOutlined, 
@@ -276,10 +277,24 @@ const AccountingDashboard = () => {
   return (
     <div style={{ padding: '24px' }}>
       <div style={{ marginBottom: '24px' }}>
-        <Title level={2}>Financial Dashboard</Title>
-        <Text type="secondary">Monitor expenses, payouts, and financial performance</Text>
+        <Space align="center" size="middle">
+          <Title level={2} style={{ margin: 0 }}>Financial Dashboard</Title>
+          <Badge 
+            count="Accountant View" 
+            style={{ 
+              backgroundColor: '#52c41a',
+              fontSize: '12px',
+              fontWeight: 'bold'
+            }} 
+          />
+        </Space>
         <div style={{ marginTop: '8px' }}>
-          <Text type="secondary">User: {currentUser.name} ({currentUser.role})</Text>
+          <Text type="secondary">Monitor expenses, payouts, and financial performance</Text>
+        </div>
+        <div style={{ marginTop: '8px' }}>
+          <Tag color="green" icon={<CalculatorOutlined />}>
+            {currentUser.name} - {currentUser.role}
+          </Tag>
         </div>
       </div>
 

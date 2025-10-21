@@ -30,6 +30,7 @@ import { PERMISSIONS } from '../utils/permissions';
 import expenseService from '../services/expenseService';
 import payoutService from '../services/payoutService';
 import cashflowService from '../services/cashflowService';
+import { useNavigate } from 'react-router-dom';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -45,6 +46,16 @@ const AccountingPage = () => {
   const [dateRange, setDateRange] = useState([moment().subtract(30, 'days'), moment()]);
   const [period, setPeriod] = useState('month');
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
+  
+  // Route guard: Only ADMIN, IT_CONSULTANT, and ACCOUNTANT can access this page
+  useEffect(() => {
+    const allowedRoles = ['ADMIN', 'IT_CONSULTANT', 'ACCOUNTANT'];
+    if (currentUser && !allowedRoles.includes(currentUser.role)) {
+      message.warning('Access denied. Accounting is only accessible to administrators and accountants.');
+      navigate('/dashboard');
+    }
+  }, [currentUser, navigate]);
 
   useEffect(() => {
     loadDashboardData();

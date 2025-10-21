@@ -225,7 +225,7 @@ class ApiService {
     return this.put(`/jobs/${id}`, data);
   }
 
-  async updateJobStatus(id, status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact) {
+  async updateJobStatus(id, status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, demurrageType) {
     const data = { status, comment };
     if (eta) {
       data.eta = eta;
@@ -256,6 +256,9 @@ class ApiService {
     }
     if (driverContact !== undefined) {
       data.driverContact = driverContact;
+    }
+    if (demurrageType !== undefined) {
+      data.demurrageType = demurrageType;
     }
     
     return this.put(`/jobs/${id}/status`, data);

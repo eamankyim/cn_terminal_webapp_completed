@@ -92,8 +92,77 @@ export const ROLE_UI_PERMISSIONS = {
   ],
   
   ENQUIRY_OFFICER: [
-    // Full access to everything
-    ...Object.values(UI_PERMISSIONS)
+    // NO REVENUE ACCESS - Only Jobs, Clients, Requests, Settings, Job Reports
+    UI_PERMISSIONS.DASHBOARD,
+    UI_PERMISSIONS.JOBS,
+    UI_PERMISSIONS.CLIENTS,
+    UI_PERMISSIONS.REQUESTS,
+    UI_PERMISSIONS.SETTINGS,
+    UI_PERMISSIONS.REPORTS,            // ✅ Can see job reports (revenue hidden in UI)
+    
+    // Job Management
+    UI_PERMISSIONS.CREATE_JOB,
+    UI_PERMISSIONS.EDIT_JOB,
+    UI_PERMISSIONS.UPDATE_JOB_STATUS,
+    UI_PERMISSIONS.VIEW_ALL_JOBS,
+    
+    // Customer Management
+    UI_PERMISSIONS.CREATE_CUSTOMER,
+    UI_PERMISSIONS.EDIT_CUSTOMER,
+    UI_PERMISSIONS.VIEW_ALL_CUSTOMERS,
+    
+    // Reports (Job-related only, no revenue)
+    UI_PERMISSIONS.VIEW_REPORTS,
+    UI_PERMISSIONS.VIEW_ANALYTICS,
+    
+    // Settings Access
+    UI_PERMISSIONS.PROFILE_SETTINGS,
+    UI_PERMISSIONS.TEAM_MEMBERS,       // ✅ Can view team members (read-only)
+    
+    // File Management
+    UI_PERMISSIONS.UPLOAD_FILE,
+    UI_PERMISSIONS.DOWNLOAD_FILE,
+    UI_PERMISSIONS.DELETE_FILE,
+    
+    // Notifications
+    UI_PERMISSIONS.VIEW_NOTIFICATIONS,
+    
+    // NO INVOICE ACCESS
+    // NO ACCOUNTING ACCESS
+    // NO EXPORT_REPORTS (to prevent downloading revenue data)
+  ],
+  
+  ENTRY_OFFICER: [
+    // NO REVENUE ACCESS - Updates jobs to ENTRY status
+    UI_PERMISSIONS.DASHBOARD,
+    UI_PERMISSIONS.JOBS,
+    UI_PERMISSIONS.CLIENTS,
+    UI_PERMISSIONS.REQUESTS,
+    UI_PERMISSIONS.SETTINGS,
+    UI_PERMISSIONS.REPORTS,
+    
+    // Job Management
+    UI_PERMISSIONS.EDIT_JOB,
+    UI_PERMISSIONS.UPDATE_JOB_STATUS,
+    UI_PERMISSIONS.VIEW_ALL_JOBS,
+    
+    // Customer Management
+    UI_PERMISSIONS.VIEW_ALL_CUSTOMERS,
+    
+    // Reports
+    UI_PERMISSIONS.VIEW_REPORTS,
+    UI_PERMISSIONS.VIEW_ANALYTICS,
+    
+    // Settings
+    UI_PERMISSIONS.PROFILE_SETTINGS,
+    UI_PERMISSIONS.TEAM_MEMBERS,
+    
+    // File Management
+    UI_PERMISSIONS.UPLOAD_FILE,
+    UI_PERMISSIONS.DOWNLOAD_FILE,
+    
+    // Notifications
+    UI_PERMISSIONS.VIEW_NOTIFICATIONS,
   ],
   
   RELEASE_OFFICER: [

@@ -98,6 +98,16 @@ const ROLE_UI_PERMISSIONS = {
     ...Object.values(UI_PERMISSIONS)
   ],
   
+  ENTRY_OFFICER: [
+    // Full access to everything
+    ...Object.values(UI_PERMISSIONS)
+  ],
+  
+  TRANSPORT_COORDINATOR: [
+    // Full access to everything
+    ...Object.values(UI_PERMISSIONS)
+  ],
+  
   RELEASE_OFFICER: [
     // Full access to everything
     ...Object.values(UI_PERMISSIONS)

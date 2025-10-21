@@ -43,6 +43,8 @@ import { useConsignments } from '../contexts/ConsignmentContext';
 import { getCustomerStatusColor } from '../utils/statusUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { PERMISSIONS } from '../utils/permissions';
+import FileUpload from '../components/common/FileUpload';
+import { fileService } from '../services/fileService';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -57,6 +59,9 @@ const ClientsPage = () => {
   const [isConsignmentModalVisible, setIsConsignmentModalVisible] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [editingConsignment, setEditingConsignment] = useState(null);
+  const [viewingConsignmentDocs, setViewingConsignmentDocs] = useState(null);
+  const [consignmentDocuments, setConsignmentDocuments] = useState([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
   const [form] = Form.useForm();
   const [consignmentForm] = Form.useForm();
 
@@ -100,22 +105,54 @@ const ClientsPage = () => {
     loadConsignmentsByCustomer(client.id);
   };
 
-  // Consignment management functions
+  // Consignee management functions
   const handleCreateConsignment = async (values) => {
     try {
-      const consignmentData = {
-        ...values,
-        customerId: selectedClient.id
-      };
+      const { documents, ...consignmentData } = values;
+      consignmentData.customerId = selectedClient.id;
       
-      await addConsignment(consignmentData);
-      message.success('Consignment created successfully');
+      // Create or update consignment first
+      let consignmentResponse;
+      if (editingConsignment) {
+        consignmentResponse = await updateConsignment(editingConsignment.id, consignmentData);
+      } else {
+        consignmentResponse = await addConsignment(consignmentData);
+      }
+      
+      // Get the consignment ID
+      const consignmentId = editingConsignment?.id || consignmentResponse?.consignment?.id || consignmentResponse?.id;
+      
+      // Handle document uploads if we have documents and a consignment ID
+      if (documents && documents.length > 0 && consignmentId) {
+        const filesToUpload = documents.filter(file => !file.url && file.originFileObj);
+        
+        if (filesToUpload.length > 0) {
+          for (const file of filesToUpload) {
+            try {
+              await fileService.uploadFile(file.originFileObj, {
+                folder: 'consignments',
+                category: 'consignee_document',
+                entityId: consignmentId,
+                entityType: 'consignment'
+              });
+            } catch (uploadError) {
+              console.error('Failed to upload file:', uploadError);
+              message.warning(`Failed to upload ${file.name}`);
+            }
+          }
+        }
+      }
+      
+      message.success(editingConsignment ? 'Consignee updated successfully' : 'Consignee created successfully');
       setIsConsignmentModalVisible(false);
       setEditingConsignment(null);
       consignmentForm.resetFields();
+      
+      // Reload consignments for this customer
+      loadConsignmentsByCustomer(selectedClient.id);
     } catch (error) {
-      message.error('Failed to create consignment');
-
+      console.error('Error saving consignee:', error);
+      message.error(editingConsignment ? 'Failed to update consignee' : 'Failed to create consignee');
     }
   };
 
@@ -129,21 +166,42 @@ const ClientsPage = () => {
 
   const handleDeleteConsignment = async (consignmentId) => {
     Modal.confirm({
-      title: 'Delete Consignment',
-      content: 'Are you sure you want to delete this consignment? This action cannot be undone.',
+      title: 'Delete Consignee',
+      content: 'Are you sure you want to delete this consignee? This action cannot be undone.',
       okText: 'Delete',
       okType: 'danger',
       cancelText: 'Cancel',
       onOk: async () => {
         try {
           await removeConsignment(consignmentId);
-          message.success('Consignment deleted successfully');
+          message.success('Consignee deleted successfully');
         } catch (error) {
-          message.error('Failed to delete consignment');
+          message.error('Failed to delete consignee');
 
         }
       }
     });
+  };
+
+  const handleViewConsignmentDocs = async (consignment) => {
+    setViewingConsignmentDocs(consignment);
+    setDocumentsLoading(true);
+    setConsignmentDocuments([]);
+    
+    try {
+      const documentsResponse = await fileService.getFilesByEntity('consignment', consignment.id);
+      if (documentsResponse && documentsResponse.files) {
+        setConsignmentDocuments(documentsResponse.files);
+      } else {
+        setConsignmentDocuments([]);
+      }
+    } catch (error) {
+      console.error('Error fetching consignee documents:', error);
+      message.error('Failed to load consignee documents');
+      setConsignmentDocuments([]);
+    } finally {
+      setDocumentsLoading(false);
+    }
   };
 
   const handleEditClient = (client) => {
@@ -511,11 +569,11 @@ const ClientsPage = () => {
                      </div>
                    )
                  },
-                 {
-                   key: 'consignments',
-                   label: 'Consignments',
-                   children: (
-                     <div>
+                {
+                  key: 'consignments',
+                  label: 'Consignees',
+                  children: (
+                    <div>
                        <div style={{ 
                          marginBottom: '24px', 
                          border: '1px solid #d9d9d9', 
@@ -525,7 +583,7 @@ const ClientsPage = () => {
                        }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                           <Title level={4} style={{ margin: 0 }}>
-                            Consignments & Consignees
+                            Consignees
                           </Title>
                           {hasPermission(PERMISSIONS.CUSTOMER_EDIT) && (
                             <Button 
@@ -537,7 +595,7 @@ const ClientsPage = () => {
                                 setIsConsignmentModalVisible(true);
                               }}
                             >
-                              New Consignment
+                              New Consignee
                             </Button>
                           )}
                         </div>
@@ -581,31 +639,36 @@ const ClientsPage = () => {
                                 </Row>
                                 
                                 {/* Action Buttons */}
-                                {(hasPermission(PERMISSIONS.CUSTOMER_EDIT) || hasPermission(PERMISSIONS.CUSTOMER_DELETE)) && (
-                                  <div style={{ marginTop: '16px', textAlign: 'right', borderTop: '1px solid #f0f0f0', paddingTop: '12px' }}>
-                                    <Space>
-                                      {hasPermission(PERMISSIONS.CUSTOMER_EDIT) && (
-                                        <Button 
-                                          size="small" 
-                                          icon={<EditOutlined />}
-                                          onClick={() => handleEditConsignment(consignment)}
-                                        >
-                                          Edit
-                                        </Button>
-                                      )}
-                                      {hasPermission(PERMISSIONS.CUSTOMER_DELETE) && (
-                                        <Button 
-                                          size="small" 
-                                          danger
-                                          icon={<DeleteOutlined />}
-                                          onClick={() => handleDeleteConsignment(consignment.id)}
-                                        >
-                                          Delete
-                                        </Button>
-                                      )}
-                                    </Space>
-                                  </div>
-                                )}
+                                <div style={{ marginTop: '16px', textAlign: 'right', borderTop: '1px solid #f0f0f0', paddingTop: '12px' }}>
+                                  <Space>
+                                    <Button 
+                                      size="small" 
+                                      icon={<EyeOutlined />}
+                                      onClick={() => handleViewConsignmentDocs(consignment)}
+                                    >
+                                      View Files
+                                    </Button>
+                                    {hasPermission(PERMISSIONS.CUSTOMER_EDIT) && (
+                                      <Button 
+                                        size="small" 
+                                        icon={<EditOutlined />}
+                                        onClick={() => handleEditConsignment(consignment)}
+                                      >
+                                        Edit
+                                      </Button>
+                                    )}
+                                    {hasPermission(PERMISSIONS.CUSTOMER_DELETE) && (
+                                      <Button 
+                                        size="small" 
+                                        danger
+                                        icon={<DeleteOutlined />}
+                                        onClick={() => handleDeleteConsignment(consignment.id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    )}
+                                  </Space>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -756,9 +819,9 @@ const ClientsPage = () => {
         </Form>
       </Modal>
 
-      {/* Create/Edit Consignment Modal */}
+      {/* Create/Edit Consignee Modal */}
       <Modal
-        title={editingConsignment ? 'Edit Consignment' : 'New Consignment'}
+        title={editingConsignment ? 'Edit Consignee' : 'New Consignee'}
         open={isConsignmentModalVisible}
         onCancel={() => {
           setIsConsignmentModalVisible(false);
@@ -766,7 +829,7 @@ const ClientsPage = () => {
           consignmentForm.resetFields();
         }}
         footer={null}
-        width={600}
+        width={700}
       >
         <Form
           form={consignmentForm}
@@ -823,6 +886,20 @@ const ClientsPage = () => {
             <Input.TextArea placeholder="Enter consignee address" rows={2} />
           </Form.Item>
 
+          <Form.Item
+            name="documents"
+            label="Attachments"
+            help="Upload Ghana Card, Business Certificate, and other documents"
+          >
+            <FileUpload
+              multiple={true}
+              maxCount={10}
+              accept=".pdf,.jpg,.jpeg,.png"
+              listType="text"
+              uploadText="Upload Documents"
+            />
+          </Form.Item>
+
           <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>
             <Space>
               <Button onClick={() => {
@@ -833,11 +910,100 @@ const ClientsPage = () => {
                 Cancel
               </Button>
               <Button type="primary" htmlType="submit">
-                {editingConsignment ? 'Update Consignment' : 'Create Consignment'}
+                {editingConsignment ? 'Update Consignee' : 'Create Consignee'}
               </Button>
             </Space>
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* View Consignee Documents Modal */}
+      <Modal
+        title={`Documents - ${viewingConsignmentDocs?.consigneeName || 'Consignee'}`}
+        open={!!viewingConsignmentDocs}
+        onCancel={() => setViewingConsignmentDocs(null)}
+        footer={[
+          <Button key="close" onClick={() => setViewingConsignmentDocs(null)}>
+            Close
+          </Button>
+        ]}
+        width={700}
+      >
+        {documentsLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <Text>Loading documents...</Text>
+          </div>
+        ) : consignmentDocuments && consignmentDocuments.length > 0 ? (
+          <div>
+            <Table
+              dataSource={consignmentDocuments}
+              rowKey="id"
+              pagination={false}
+              columns={[
+                {
+                  title: 'File Name',
+                  dataIndex: 'originalName',
+                  key: 'originalName',
+                },
+                {
+                  title: 'Size',
+                  dataIndex: 'size',
+                  key: 'size',
+                  render: (size) => {
+                    const kb = size / 1024;
+                    return kb > 1024 ? `${(kb / 1024).toFixed(2)} MB` : `${kb.toFixed(2)} KB`;
+                  }
+                },
+                {
+                  title: 'Uploaded',
+                  dataIndex: 'uploadedAt',
+                  key: 'uploadedAt',
+                  render: (date) => new Date(date).toLocaleDateString()
+                },
+                {
+                  title: 'Actions',
+                  key: 'actions',
+                  render: (_, file) => (
+                    <Space>
+                      <Button
+                        size="small"
+                        icon={<EyeOutlined />}
+                        onClick={() => {
+                          const url = file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`;
+                          window.open(url, '_blank');
+                        }}
+                      >
+                        View
+                      </Button>
+                      {hasPermission(PERMISSIONS.CUSTOMER_EDIT) && (
+                        <Button
+                          size="small"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={async () => {
+                            try {
+                              await fileService.deleteFile(file.id);
+                              message.success('File deleted successfully');
+                              handleViewConsignmentDocs(viewingConsignmentDocs);
+                            } catch (error) {
+                              message.error('Failed to delete file');
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </Space>
+                  )
+                }
+              ]}
+            />
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+            <Text type="secondary">No documents attached to this consignee</Text>
+          </div>
+        )}
       </Modal>
 
     </div>

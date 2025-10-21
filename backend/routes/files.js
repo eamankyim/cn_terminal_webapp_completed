@@ -18,21 +18,31 @@ if (!fs.existsSync(uploadsDir)) {
 // Configure multer storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const folder = req.body.folder || 'general';
-    const uploadPath = path.join(uploadsDir, folder);
-    
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
+    try {
+      const folder = req.body?.folder || 'general';
+      const uploadPath = path.join(uploadsDir, folder);
+      
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+      
+      cb(null, uploadPath);
+    } catch (error) {
+      console.error('❌ [Multer] Destination error:', error.message);
+      cb(error);
     }
-    
-    cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    // Generate unique filename
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const extension = path.extname(file.originalname);
-    const filename = file.fieldname + '-' + uniqueSuffix + extension;
-    cb(null, filename);
+    try {
+      // Generate unique filename
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const extension = path.extname(file.originalname);
+      const filename = file.fieldname + '-' + uniqueSuffix + extension;
+      cb(null, filename);
+    } catch (error) {
+      console.error('❌ [Multer] Filename error:', error.message);
+      cb(error);
+    }
   }
 });
 
@@ -74,15 +84,29 @@ const upload = multer({
 // Upload single file
 router.post('/upload', authenticateToken, upload.single('file'), async (req, res) => {
   try {
-
+    console.log('🔷 [Files API] POST /files/upload');
+    console.log('  - User:', req.user?.email);
+    
     if (!req.file) {
-
+      console.log('❌ No file in request');
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
+    console.log('✅ File received:', req.file.originalname);
+    console.log('  - Size:', req.file.size, 'bytes');
+    console.log('  - Saved to:', req.file.path);
+    console.log('  - Filename:', req.file.filename);
+    
     const { folder = 'general', category, entityId, entityType } = req.body;
+    
+    console.log('  - Metadata:');
+    console.log('    - folder:', folder);
+    console.log('    - category:', category);
+    console.log('    - entityId:', entityId);
+    console.log('    - entityType:', entityType);
 
     // Create file record in database
+    console.log('  - Creating file record in database...');
     const fileRecord = await prisma.file.create({
       data: {
         originalName: req.file.originalname,
@@ -99,6 +123,12 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
         uploadedAt: new Date()
       }
     });
+    
+    console.log('✅ File record created:');
+    console.log('  - ID:', fileRecord.id);
+    console.log('  - Original Name:', fileRecord.originalName);
+    console.log('  - Entity ID:', fileRecord.entityId);
+    console.log('  - Entity Type:', fileRecord.entityType);
 
     const response = {
       success: true,
@@ -240,8 +270,16 @@ router.get('/:id', authenticateToken, async (req, res) => {
 // Get files by entity
 router.get('/entity/:entityType/:entityId', authenticateToken, async (req, res) => {
   try {
-
     const { entityType, entityId } = req.params;
+    
+    console.log('🔷 [Files API] GET /files/entity/:entityType/:entityId');
+    console.log('  - Entity Type:', entityType);
+    console.log('  - Entity ID:', entityId);
+    console.log('  - Requesting User:', req.user?.email);
+
+    console.log('  - Querying database with WHERE conditions:');
+    console.log('    entityType:', entityType);
+    console.log('    entityId:', entityId);
 
     const files = await prisma.file.findMany({
       where: {
@@ -250,6 +288,24 @@ router.get('/entity/:entityType/:entityId', authenticateToken, async (req, res) 
       },
       orderBy: { uploadedAt: 'desc' }
     });
+
+    console.log('✅ [Files API] Found', files.length, 'files');
+    if (files.length > 0) {
+      console.log('  - Files:', files.map(f => ({
+        id: f.id,
+        originalName: f.originalName,
+        entityType: f.entityType,
+        entityId: f.entityId
+      })));
+    } else {
+      console.log('⚠️ [Files API] No files found for this entity');
+      console.log('  - Let me check all files in database...');
+      const allFiles = await prisma.file.findMany({
+        select: { id: true, originalName: true, entityType: true, entityId: true }
+      });
+      console.log('  - Total files in database:', allFiles.length);
+      console.log('  - Sample files:', allFiles.slice(0, 5));
+    }
 
     const response = {
       success: true,
@@ -266,9 +322,12 @@ router.get('/entity/:entityType/:entityId', authenticateToken, async (req, res) 
       }))
     };
 
+    console.log('  - Sending response with', response.files.length, 'files\n');
     res.json(response);
   } catch (error) {
-
+    console.error('❌ [Files API] Error getting files:', error);
+    console.error('  - Error message:', error.message);
+    console.error('  - Error stack:', error.stack);
     res.status(500).json({ 
       success: false, 
       message: 'Failed to get files',

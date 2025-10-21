@@ -468,10 +468,12 @@ const InvoiceManagementPage = () => {
         onCancel={() => setInvoiceModalVisible(false)}
         footer={null}
         width={800}
-        bodyStyle={{
-          maxHeight: '70vh',
-          overflowY: 'auto',
-          padding: '24px'
+        styles={{
+          body: {
+            maxHeight: '70vh',
+            overflowY: 'auto',
+            padding: '24px'
+          }
         }}
       >
         <Form

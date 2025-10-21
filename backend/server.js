@@ -41,7 +41,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from uploads directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', (req, res, next) => {
+  console.log('📁 [Static Files] Request for:', req.url);
+  console.log('  - Full path:', path.join(__dirname, 'uploads', req.url));
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
 
 // Import routes
 const authRoutes = require('./routes/auth');

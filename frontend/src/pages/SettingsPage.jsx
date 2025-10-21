@@ -233,9 +233,10 @@ const SettingsPage = () => {
     }
   };
 
-  // Load users when component mounts (only when role changes to ADMIN)
+  // Load users when component mounts (for all roles with team members access)
   useEffect(() => {
-    if (currentUser?.role === 'ADMIN') {
+    // All users can view team members (but only admins can edit)
+    if (currentUser?.role) {
       loadUsers();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1043,7 +1044,7 @@ const SettingsPage = () => {
       }
       
       // For employee roles, only show Profile and Team Members tabs
-      const employeeRoles = ['STAFF', 'DRIVER', 'WAREHOUSE', 'ENQUIRY_OFFICER', 'RELEASE_OFFICER', 'REVIEW_OFFICER', 'INVOICE_OFFICER', 'CLEARING_OFFICER'];
+      const employeeRoles = ['STAFF', 'DRIVER', 'WAREHOUSE', 'ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'RELEASE_OFFICER', 'REVIEW_OFFICER', 'INVOICE_OFFICER', 'CLEARING_OFFICER'];
       if (employeeRoles.includes(currentUser?.role)) {
         return tab.key === 'profile' || tab.key === 'team-members';
       }
@@ -1258,11 +1259,14 @@ const SettingsPage = () => {
                       'DRIVER': 'Logistics',
                       'WAREHOUSE': 'Operations',
                       'ENQUIRY_OFFICER': 'Client Services',
+                      'ENTRY_OFFICER': 'Operations',
+                      'TRANSPORT_COORDINATOR': 'Operations',
                       'RELEASE_OFFICER': 'Operations',
                       'REVIEW_OFFICER': 'Quality Assurance',
                       'INVOICE_OFFICER': 'Finance',
                       'CLEARING_OFFICER': 'Customs',
-                      'IT_CONSULTANT': 'Information Technology'
+                      'IT_CONSULTANT': 'Information Technology',
+                      'ACCOUNTANT': 'Finance'
                     };
                     return departmentMap[selectedUser.role] || 'General';
                   })()}

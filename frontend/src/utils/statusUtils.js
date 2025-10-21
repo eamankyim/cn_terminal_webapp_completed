@@ -7,13 +7,14 @@ export const getJobStatusColor = (status, isDraft = false) => {
   }
   
   const statusColors = {
-    'NEW': 'blue',           // Fresh start - blue for new beginnings
-    'PREINVOICED': 'cyan',   // Preparation phase - cyan for preparation
-    'INVOICED': 'purple',    // Financial processing - purple for financial
-    'ENTRY': 'orange',       // Active processing - orange for active work
-    'RELEASED': 'lime',      // Almost complete - lime for near completion
-    'CLEARED': 'green',      // Successfully processed - green for success
-    'DELIVERED': 'success'   // Final completion - success green for delivery
+    'NEW': 'blue',                  // Fresh start - blue for new beginnings
+    'PREINVOICED': 'cyan',          // Preparation phase - cyan for preparation
+    'INVOICED': 'purple',           // Financial processing - purple for financial
+    'ENTRY_COMPLETED': 'orange',    // Entry completed - orange for active work
+    'READY_FOR_RELEASE': 'geekblue', // Ready for release - geekblue for coordination
+    'RELEASED': 'lime',             // Almost complete - lime for near completion
+    'CLEARED': 'green',             // Successfully processed - green for success
+    'DELIVERED': 'success'          // Final completion - success green for delivery
   };
   
   return statusColors[status] || 'default';
@@ -74,13 +75,14 @@ export const getJobStatusIcon = (status, isDraft = false) => {
   }
   
   const statusIcons = {
-    'NEW': '➕',              // Plus for new
-    'PREINVOICED': '📋',     // Clipboard for preparation
-    'INVOICED': '💰',        // Money for invoiced
-    'ENTRY': '📦',           // Package for entry
-    'RELEASED': '🔓',        // Unlock for released
-    'CLEARED': '✅',         // Check for cleared
-    'DELIVERED': '🚚'        // Truck for delivered
+    'NEW': '➕',                     // Plus for new
+    'PREINVOICED': '📋',            // Clipboard for preparation
+    'INVOICED': '💰',               // Money for invoiced
+    'ENTRY_COMPLETED': '📦',        // Package for entry completed
+    'READY_FOR_RELEASE': '🚗',     // Car for transport coordination
+    'RELEASED': '🔓',               // Unlock for released
+    'CLEARED': '✅',                // Check for cleared
+    'DELIVERED': '🚚'               // Truck for delivered
   };
   
   return statusIcons[status] || '📄';
@@ -92,10 +94,11 @@ export const getJobStatusPriority = (status) => {
     'NEW': 1,
     'PREINVOICED': 2,
     'INVOICED': 3,
-    'ENTRY': 4,
-    'RELEASED': 5,
-    'CLEARED': 6,
-    'DELIVERED': 7
+    'ENTRY_COMPLETED': 4,
+    'READY_FOR_RELEASE': 5,
+    'RELEASED': 6,
+    'CLEARED': 7,
+    'DELIVERED': 8
   };
   
   return priorities[status] || 0;
@@ -107,7 +110,8 @@ export const getJobStatusDescription = (status) => {
     'NEW': 'New job created',
     'PREINVOICED': 'Ready for invoicing',
     'INVOICED': 'Invoice generated',
-    'ENTRY': 'Customs entry in progress',
+    'ENTRY_COMPLETED': 'Customs entry completed',
+    'READY_FOR_RELEASE': 'Assigned to release officer with documentation',
     'RELEASED': 'Released from customs',
     'CLEARED': 'Cleared and ready for delivery',
     'DELIVERED': 'Successfully delivered'
@@ -118,7 +122,7 @@ export const getJobStatusDescription = (status) => {
 
 // Get all job statuses in order
 export const getJobStatusesInOrder = () => {
-  return ['NEW', 'PREINVOICED', 'INVOICED', 'ENTRY', 'RELEASED', 'CLEARED', 'DELIVERED'];
+  return ['NEW', 'PREINVOICED', 'INVOICED', 'ENTRY_COMPLETED', 'READY_FOR_RELEASE', 'RELEASED', 'CLEARED', 'DELIVERED'];
 };
 
 // Check if status is terminal (final state)

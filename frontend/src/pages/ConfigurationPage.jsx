@@ -33,6 +33,7 @@ import {
 import configurationService from '../services/configurationService';
 import { useAuth } from '../contexts/AuthContext';
 import { calculateVAT, getVATExplanation } from '../utils/vatCalculator';
+import { useNavigate } from 'react-router-dom';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -41,6 +42,15 @@ const { TabPane } = Tabs;
 
 const ConfigurationPage = () => {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
+  
+  // Route guard: Only ADMIN and IT_CONSULTANT can access this page
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'ADMIN' && currentUser.role !== 'IT_CONSULTANT') {
+      message.error('Access denied. System configuration is only accessible to administrators.');
+      navigate('/dashboard');
+    }
+  }, [currentUser, navigate]);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

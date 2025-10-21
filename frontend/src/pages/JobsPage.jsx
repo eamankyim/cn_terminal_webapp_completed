@@ -66,11 +66,12 @@ import { getJobStatusColor, getJobStatusIcon as getStatusIconUtil } from '../uti
 const STATUS_HIERARCHY = {
   'NEW': 1,
   'PREINVOICED': 2,
-  'INVOICED': 3,      // Regular status option - can be set manually
-  'ENTRY': 4,
-  'RELEASED': 5,
-  'CLEARED': 6,
-  'DELIVERED': 7      // Final status - no further changes
+  'INVOICED': 3,           // Regular status option - can be set manually
+  'ENTRY_COMPLETED': 4,
+  'READY_FOR_RELEASE': 5,  // Transport coordinator assigns and uploads docs
+  'RELEASED': 6,
+  'CLEARED': 7,
+  'DELIVERED': 8           // Final status - no further changes
 };
 
 // Status display names
@@ -78,7 +79,8 @@ const STATUS_LABELS = {
   'NEW': 'New',
   'PREINVOICED': 'Pre-invoiced',
   'INVOICED': 'Invoiced',
-  'ENTRY': 'Entry',
+  'ENTRY_COMPLETED': 'Entry Completed',
+  'READY_FOR_RELEASE': 'Ready for Release',
   'RELEASED': 'Released',
   'CLEARED': 'Cleared',
   'DELIVERED': 'Delivered'
@@ -205,21 +207,33 @@ const JobsPage = () => {
       setError(null);
       const response = await jobService.getJobs({ limit: 100 });
 
-      if (response.jobs?.[0]) {
-
-      }
+      console.log('🔷 [JobsPage] loadJobs response:', response);
+      console.log('  - User role:', currentUser?.role);
+      console.log('  - Total jobs returned:', response.jobs?.length);
       
       const allJobs = response.jobs || [];
       
-      // Debug: Log all jobs and their isDraft status
-
-      allJobs.forEach((job, index) => {
-
+      // Debug: Log all jobs and their status
+      console.log('  - Jobs by status:');
+      const statusCounts = {};
+      allJobs.forEach((job) => {
+        statusCounts[job.status] = (statusCounts[job.status] || 0) + 1;
+      });
+      console.log(statusCounts);
+      
+      // Log PREINVOICED jobs specifically
+      const preinvoicedJobs = allJobs.filter(job => job.status === 'PREINVOICED');
+      console.log('  - PREINVOICED jobs:', preinvoicedJobs.length);
+      preinvoicedJobs.forEach(job => {
+        console.log('    -', job.trackingId, 'isDraft:', job.isDraft);
       });
       
       // Separate regular jobs from drafts
       const regularJobs = allJobs.filter(job => !job.isDraft);
       const drafts = allJobs.filter(job => job.isDraft);
+
+      console.log('  - Regular jobs:', regularJobs.length);
+      console.log('  - Draft jobs:', drafts.length);
 
       setJobs(regularJobs);
       setDraftJobs(drafts);
@@ -427,6 +441,46 @@ const JobsPage = () => {
       )
     },
     {
+      title: 'Consignee',
+      key: 'consignee',
+      render: (_, record) => (
+        <Text>{record.consignment?.consigneeName || 'Not specified'}</Text>
+      )
+    },
+    {
+      title: 'Documents Brought',
+      dataIndex: 'documentsBrought',
+      key: 'documentsBrought',
+      render: (documentsBrought) => (
+        <div>
+          {documentsBrought && documentsBrought.length > 0 ? (
+            documentsBrought.slice(0, 2).map((doc, index) => (
+              <Tag key={index} color="green" style={{ marginBottom: '2px', fontSize: '11px' }}>
+                {doc}
+              </Tag>
+            ))
+          ) : (
+            <Text type="secondary" style={{ fontSize: '12px' }}>None</Text>
+          )}
+          {documentsBrought && documentsBrought.length > 2 && (
+            <Tag style={{ fontSize: '11px' }}>+{documentsBrought.length - 2}</Tag>
+          )}
+        </div>
+      )
+    },
+    {
+      title: 'Container No.',
+      dataIndex: 'containerNumber',
+      key: 'containerNumber',
+      render: (text) => <Text style={{ fontSize: '12px' }}>{text || '-'}</Text>
+    },
+    {
+      title: 'Vessel Name',
+      dataIndex: 'vesselName',
+      key: 'vesselName',
+      render: (text) => <Text style={{ fontSize: '12px' }}>{text || '-'}</Text>
+    },
+    {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
@@ -501,6 +555,8 @@ const JobsPage = () => {
   };
 
   const handleViewJob = async (job) => {
+    console.log('🔷 [JobsPage] handleViewJob called for job:', job.id, job.trackingId);
+    
     // Show drawer immediately with complete job data (already loaded)
     setSelectedJob(job);
     setIsDetailsDrawerVisible(true);
@@ -511,18 +567,21 @@ const JobsPage = () => {
     
     // Fetch documents for this job
     try {
-
+      console.log('  - Fetching documents for job:', job.id);
       const documentsResponse = await fileService.getFilesByEntity('job', job.id);
+      console.log('  - Documents response:', documentsResponse);
       
       if (documentsResponse && documentsResponse.files) {
-
+        console.log('✅ Found', documentsResponse.files.length, 'documents');
+        console.log('  - Documents:', documentsResponse.files);
         setSelectedJobDocuments(documentsResponse.files);
       } else {
-
+        console.log('⚠️ No documents found in response');
         setSelectedJobDocuments([]);
       }
     } catch (error) {
-
+      console.error('❌ Error fetching documents:', error);
+      console.error('  - Error response:', error.response?.data);
       setSelectedJobDocuments([]);
     } finally {
       setDocumentsLoading(false);
@@ -549,7 +608,16 @@ const JobsPage = () => {
     setSubmitLoading(true);
     try {
       // Extract documents from form values (but don't process them here)
-      const { documents, ...jobData } = values;
+      const { documents: documentsValue, ...jobData } = values;
+      
+      // Handle documents - could be array or object with fileList property
+      const documents = Array.isArray(documentsValue) 
+        ? documentsValue 
+        : documentsValue?.fileList || [];
+      
+      console.log('🔷 [JobsPage] handleSubmit called');
+      console.log('  - Documents from form:', documentsValue);
+      console.log('  - Extracted documents array:', documents);
       
       // Debug: Log the form values
 
@@ -578,23 +646,47 @@ const JobsPage = () => {
       }
       
       // Handle document uploads if we have documents and a job ID
+      console.log('🔷 [JobsPage] Checking for documents to upload');
+      console.log('  - Documents variable:', documents);
+      console.log('  - Documents is array:', Array.isArray(documents));
+      console.log('  - Documents length:', documents?.length);
+      
       if (documents && documents.length > 0) {
+        console.log('🔷 [JobsPage] Processing documents after job creation');
+        console.log('  - Documents array:', documents);
+        console.log('  - Each document:');
+        documents.forEach((doc, i) => {
+          console.log(`    [${i}]:`, {
+            name: doc.name,
+            url: doc.url,
+            hasOriginFileObj: !!doc.originFileObj,
+            status: doc.status
+          });
+        });
+        console.log('  - Response:', response);
+        
         const jobId = response.job?.id || response.id;
+        console.log('  - Extracted Job ID:', jobId);
+        
         if (jobId) {
-
           // Filter out files that are already uploaded (have URLs)
           const filesToUpload = documents.filter(file => !file.url && file.originFileObj);
+          console.log('  - Files to upload after filter:', filesToUpload.length);
+          console.log('  - Filter logic: !file.url && file.originFileObj');
+          console.log('  - Files details:', filesToUpload);
 
           if (filesToUpload.length > 0) {
+            console.log('  - Calling handleJobDocuments with jobId:', jobId);
             await handleJobDocuments(jobId, filesToUpload, 'create');
           } else {
-
+            console.log('  - No new files to upload (filtered out)');
+            console.log('  - Reason: Either all have URLs or missing originFileObj');
           }
         } else {
-
+          console.error('❌ No job ID in response!', response);
         }
       } else {
-
+        console.log('  - No documents array or empty array');
       }
       
       loadJobs(); // Reload jobs
@@ -613,7 +705,12 @@ const JobsPage = () => {
     try {
       // Validate form first
       const formValues = await form.validateFields();
-      const { documents, ...jobData } = formValues;
+      const { documents: documentsValue, ...jobData } = formValues;
+      
+      // Handle documents - could be array or object with fileList property
+      const documents = Array.isArray(documentsValue) 
+        ? documentsValue 
+        : documentsValue?.fileList || [];
       
       // Debug: Log the form values
 
@@ -794,21 +891,133 @@ const JobsPage = () => {
         return;
       }
       
+      // Extract documents from form values
+      const { statusUpdateDocuments, demurrageInvoices, paymentReceipts, ...updateData } = values;
+      
       // Handle demurrage/free days and release money for RELEASED status
-      const demurrageFreeDays = values.demurrageFreeDays;
-      const releaseMoneyReceived = values.releaseMoneyReceived;
+      const demurrageFreeDays = updateData.demurrageFreeDays;
+      const releaseMoneyReceived = updateData.releaseMoneyReceived;
+      const demurrageType = updateData.demurrageType;
 
       // Handle RELEASED status fields
-      const terminalName = values.terminalName;
-      const scheduleTime = values.scheduleTime;
-      const driverName = values.driverName;
-      const driverContact = values.driverContact;
+      const terminalName = updateData.terminalName;
+      const scheduleTime = updateData.scheduleTime;
+      const driverName = updateData.driverName;
+      const driverContact = updateData.driverContact;
 
       // Handle shipper name and invoice number for INVOICED status
-      const shipperName = values.shipperName;
-      const invoiceNumber = values.invoiceNumber;
+      const shipperName = updateData.shipperName;
+      const invoiceNumber = updateData.invoiceNumber;
 
-      const response = await jobService.updateJobStatus(selectedJob.id, values.status, values.comment, undefined, values.assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact);
+      const response = await jobService.updateJobStatus(selectedJob.id, updateData.status, updateData.comment, undefined, updateData.assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, demurrageType);
+      
+      let documentsUploaded = false;
+      
+      // Handle document uploads if any
+      if (statusUpdateDocuments && statusUpdateDocuments.length > 0) {
+        console.log('🔷 [JobsPage] Uploading status update documents');
+        const documentsArray = Array.isArray(statusUpdateDocuments) 
+          ? statusUpdateDocuments 
+          : statusUpdateDocuments?.fileList || [];
+        
+        const filesToUpload = documentsArray.filter(file => !file.url && file.originFileObj);
+        
+        if (filesToUpload.length > 0) {
+          for (const file of filesToUpload) {
+            try {
+              await fileService.uploadFile(file.originFileObj, {
+                folder: 'jobs',
+                category: 'status_update_document',
+                entityId: selectedJob.id,
+                entityType: 'job'
+              });
+              console.log('  ✅ Uploaded:', file.name);
+              documentsUploaded = true;
+            } catch (uploadError) {
+              console.error('  ❌ Failed to upload:', file.name, uploadError);
+              message.warning(`Failed to upload ${file.name}`);
+            }
+          }
+          
+          // Reload documents for the job drawer
+          try {
+            const documentsResponse = await fileService.getFilesByEntity('job', selectedJob.id);
+            if (documentsResponse && documentsResponse.files) {
+              setSelectedJobDocuments(documentsResponse.files);
+            }
+          } catch (error) {
+            console.error('Failed to reload documents:', error);
+          }
+        }
+      }
+
+      // Handle demurrage invoice uploads if any
+      if (demurrageInvoices && demurrageInvoices.length > 0) {
+        console.log('🔷 [JobsPage] Uploading demurrage invoices');
+        const documentsArray = Array.isArray(demurrageInvoices) 
+          ? demurrageInvoices 
+          : demurrageInvoices?.fileList || [];
+        
+        const filesToUpload = documentsArray.filter(file => !file.url && file.originFileObj);
+        
+        if (filesToUpload.length > 0) {
+          for (const file of filesToUpload) {
+            try {
+              await fileService.uploadFile(file.originFileObj, {
+                folder: 'jobs',
+                category: 'demurrage_invoice',
+                entityId: selectedJob.id,
+                entityType: 'job'
+              });
+              console.log('  ✅ Uploaded demurrage invoice:', file.name);
+              documentsUploaded = true;
+            } catch (uploadError) {
+              console.error('  ❌ Failed to upload demurrage invoice:', file.name, uploadError);
+              message.warning(`Failed to upload demurrage invoice ${file.name}`);
+            }
+          }
+        }
+      }
+
+      // Handle payment receipt uploads (COMPULSORY for RELEASED status)
+      if (paymentReceipts && paymentReceipts.length > 0) {
+        console.log('🔷 [JobsPage] Uploading payment receipts');
+        const documentsArray = Array.isArray(paymentReceipts) 
+          ? paymentReceipts 
+          : paymentReceipts?.fileList || [];
+        
+        const filesToUpload = documentsArray.filter(file => !file.url && file.originFileObj);
+        
+        if (filesToUpload.length > 0) {
+          for (const file of filesToUpload) {
+            try {
+              await fileService.uploadFile(file.originFileObj, {
+                folder: 'jobs',
+                category: 'payment_receipt',
+                entityId: selectedJob.id,
+                entityType: 'job'
+              });
+              console.log('  ✅ Uploaded payment receipt:', file.name);
+              documentsUploaded = true;
+            } catch (uploadError) {
+              console.error('  ❌ Failed to upload payment receipt:', file.name, uploadError);
+              message.warning(`Failed to upload payment receipt ${file.name}`);
+            }
+          }
+        }
+      }
+
+      // Reload documents if any were uploaded
+      if (documentsUploaded) {
+        try {
+          const documentsResponse = await fileService.getFilesByEntity('job', selectedJob.id);
+          if (documentsResponse && documentsResponse.files) {
+            setSelectedJobDocuments(documentsResponse.files);
+          }
+        } catch (error) {
+          console.error('Failed to reload documents:', error);
+        }
+      }
 
       // Update the selectedJob state with the updated job data
       if (response && response.job) {
@@ -820,12 +1029,14 @@ const JobsPage = () => {
           eta: response.job.eta,
           demurrageFreeDays: response.job.demurrageFreeDays,
           releaseMoneyReceived: response.job.releaseMoneyReceived,
+          demurrageType: response.job.demurrageType,
           shipperName: response.job.shipperName,
           invoiceNumber: response.job.invoiceNumber,
           terminalName: response.job.terminalName,
           scheduleTime: response.job.scheduleTime,
           driverName: response.job.driverName,
           driverContact: response.job.driverContact,
+          boeNumber: response.job.boeNumber,
           updatedAt: response.job.updatedAt,
           statusHistory: response.job.statusHistory || prevJob.statusHistory
         }));
@@ -847,13 +1058,19 @@ const JobsPage = () => {
         }
       }
       
-      message.success('Job status updated successfully');
+      // Show appropriate success message
+      if (documentsUploaded) {
+        message.success('Status updated and documents uploaded successfully');
+      } else {
+        message.success('Job status updated successfully');
+      }
+      
       setIsStatusUpdateModalVisible(false);
       setCurrentJobForStatusUpdate(null);
       statusUpdateForm.resetFields();
       loadJobs(); // Reload jobs list
     } catch (error) {
-
+      console.error('Status update error:', error);
       message.error('Failed to update status');
     } finally {
       setLoading(false);
@@ -885,61 +1102,86 @@ const JobsPage = () => {
   };
 
   const handleFileUpload = async (file, options = {}) => {
-
+    console.log('🔷 [JobsPage] handleFileUpload called');
+    console.log('  - File:', file?.name);
+    console.log('  - Editing Job:', editingJob);
+    
     try {
+      // Only upload immediately if editing existing job
+      // For NEW jobs, files will be uploaded AFTER job creation
+      if (!editingJob?.id) {
+        console.log('  - NEW job mode: Skipping upload, will upload after job is created');
+        // Return a fake success response so the Upload component thinks it uploaded
+        return {
+          success: true,
+          file: {
+            id: 'temp-' + Date.now(),
+            originalName: file.name,
+            url: null, // No URL yet since not uploaded
+            pending: true
+          }
+        };
+      }
+      
       // Upload file with job-specific options if we have a job ID
       const uploadOptions = {
         folder: 'jobs',
         category: 'job_document',
+        entityId: editingJob.id,
+        entityType: 'job',
         ...options
       };
       
-      if (editingJob?.id) {
-        uploadOptions.entityId = editingJob.id;
-        uploadOptions.entityType = 'job';
-
-      } else {
-
-      }
-
+      console.log('  - EDIT job mode: Uploading with entityId:', editingJob.id);
       const response = await fileService.uploadFile(file, uploadOptions);
-
+      console.log('  - Upload response:', response);
       return response;
     } catch (error) {
-
+      console.error('❌ [JobsPage] handleFileUpload error:', error);
       throw error;
     }
   };
 
   const handleJobDocuments = async (jobId, documents, action) => {
+    console.log('🔷 [JobsPage] handleJobDocuments called');
+    console.log('  - Job ID:', jobId);
+    console.log('  - Documents:', documents);
+    console.log('  - Action:', action);
+    
     try {
-
       // Filter out files that are already uploaded (have URLs)
       const filesToUpload = documents.filter(file => !file.url && file.originFileObj);
+      console.log('  - Files to upload after filtering:', filesToUpload.length);
       
       if (filesToUpload.length === 0) {
-
+        console.log('  - No files to upload, returning');
         return;
       }
 
       // Upload each file and associate with job
       for (const file of filesToUpload) {
         try {
+          console.log('  - Uploading file:', file.name);
+          console.log('    - With options: { folder: jobs, category: job_document, entityId:', jobId, ', entityType: job }');
+          
           const uploadResponse = await fileService.uploadFile(file.originFileObj, {
             folder: 'jobs',
             category: 'job_document',
             entityId: jobId,
             entityType: 'job'
           });
+          
+          console.log('    ✅ Upload successful:', uploadResponse);
 
         } catch (uploadError) {
-
+          console.error('    ❌ Upload failed:', uploadError);
           message.error(`Failed to upload ${file.name}`);
         }
       }
+      console.log('✅ [JobsPage] All documents processed');
 
     } catch (error) {
-
+      console.error('❌ [JobsPage] handleJobDocuments error:', error);
       message.error('Failed to process some documents');
     }
   };
@@ -1037,6 +1279,7 @@ const JobsPage = () => {
                     dataSource={jobs}
                     loading={jobsLoading}
                     rowKey="id"
+                    scroll={{ x: 1500 }}
                     pagination={{
                       pageSize: 10,
                       showSizeChanger: true,
@@ -1085,6 +1328,7 @@ const JobsPage = () => {
                     dataSource={draftJobs}
                     loading={jobsLoading}
                     rowKey="id"
+                    scroll={{ x: 1500 }}
                     pagination={{
                       pageSize: 10,
                       showSizeChanger: true,
@@ -1124,11 +1368,13 @@ const JobsPage = () => {
         footer={null}
         width={800}
         style={{ top: 20 }}
-        bodyStyle={{ 
-          maxHeight: 'calc(100vh - 200px)', 
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          padding: '24px'
+        styles={{ 
+          body: {
+            maxHeight: 'calc(100vh - 200px)', 
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            padding: '24px'
+          }
         }}
         className="job-form-modal"
       >
@@ -1166,42 +1412,41 @@ const JobsPage = () => {
             <Col span={24}>
               <Form.Item
                 name="consignmentId"
-                label="Select Consignment"
-                rules={[{ required: true, message: 'Please select a consignment' }]}
+                label="Select Consignee"
+                rules={[{ required: false }]}
+                help="Select 'N/A' if consignee is not available yet. You can add it later by editing the job."
               >
                 <Select 
-                  placeholder={
-                    !hasSelectedClient
-                      ? "Select a client to view consignees"
-                      : consignmentsLoading 
-                        ? "Loading consignees..." 
-                        : selectedCustomerConsignments.length === 0 
-                          ? "No consignments found for this client" 
-                          : "Select a consignment for this client"
-                  }
+                  placeholder="Select a consignee or N/A"
                   onChange={handleConsignmentSelect}
-                  disabled={!hasSelectedClient || consignmentsLoading || selectedCustomerConsignments.length === 0}
                   loading={consignmentsLoading}
-                  notFoundContent={
-                    !hasSelectedClient
-                      ? "Select a client to view consignees"
-                      : consignmentsLoading 
-                        ? "Loading consignees..." 
-                        : selectedCustomerConsignments.length === 0 
-                          ? "No consignments found for this client" 
-                          : "No consignments"
-                  }
+                  allowClear
                 >
-                  {selectedCustomerConsignments.map(consignment => (
-                    <Option key={consignment.id} value={consignment.id}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>{consignment.trackingId} - {consignment.consigneeName}</span>
-                        <span style={{ fontSize: '12px', color: '#999' }}>
-                          {consignment.status}
+                  <Option key="na" value={null}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 'bold', color: '#999' }}>N/A</span>
+                      <span style={{ fontSize: '12px', color: '#999' }}>- Not Available (Add Later)</span>
+                    </div>
+                  </Option>
+                  {hasSelectedClient && selectedCustomerConsignments.length > 0 && (
+                    <>
+                      <Option disabled key="divider" style={{ borderBottom: '1px solid #f0f0f0' }}>
+                        <span style={{ fontSize: '11px', color: '#999', fontWeight: 'bold' }}>
+                          CONSIGNEES FOR SELECTED CLIENT
                         </span>
-                      </div>
-                    </Option>
-                  ))}
+                      </Option>
+                      {selectedCustomerConsignments.map(consignment => (
+                        <Option key={consignment.id} value={consignment.id}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>{consignment.trackingId} - {consignment.consigneeName}</span>
+                            <span style={{ fontSize: '12px', color: '#999' }}>
+                              {consignment.status}
+                            </span>
+                          </div>
+                        </Option>
+                      ))}
+                    </>
+                  )}
                 </Select>
               </Form.Item>
             </Col>
@@ -1446,8 +1691,10 @@ const JobsPage = () => {
         onCancel={() => {
           setIsStatusUpdateModalVisible(false);
           setCurrentJobForStatusUpdate(null);
+          statusUpdateForm.resetFields();
         }}
         footer={null}
+        width={700}
         >
           
           <Form
@@ -1504,6 +1751,21 @@ const JobsPage = () => {
           >
             {({ getFieldValue }) => {
               const status = getFieldValue('status');
+              if (status === 'ENTRY_COMPLETED') {
+                return (
+                  <Form.Item
+                    name="boeNumber"
+                    label="BoE Number"
+                    rules={[{ required: true, message: 'BoE number is required for Entry Completed status' }]}
+                    help="Enter the Bill of Entry (BoE) number"
+                  >
+                    <Input 
+                      placeholder="Enter BoE number"
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Item>
+                );
+              }
               if (status === 'RELEASED') {
                 return (
                   <>
@@ -1600,6 +1862,61 @@ const JobsPage = () => {
                         <Option value={false}>No - Money Not Received</Option>
                       </Select>
                     </Form.Item>
+                    <Form.Item
+                      name="demurrageType"
+                      label="Demurrage Status"
+                      rules={[{ required: true, message: 'Please select demurrage status' }]}
+                      help="Indicate if there's demurrage or if free days were passed"
+                    >
+                      <Select placeholder="Select demurrage status">
+                        <Option value="NO_DEMURRAGE">No Demurrage (Within Free Days)</Option>
+                        <Option value="DEMURRAGE">Demurrage</Option>
+                        <Option value="PASSED_FREE_DAYS">Passed Free Days</Option>
+                      </Select>
+                    </Form.Item>
+                    <Form.Item
+                      noStyle
+                      shouldUpdate={(prevValues, currentValues) => 
+                        prevValues.demurrageType !== currentValues.demurrageType
+                      }
+                    >
+                      {({ getFieldValue }) => {
+                        const demurrageType = getFieldValue('demurrageType');
+                        if (demurrageType === 'DEMURRAGE' || demurrageType === 'PASSED_FREE_DAYS') {
+                          return (
+                            <Form.Item
+                              name="demurrageInvoices"
+                              label="Demurrage Invoice(s)"
+                              rules={[{ required: true, message: 'Demurrage invoice is required' }]}
+                              help="Upload demurrage invoice documents (multiple files allowed)"
+                            >
+                              <FileUpload
+                                multiple={true}
+                                maxCount={10}
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                listType="text"
+                                uploadText="Upload Demurrage Invoice(s)"
+                              />
+                            </Form.Item>
+                          );
+                        }
+                        return null;
+                      }}
+                    </Form.Item>
+                    <Form.Item
+                      name="paymentReceipts"
+                      label="Payment Receipt(s)"
+                      rules={[{ required: true, message: 'Payment receipt is required for Release status' }]}
+                      help="Upload payment receipt documents (multiple files allowed) - COMPULSORY"
+                    >
+                      <FileUpload
+                        multiple={true}
+                        maxCount={10}
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        listType="text"
+                        uploadText="Upload Payment Receipt(s)"
+                      />
+                    </Form.Item>
                   </>
                 );
               } else if (status === 'INVOICED') {
@@ -1640,6 +1957,20 @@ const JobsPage = () => {
             rules={[{ required: true, message: 'Please add a comment for this status update' }]}
           >
             <TextArea rows={4} placeholder="Describe why the status is being updated..." />
+          </Form.Item>
+
+          <Form.Item
+            name="statusUpdateDocuments"
+            label="Attach Documents (Optional)"
+            help="Upload supporting documents for this status update"
+          >
+            <FileUpload
+              multiple={true}
+              maxCount={5}
+              accept=".pdf,.jpg,.jpeg,.png"
+              listType="text"
+              uploadText="Upload Files"
+            />
           </Form.Item>
 
           <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>
@@ -1692,48 +2023,44 @@ const JobsPage = () => {
              const hasDeletePermission = hasPermission(PERMISSIONS.JOB_DELETE);
              const showMenu = hasEditPermission || hasDeletePermission;
 
-             return showMenu ? (
-             <Dropdown
-               menu={{
-                 items: [
-                   ...(hasEditPermission ? [{
-                     key: 'edit',
-                      label: 'Edit Job',
-                     icon: <EditOutlined />,
+             return showMenu && (
+            <Dropdown
+              menu={{
+                items: [
+                  ...(hasEditPermission ? [{
+                    key: 'edit',
+                     label: 'Edit Job',
+                    icon: <EditOutlined />,
+                    onClick: () => {
+
+                      setIsDetailsDrawerVisible(false);
+                      handleEditJob(selectedJob);
+                    },
+                  }] : []),
+                  ...(hasDeletePermission ? [{
+                     key: 'delete',
+                     label: 'Delete Job',
+                     icon: <DeleteOutlined />,
+                     danger: true,
                      onClick: () => {
 
                        setIsDetailsDrawerVisible(false);
-                       handleEditJob(selectedJob);
+                       handleDeleteJob(selectedJob);
                      },
-                   }] : []),
-                   ...(hasDeletePermission ? [{
-                      key: 'delete',
-                      label: 'Delete Job',
-                      icon: <DeleteOutlined />,
-                      danger: true,
-                      onClick: () => {
-
-                        setIsDetailsDrawerVisible(false);
-                        handleDeleteJob(selectedJob);
-                      },
-                   }] : []),
-                 ],
-             }}
-             placement="bottomRight"
-             arrow
-           >
-              <Button 
-                type="text" 
-                icon={<MoreOutlined />}
-                size="large"
-              />
-            </Dropdown>
-           ) : (
-             <div style={{ color: 'red', fontSize: '12px' }}>
-               ❌ No edit/delete permissions - Menu hidden
-             </div>
-           );
-           })()}
+                  }] : []),
+                ],
+            }}
+            placement="bottomRight"
+            arrow
+          >
+             <Button 
+               type="text" 
+               icon={<MoreOutlined />}
+               size="large"
+             />
+           </Dropdown>
+          );
+          })()}
           </Space>
         }
        >
@@ -1951,9 +2278,23 @@ const JobsPage = () => {
                         )}
                       </div>
                     </div>
+                    <div style={{ marginBottom: '16px', display: 'flex' }}>
+                      <div style={{ width: '140px', fontWeight: 'bold' }}>Demurrage Status:</div>
+                      <div>
+                        {selectedJob.demurrageType ? (
+                          <Tag color={selectedJob.demurrageType === 'NO_DEMURRAGE' ? 'green' : 'orange'}>
+                            {selectedJob.demurrageType === 'NO_DEMURRAGE' && 'No Demurrage (Within Free Days)'}
+                            {selectedJob.demurrageType === 'DEMURRAGE' && 'Demurrage'}
+                            {selectedJob.demurrageType === 'PASSED_FREE_DAYS' && 'Passed Free Days'}
+                          </Tag>
+                        ) : (
+                          <Text type="secondary">Not specified</Text>
+                        )}
+                      </div>
+                    </div>
                   </>
                 )}
-                {(selectedJob.status === 'INVOICED' || selectedJob.status === 'ENTRY' || selectedJob.status === 'RELEASED' || selectedJob.status === 'CLEARED' || selectedJob.status === 'DELIVERED') && (
+                {(selectedJob.status === 'INVOICED' || selectedJob.status === 'ENTRY_COMPLETED' || selectedJob.status === 'READY_FOR_RELEASE' || selectedJob.status === 'RELEASED' || selectedJob.status === 'CLEARED' || selectedJob.status === 'DELIVERED') && (
                   <>
                     <div style={{ marginBottom: '16px', display: 'flex' }}>
                       <div style={{ width: '140px', fontWeight: 'bold' }}>Shipper Name:</div>
@@ -1980,6 +2321,20 @@ const JobsPage = () => {
                       </div>
                     </div>
                   </>
+                )}
+                {(selectedJob.status === 'ENTRY_COMPLETED' || selectedJob.status === 'READY_FOR_RELEASE' || selectedJob.status === 'RELEASED' || selectedJob.status === 'CLEARED' || selectedJob.status === 'DELIVERED') && (
+                  <div style={{ marginBottom: '16px', display: 'flex' }}>
+                    <div style={{ width: '140px', fontWeight: 'bold' }}>BoE Number:</div>
+                    <div>
+                      {selectedJob.boeNumber ? (
+                        <Tag color="orange">
+                          {selectedJob.boeNumber}
+                        </Tag>
+                      ) : (
+                        <Text type="secondary">Not specified</Text>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -2009,6 +2364,14 @@ const JobsPage = () => {
                 <div style={{ marginBottom: '16px', display: 'flex' }}>
                   <div style={{ width: '140px', fontWeight: 'bold' }}>Phone:</div>
                   <div>{selectedJob.customer?.phone || 'Unknown'}</div>
+                </div>
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>Ghana Card:</div>
+                  <div>{selectedJob.customer?.ghanaCard || selectedJob.consignment?.ghanaCard || 'Not provided'}</div>
+                </div>
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>TIN:</div>
+                  <div>{selectedJob.customer?.tin || selectedJob.consignment?.tin || 'Not provided'}</div>
                 </div>
               </div>
 
@@ -2120,33 +2483,133 @@ const JobsPage = () => {
                   </div>
                 ) : selectedJobDocuments && selectedJobDocuments.length > 0 ? (
                   <div>
-                    {selectedJobDocuments.map((doc, index) => (
-                      <div key={doc.id || index} style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        padding: '8px 0',
-                        borderBottom: index < selectedJobDocuments.length - 1 ? '1px solid #f0f0f0' : 'none'
-                      }}>
-                        <div style={{ marginRight: '8px' }}>
-                          {getDocumentIcon(doc)}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <Text strong>{doc.originalName}</Text>
-                          <br />
-                          <Text type="secondary" style={{ fontSize: '12px' }}>
-                            {formatFileSize(doc.size)} • {doc.mimeType}
-                          </Text>
-                        </div>
-                        <Button
-                          type="default" 
-                          size="small"
-                          icon={<EyeOutlined />}
-                          onClick={() => handleViewDocument(doc)}
-                        >
-                          View
-                        </Button>
-                      </div>
-                    ))}
+                    {/* Payment Receipts Section */}
+                    {(() => {
+                      const paymentReceipts = selectedJobDocuments.filter(doc => doc.category === 'payment_receipt');
+                      if (paymentReceipts.length > 0) {
+                        return (
+                          <div style={{ marginBottom: '24px' }}>
+                            <Title level={5} style={{ color: '#52c41a', marginBottom: '12px' }}>
+                              💳 Payment Receipts (Compulsory)
+                            </Title>
+                            {paymentReceipts.map((doc, index) => (
+                              <div key={doc.id || index} style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                padding: '8px 0',
+                                borderBottom: index < paymentReceipts.length - 1 ? '1px solid #f0f0f0' : 'none'
+                              }}>
+                                <div style={{ marginRight: '8px' }}>
+                                  {getDocumentIcon(doc)}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <Text strong>{doc.originalName}</Text>
+                                  <br />
+                                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                                    {formatFileSize(doc.size)} • {doc.mimeType}
+                                  </Text>
+                                </div>
+                                <Button
+                                  type="default" 
+                                  size="small"
+                                  icon={<EyeOutlined />}
+                                  onClick={() => handleViewDocument(doc)}
+                                >
+                                  View
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    {/* Demurrage Invoices Section */}
+                    {(() => {
+                      const demurrageInvoices = selectedJobDocuments.filter(doc => doc.category === 'demurrage_invoice');
+                      if (demurrageInvoices.length > 0) {
+                        return (
+                          <div style={{ marginBottom: '24px' }}>
+                            <Title level={5} style={{ color: '#fa8c16', marginBottom: '12px' }}>
+                              📄 Demurrage Invoices
+                            </Title>
+                            {demurrageInvoices.map((doc, index) => (
+                              <div key={doc.id || index} style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                padding: '8px 0',
+                                borderBottom: index < demurrageInvoices.length - 1 ? '1px solid #f0f0f0' : 'none'
+                              }}>
+                                <div style={{ marginRight: '8px' }}>
+                                  {getDocumentIcon(doc)}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <Text strong>{doc.originalName}</Text>
+                                  <br />
+                                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                                    {formatFileSize(doc.size)} • {doc.mimeType}
+                                  </Text>
+                                </div>
+                                <Button
+                                  type="default" 
+                                  size="small"
+                                  icon={<EyeOutlined />}
+                                  onClick={() => handleViewDocument(doc)}
+                                >
+                                  View
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    {/* Other Documents Section */}
+                    {(() => {
+                      const otherDocs = selectedJobDocuments.filter(doc => 
+                        doc.category !== 'payment_receipt' && doc.category !== 'demurrage_invoice'
+                      );
+                      if (otherDocs.length > 0) {
+                        return (
+                          <div>
+                            <Title level={5} style={{ color: '#1890ff', marginBottom: '12px' }}>
+                              📎 Other Documents
+                            </Title>
+                            {otherDocs.map((doc, index) => (
+                              <div key={doc.id || index} style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                padding: '8px 0',
+                                borderBottom: index < otherDocs.length - 1 ? '1px solid #f0f0f0' : 'none'
+                              }}>
+                                <div style={{ marginRight: '8px' }}>
+                                  {getDocumentIcon(doc)}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <Text strong>{doc.originalName}</Text>
+                                  <br />
+                                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                                    {formatFileSize(doc.size)} • {doc.mimeType}
+                                  </Text>
+                                </div>
+                                <Button
+                                  type="default" 
+                                  size="small"
+                                  icon={<EyeOutlined />}
+                                  onClick={() => handleViewDocument(doc)}
+                                >
+                                  View
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 ) : (
                   <div style={{ textAlign: 'center', padding: '20px' }}>

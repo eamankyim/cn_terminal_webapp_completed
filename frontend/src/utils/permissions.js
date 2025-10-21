@@ -8,7 +8,9 @@ import {
   EyeOutlined,
   FileTextOutlined,
   FlagOutlined,
-  UserOutlined
+  UserOutlined,
+  ContainerOutlined,
+  CarOutlined
 } from '@ant-design/icons';
 
 // Define all available permissions
@@ -209,7 +211,7 @@ export const ROLE_PERMISSIONS = {
   ],
   
   ENQUIRY_OFFICER: [
-    // EMPLOYEE - Can CREATE jobs, customers, invoices, requests
+    // EMPLOYEE - Can CREATE jobs, customers, VIEW JOB REPORTS, NO INVOICE/REVENUE ACCESS
     PERMISSIONS.JOB_VIEW,
     PERMISSIONS.JOB_CREATE,
     PERMISSIONS.JOB_EDIT,
@@ -220,18 +222,74 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.CUSTOMER_EDIT,
     PERMISSIONS.CUSTOMER_VIEW_ALL,
     
-    PERMISSIONS.INVOICE_VIEW,
-    PERMISSIONS.INVOICE_CREATE,        // ✅ EMPLOYEES can create invoices
-    PERMISSIONS.INVOICE_VIEW_ALL,
+    // NO INVOICE ACCESS - Revenue related
+    // PERMISSIONS.INVOICE_VIEW,
+    // PERMISSIONS.INVOICE_CREATE,
+    // PERMISSIONS.INVOICE_VIEW_ALL,
     
     PERMISSIONS.DASHBOARD_VIEW,
-    PERMISSIONS.REPORTS_VIEW,          // ✅ General reports access
+    PERMISSIONS.REPORTS_VIEW,          // ✅ Can see job reports (but not revenue data)
     
     PERMISSIONS.SETTINGS_VIEW,
     
     PERMISSIONS.FILE_UPLOAD,
     PERMISSIONS.FILE_DOWNLOAD,
     PERMISSIONS.FILE_DELETE,           // ✅ Can delete files
+    
+    PERMISSIONS.NOTIFICATION_VIEW,
+    
+    // Can request expenses (requires approval)
+    PERMISSIONS.EXPENSE_REQUEST,
+    PERMISSIONS.EXPENSE_VIEW,
+  ],
+  
+  ENTRY_OFFICER: [
+    // EMPLOYEE - Updates jobs to ENTRY status, views assigned jobs
+    PERMISSIONS.JOB_VIEW,
+    PERMISSIONS.JOB_EDIT,
+    PERMISSIONS.JOB_UPDATE_STATUS,     // ✅ Can update job status to ENTRY
+    PERMISSIONS.JOB_VIEW_ALL,
+    
+    PERMISSIONS.CUSTOMER_VIEW,
+    PERMISSIONS.CUSTOMER_VIEW_ALL,
+    
+    PERMISSIONS.DASHBOARD_VIEW,
+    PERMISSIONS.REPORTS_VIEW,
+    
+    PERMISSIONS.SETTINGS_VIEW,
+    
+    PERMISSIONS.FILE_UPLOAD,
+    PERMISSIONS.FILE_DOWNLOAD,
+    PERMISSIONS.FILE_VIEW,
+    
+    PERMISSIONS.NOTIFICATION_VIEW,
+    
+    // Can request expenses (requires approval)
+    PERMISSIONS.EXPENSE_REQUEST,
+    PERMISSIONS.EXPENSE_VIEW,
+  ],
+  
+  TRANSPORT_COORDINATOR: [
+    // EMPLOYEE - Assigns jobs to release officers, uploads documentation, updates status to READY_FOR_RELEASE
+    PERMISSIONS.JOB_VIEW,
+    PERMISSIONS.JOB_EDIT,
+    PERMISSIONS.JOB_ASSIGN,            // ✅ Can assign jobs to release officers
+    PERMISSIONS.JOB_UPDATE_STATUS,     // ✅ Can update job status to READY_FOR_RELEASE
+    PERMISSIONS.JOB_VIEW_ALL,
+    
+    PERMISSIONS.CUSTOMER_VIEW,
+    PERMISSIONS.CUSTOMER_VIEW_ALL,
+    
+    PERMISSIONS.USER_VIEW,             // ✅ Can view users to assign jobs
+    
+    PERMISSIONS.DASHBOARD_VIEW,
+    PERMISSIONS.REPORTS_VIEW,
+    
+    PERMISSIONS.SETTINGS_VIEW,
+    
+    PERMISSIONS.FILE_UPLOAD,           // ✅ Can upload documentation
+    PERMISSIONS.FILE_DOWNLOAD,
+    PERMISSIONS.FILE_VIEW,
     
     PERMISSIONS.NOTIFICATION_VIEW,
     
@@ -494,6 +552,20 @@ export const ROLE_INFO = {
     description: 'Creates jobs and manages customer enquiries',
     color: 'blue',
     icon: <FileAddOutlined />,
+    level: 3
+  },
+  ENTRY_OFFICER: {
+    name: 'Entry Officer',
+    description: 'Updates jobs to entry status and manages entry process',
+    color: 'orange',
+    icon: <ContainerOutlined />,
+    level: 3
+  },
+  TRANSPORT_COORDINATOR: {
+    name: 'Transport Coordinator',
+    description: 'Assigns jobs to release officers and uploads documentation',
+    color: 'blue',
+    icon: <CarOutlined />,
     level: 3
   },
   RELEASE_OFFICER: {

@@ -36,6 +36,7 @@ import InviteManagement from '../components/admin/InviteManagement';
 import userService from '../services/userService';
 import configurationService from '../services/configurationService';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -43,6 +44,15 @@ const { TextArea } = Input;
 
 const AdminDashboardPage = () => {
   const { currentUser, updateProfile } = useAuth();
+  const navigate = useNavigate();
+  
+  // Route guard: Only ADMIN and IT_CONSULTANT can access this page
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'ADMIN' && currentUser.role !== 'IT_CONSULTANT') {
+      message.error('Access denied. This page is only accessible to administrators.');
+      navigate('/dashboard');
+    }
+  }, [currentUser, navigate]);
   const [activeTab, setActiveTab] = useState('profile');
   const [userModalVisible, setUserModalVisible] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);

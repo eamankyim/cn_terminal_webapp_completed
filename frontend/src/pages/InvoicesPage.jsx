@@ -48,6 +48,7 @@ import {
   ShoppingCartOutlined,
   CalculatorOutlined,
   InfoCircleOutlined,
+  CarOutlined,
   PrinterOutlined,
   ShareAltOutlined
 } from '@ant-design/icons';
@@ -328,7 +329,8 @@ const InvoicesPage = () => {
       'NEW': 'green',
       'PREINVOICED': 'blue',
       'INVOICED': 'purple',
-      'ENTRY': 'orange',
+      'ENTRY_COMPLETED': 'orange',
+      'READY_FOR_RELEASE': 'geekblue',
       'RELEASE': 'cyan',
       'CLEARED': 'green',
       'DELIVERED': 'green'
@@ -342,7 +344,8 @@ const InvoicesPage = () => {
       'NEW': <PlusOutlined />,
       'PREINVOICED': <FileTextOutlined />,
       'INVOICED': <DollarOutlined />,
-      'ENTRY': <CalendarOutlined />,
+      'ENTRY_COMPLETED': <CalendarOutlined />,
+      'READY_FOR_RELEASE': <CarOutlined />,
       'RELEASE': <CheckCircleOutlined />,
       'CLEARED': <CheckCircleOutlined />,
       'DELIVERED': <CheckCircleOutlined />
@@ -1565,10 +1568,12 @@ const InvoicesPage = () => {
         }}
         footer={null}
         width={800}
-        bodyStyle={{
-          maxHeight: '70vh',
-          overflowY: 'auto',
-          padding: '24px'
+        styles={{
+          body: {
+            maxHeight: '70vh',
+            overflowY: 'auto',
+            padding: '24px'
+          }
         }}
       >
         <Form
@@ -2041,10 +2046,12 @@ const InvoicesPage = () => {
           </Button>
         ]}
         style={{ top: 20 }}
-        bodyStyle={{
-          maxHeight: '80vh',
-          overflowY: 'auto',
-          padding: '0'
+        styles={{
+          body: {
+            maxHeight: '80vh',
+            overflowY: 'auto',
+            padding: '0'
+          }
         }}
       >
         {selectedInvoice && (

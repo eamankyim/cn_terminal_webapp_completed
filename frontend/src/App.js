@@ -20,6 +20,7 @@ import SetupPage from './pages/SetupPage';
 import AcceptInvitationPage from './pages/AcceptInvitationPage';
 import AccountingPage from './pages/AccountingPage';
 import RequestsPage from './pages/RequestsPage';
+import RoleBasedRedirect from './components/auth/RoleBasedRedirect';
 
 // Auth Components
 import { AuthProvider } from './contexts/AuthContext';
@@ -64,7 +65,7 @@ function App() {
                     <MainLayout />
                   </ProtectedRoute>
                 }>
-                  <Route index element={<Navigate to="/dashboard" replace />} />
+                  <Route index element={<RoleBasedRedirect />} />
                   <Route path="dashboard" element={<DashboardPage />} />
                   <Route path="enquiries" element={<JobsPage />} />
                   <Route path="clients" element={<ClientsPage />} />
