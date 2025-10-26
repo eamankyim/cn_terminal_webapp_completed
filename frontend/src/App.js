@@ -12,6 +12,7 @@ import JobsPage from './pages/JobsPage';
 import ClientsPage from './pages/ClientsPage';
 import ReportsPage from './pages/ReportsPage';
 import InvoicesPage from './pages/InvoicesPage';
+import EstimatesPage from './pages/EstimatesPage';
 
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import SettingsPage from './pages/SettingsPage';
@@ -70,6 +71,7 @@ function App() {
                   <Route path="enquiries" element={<JobsPage />} />
                   <Route path="clients" element={<ClientsPage />} />
                   <Route path="invoices" element={<InvoicesPage />} />
+                  <Route path="estimates" element={<EstimatesPage />} />
 
                   <Route path="reports" element={<ReportsPage />} />
                   <Route path="accounting" element={<AccountingPage />} />

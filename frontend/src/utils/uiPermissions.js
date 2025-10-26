@@ -7,6 +7,7 @@ export const UI_PERMISSIONS = {
   JOBS: 'ui:jobs', 
   CLIENTS: 'ui:clients',
   INVOICES: 'ui:invoices',
+  ESTIMATES: 'ui:estimates',
   ACCOUNTING: 'ui:accounting',
   REQUESTS: 'ui:requests',
   REPORTS: 'ui:reports',
@@ -43,6 +44,13 @@ export const UI_PERMISSIONS = {
   DELETE_INVOICE: 'ui:delete_invoice',
   APPROVE_INVOICE: 'ui:approve_invoice',
   VIEW_ALL_INVOICES: 'ui:view_all_invoices',
+  
+  // Estimate Management Actions
+  CREATE_ESTIMATE: 'ui:create_estimate',
+  EDIT_ESTIMATE: 'ui:edit_estimate',
+  DELETE_ESTIMATE: 'ui:delete_estimate',
+  SEND_ESTIMATE: 'ui:send_estimate',
+  VIEW_ALL_ESTIMATES: 'ui:view_all_estimates',
   
   // Accounting Actions
   CREATE_EXPENSE: 'ui:create_expense',

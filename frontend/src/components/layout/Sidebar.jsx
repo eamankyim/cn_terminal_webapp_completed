@@ -57,6 +57,12 @@ const Sidebar = ({ collapsed }) => {
       permission: UI_PERMISSIONS.INVOICES,
     },
     {
+      key: '/estimates',
+      icon: <CalculatorOutlined />,
+      label: 'Estimates',
+      permission: UI_PERMISSIONS.ESTIMATES,
+    },
+    {
       key: '/accounting',
       icon: <CalculatorOutlined />,
       label: 'Accounting',

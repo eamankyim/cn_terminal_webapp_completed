@@ -39,6 +39,14 @@ export const PERMISSIONS = {
   INVOICE_APPROVE: 'invoice:approve',
   INVOICE_VIEW_ALL: 'invoice:view_all',
   
+  // Estimate Management
+  ESTIMATE_VIEW: 'estimate:view',
+  ESTIMATE_CREATE: 'estimate:create',
+  ESTIMATE_EDIT: 'estimate:edit',
+  ESTIMATE_DELETE: 'estimate:delete',
+  ESTIMATE_SEND: 'estimate:send',
+  ESTIMATE_VIEW_ALL: 'estimate:view_all',
+  
   // Customer Management
   CUSTOMER_VIEW: 'customer:view',
   CUSTOMER_CREATE: 'customer:create',

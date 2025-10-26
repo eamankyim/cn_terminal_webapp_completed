@@ -22,6 +22,7 @@ model User {
   uploadedFiles       File[]
   sentInvitations     Invitation[]
   createdInvoices     Invoice[]
+  createdEstimates    Estimate[]
   statusHistory       JobStatusHistory[]   @relation("StatusHistory")
   assignedJobs        Job[]                @relation("AssignedJobs")
   createdJobs         Job[]                @relation("CreatedJobs")
@@ -58,6 +59,7 @@ model Customer {
   consignments  Consignment[]
   enquiries     Enquiry[]
   invoices      Invoice[]
+  estimates     Estimate[]
   jobs          Job[]
 
   @@map("customers")
@@ -229,6 +231,30 @@ model Invoice {
   @@map("invoices")
 }
 
+model Estimate {
+  id              String         @id @default(cuid())
+  estimateNumber  String         @unique
+  customerId      String
+  createdById     String
+  amount          Float
+  status          EstimateStatus @default(DRAFT)
+  issueDate       DateTime
+  validUntil      DateTime
+  convertedToInvoice Boolean     @default(false)
+  invoiceId       String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  description     String?
+  charges         Json?
+  comments        String?
+  terms           String?
+  createdBy       User           @relation(fields: [createdById], references: [id])
+  customer        Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  notifications   Notification[]
+
+  @@map("estimates")
+}
+
 model Payment {
   id            String         @id @default(cuid())
   invoiceId     String?
@@ -316,24 +342,26 @@ model Configuration {
 }
 
 model Notification {
-  id        String               @id @default(cuid())
-  title     String
-  message   String
-  type      NotificationType     @default(INFO)
-  category  NotificationCategory
-  isRead    Boolean              @default(false)
-  userId    String?
-  jobId     String?
-  invoiceId String?
-  paymentId String?
-  metadata  Json?
-  createdAt DateTime             @default(now())
-  readAt    DateTime?
-  expiresAt DateTime?
-  invoice   Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  job       Job?                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  payment   Payment?             @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-  user      User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String               @id @default(cuid())
+  title      String
+  message    String
+  type       NotificationType     @default(INFO)
+  category   NotificationCategory
+  isRead     Boolean              @default(false)
+  userId     String?
+  jobId      String?
+  invoiceId  String?
+  paymentId  String?
+  estimateId String?
+  metadata   Json?
+  createdAt  DateTime             @default(now())
+  readAt     DateTime?
+  expiresAt  DateTime?
+  estimate   Estimate?            @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  invoice    Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  job        Job?                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  payment    Payment?             @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  user       User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
 }
@@ -564,6 +592,14 @@ enum InvoiceStatus {
   PAID
   OVERDUE
   CANCELLED
+}
+
+enum EstimateStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
 }
 
 enum PaymentMethod {
