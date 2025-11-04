@@ -49,7 +49,7 @@ services:
     environment:
       - NODE_ENV=production
     ports:
-      - "3001:3000"
+      - "3004:3000"
     depends_on:
       - backend
     networks:

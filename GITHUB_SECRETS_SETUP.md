@@ -56,23 +56,23 @@ openssl rand -hex 64
 ```
 
 #### `REACT_APP_API_URL`
-**Value:** `http://81.0.247.14:5001/api`  
+**Value:** `https://app.cnterminalghana.com/api`  
 **Purpose:** Backend API URL for frontend
 
 #### `FRONTEND_URL`
-**Value:** `http://81.0.247.14:3001`  
+**Value:** `https://app.cnterminalghana.com`  
 **Purpose:** Frontend URL for Socket.IO connection
 
 #### `PRODUCTION_URL`
-**Value:** `http://81.0.247.14:5001`  
+**Value:** `https://app.cnterminalghana.com`  
 **Purpose:** Production URL for Swagger/API docs
 
 #### `CORS_ORIGIN`
-**Value:** `http://81.0.247.14:3001`  
+**Value:** `https://app.cnterminalghana.com`  
 **Purpose:** Allowed CORS origins (comma-separated if multiple)
 
 #### `APP_BASE_URL`
-**Value:** `http://81.0.247.14:3001`  
+**Value:** `https://app.cnterminalghana.com`  
 **Purpose:** Application base URL for invitation links
 
 ## Setup Instructions
@@ -113,19 +113,19 @@ Name: JWT_SECRET
 Value: your-generated-jwt-secret
 
 Name: REACT_APP_API_URL
-Value: http://81.0.247.14:5001/api
+Value: https://app.cnterminalghana.com/api
 
 Name: FRONTEND_URL
-Value: http://81.0.247.14:3001
+Value: https://app.cnterminalghana.com
 
 Name: PRODUCTION_URL
-Value: http://81.0.247.14:5001
+Value: https://app.cnterminalghana.com
 
 Name: CORS_ORIGIN
-Value: http://81.0.247.14:3001
+Value: https://app.cnterminalghana.com
 
 Name: APP_BASE_URL
-Value: http://81.0.247.14:3001
+Value: https://app.cnterminalghana.com
 ```
 
 ### Step 3: Verify Secrets

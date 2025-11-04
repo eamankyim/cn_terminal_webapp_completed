@@ -30,11 +30,11 @@ PROD_SERVER_SSH_KEY=your-private-ssh-key-contents
 ```
 DB_PASSWORD=your_secure_database_password
 JWT_SECRET=your_jwt_secret_key
-REACT_APP_API_URL=http://81.0.247.14:5001/api
-FRONTEND_URL=http://81.0.247.14:3001
-PRODUCTION_URL=http://81.0.247.14:5001
-CORS_ORIGIN=http://81.0.247.14:3001
-APP_BASE_URL=http://81.0.247.14:3001
+REACT_APP_API_URL=https://app.cnterminalghana.com/api
+FRONTEND_URL=https://app.cnterminalghana.com
+PRODUCTION_URL=https://app.cnterminalghana.com
+CORS_ORIGIN=https://app.cnterminalghana.com
+APP_BASE_URL=https://app.cnterminalghana.com
 ```
 
 **How to get your SSH key:**
@@ -94,9 +94,9 @@ When you run `./deploy-production.sh`, GitHub Actions will:
 5. ✅ Push database schema
 
 **Just wait for the deployment to complete and access:**
-- Frontend: http://81.0.247.14:3001
-- Backend API: http://81.0.247.14:5001/api
-- API Docs: http://81.0.247.14:5001/api-docs
+- Frontend: https://app.cnterminalghana.com
+- Backend API: https://app.cnterminalghana.com/api
+- API Docs: https://app.cnterminalghana.com/api-docs
 
 ### Step 5: Create Admin User (One-Time Manual Step)
 
@@ -111,9 +111,9 @@ docker-compose -f docker-compose.prod.yml logs -f
 ```
 
 **Access the application:**
-- Frontend: http://81.0.247.14:3001
-- Backend API: http://81.0.247.14:5001/api
-- API Docs: http://81.0.247.14:5001/api-docs
+- Frontend: https://app.cnterminalghana.com
+- Backend API: https://app.cnterminalghana.com/api
+- API Docs: https://app.cnterminalghana.com/api-docs
 
 ## 🔄 Future Deployments
 

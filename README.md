@@ -33,9 +33,9 @@ Customs & Clearance Management System for terminal operations.
    ```
 
 3. **Access the application**:
-   - Frontend: `http://your-server-ip:3001`
-   - Backend API: `http://your-server-ip:5001/api`
-   - API Docs: `http://your-server-ip:5001/api-docs`
+   - Frontend: `https://app.cnterminalghana.com`
+   - Backend API: `https://app.cnterminalghana.com/api`
+   - API Docs: `https://app.cnterminalghana.com/api-docs`
 
 ### Database Setup
 

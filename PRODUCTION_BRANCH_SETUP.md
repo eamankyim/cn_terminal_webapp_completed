@@ -144,9 +144,9 @@ After deployment, verify:
    ```
 
 3. **Access application**:
-   - Frontend: `http://your-server-ip:3000`
-   - Backend: `http://your-server-ip:5000/api`
-   - API Docs: `http://your-server-ip:5000/api/docs`
+   - Frontend: `https://app.cnterminalghana.com`
+   - Backend: `https://app.cnterminalghana.com/api`
+   - API Docs: `https://app.cnterminalghana.com/api-docs`
 
 4. **Database connectivity**:
    ```bash
@@ -167,7 +167,7 @@ After deployment, verify:
 - Check logs: `docker-compose -f docker-compose.prod.yml logs`
 - Verify `.env` file exists on server
 - Check database connectivity
-- Ensure ports 3000, 5000, 5433 are available
+- Ensure ports 3004, 5001, 5434 are available
 
 ### Auto-deployment not working
 

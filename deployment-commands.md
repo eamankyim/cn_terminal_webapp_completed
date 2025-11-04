@@ -227,10 +227,10 @@ docker exec cn_terminal_frontend env | grep REACT_APP
 
 ## Access Points
 
-- **Frontend**: http://81.0.247.14:3000
-- **Backend API**: http://81.0.247.14:5000/api
-- **API Documentation**: http://81.0.247.14:5000/api/docs
-- **Database**: localhost:5433 (only accessible on server)
+- **Frontend**: https://app.cnterminalghana.com
+- **Backend API**: https://app.cnterminalghana.com/api
+- **API Documentation**: https://app.cnterminalghana.com/api-docs
+- **Database**: localhost:5434 (only accessible on server)
 
 ## Automatic Backups
 
