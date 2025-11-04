@@ -1,0 +1,60 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Deploy to Server
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.PROD_SERVER_IP }}
+        username: ${{ secrets.PROD_SERVER_USER }}
+        key: ${{ secrets.PROD_SERVER_SSH_KEY }}
+        script: |
+          cd ~/cn_terminal
+          
+          # Pull latest code from production branch
+          echo "📥 Pulling latest code..."
+          git pull origin production || git clone https://github.com/${{ github.repository }}.git .
+          git checkout production
+          
+          # Create .env file from GitHub secrets (if doesn't exist)
+          if [ ! -f .env ]; then
+            echo "📝 Creating .env file from GitHub secrets..."
+            cat > .env << EOF
+DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+JWT_SECRET=${{ secrets.JWT_SECRET }}
+REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}
+FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+PRODUCTION_URL=${{ secrets.PRODUCTION_URL }}
+CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}
+APP_BASE_URL=${{ secrets.APP_BASE_URL }}
+EOF
+            echo "✅ .env file created from GitHub secrets"
+          fi
+          
+          # Make scripts executable
+          chmod +x deploy.sh auto-deploy.sh 2>/dev/null || true
+          
+          # Deploy using deploy.sh
+          echo "🚀 Starting deployment..."
+          ./deploy.sh
+          
+          # Wait for containers to be fully up
+          echo "⏳ Waiting for containers to be ready..."
+          sleep 15
+          
+          # Setup database (only for first deployment)
+          echo "🗄️ Setting up database..."
+          docker exec cn_terminal_backend npx prisma db push || true
+          
+          echo "✅ Deployment complete!"
+          echo "📊 Container Status:"
+          docker-compose -f docker-compose.prod.yml ps
+

@@ -7,6 +7,17 @@ const { hasPermission, hasAnyPermission, hasAllPermissions, PERMISSIONS } = requ
  */
 async function checkUserPermission(userId, permissionName) {
   try {
+    // Special wildcard permission grants all access
+    if (permissionName === '*') {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
+      });
+      
+      // Only ADMIN and IT_CONSULTANT have wildcard access
+      return user && ['ADMIN', 'IT_CONSULTANT'].includes(user.role);
+    }
+    
     // First, get the permission ID
     const permission = await prisma.permission.findUnique({
       where: { name: permissionName }

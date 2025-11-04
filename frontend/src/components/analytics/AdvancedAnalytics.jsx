@@ -219,7 +219,7 @@ const AdvancedAnalytics = ({ dateRange, onDateRangeChange }) => {
 
       {/* Key Metrics Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Revenue Trend"
@@ -239,7 +239,7 @@ const AdvancedAnalytics = ({ dateRange, onDateRangeChange }) => {
             </Text>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Job Efficiency"
@@ -257,7 +257,7 @@ const AdvancedAnalytics = ({ dateRange, onDateRangeChange }) => {
             </Text>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Active Jobs"
@@ -273,7 +273,7 @@ const AdvancedAnalytics = ({ dateRange, onDateRangeChange }) => {
             </Text>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Completed Jobs"

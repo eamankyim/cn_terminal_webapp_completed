@@ -168,7 +168,7 @@ const DashboardWidgets = ({ dateRange }) => {
     <div>
       {/* KPI Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Total Jobs"
@@ -187,7 +187,7 @@ const DashboardWidgets = ({ dateRange }) => {
             </Text>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Avg Processing Time"
@@ -204,7 +204,7 @@ const DashboardWidgets = ({ dateRange }) => {
             </Text>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Total Revenue"
@@ -218,7 +218,7 @@ const DashboardWidgets = ({ dateRange }) => {
             </Text>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Active Customers"
@@ -284,7 +284,7 @@ const DashboardWidgets = ({ dateRange }) => {
 
       {/* Performance Metrics */}
       <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card size="small">
             <Statistic
               title="Daily Average Jobs"
@@ -294,7 +294,7 @@ const DashboardWidgets = ({ dateRange }) => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card size="small">
             <Statistic
               title="Daily Average Revenue"
@@ -304,7 +304,7 @@ const DashboardWidgets = ({ dateRange }) => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card size="small">
             <Statistic
               title="Efficiency Rate"
@@ -314,7 +314,7 @@ const DashboardWidgets = ({ dateRange }) => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card size="small">
             <Statistic
               title="Revenue per Job"

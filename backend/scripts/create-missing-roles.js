@@ -51,6 +51,24 @@ const ROLES_TO_CREATE = [
     displayName: 'Clearing Officer',
     description: 'Sets jobs to cleared status',
     isSystem: true
+  },
+  {
+    name: 'ACCOUNTANT',
+    displayName: 'Accountant',
+    description: 'Manages expenses, payouts, and financial records',
+    isSystem: true
+  },
+  {
+    name: 'ENTRY_OFFICER',
+    displayName: 'Entry Officer',
+    description: 'Updates jobs to entry status and manages entry process',
+    isSystem: true
+  },
+  {
+    name: 'TRANSPORT_COORDINATOR',
+    displayName: 'Transport Coordinator',
+    description: 'Assigns jobs to release officers and uploads documentation',
+    isSystem: true
   }
 ];
 

@@ -3,6 +3,7 @@ import PermissionGate from '../components/common/PermissionGate';
 import { PERMISSIONS } from '../utils/permissions';
 import { UI_PERMISSIONS } from '../utils/uiPermissions';
 import { useAuth } from '../contexts/AuthContext';
+import ResponsiveTable from '../components/common/ResponsiveTable';
 import { 
   Card, 
   Row, 
@@ -301,7 +302,7 @@ const AccountingDashboard = () => {
         {/* Financial Statistics Cards */}
         <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
           {stats.map((stat, index) => (
-            <Col xs={24} sm={8} lg={8} key={index}>
+            <Col xs={12} sm={8} lg={8} key={index}>
               <Card>
                 <Statistic
                   title={stat.title}
@@ -317,7 +318,7 @@ const AccountingDashboard = () => {
 
         {/* Additional Financial Metrics */}
         <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-          <Col xs={24} sm={8}>
+          <Col xs={12} sm={8}>
             <Card>
               <Statistic
                 title="Pending Approvals"
@@ -327,7 +328,7 @@ const AccountingDashboard = () => {
               />
             </Card>
           </Col>
-          <Col xs={24} sm={8}>
+          <Col xs={12} sm={8}>
             <Card>
               <Statistic
                 title="Approved Expenses"
@@ -337,7 +338,7 @@ const AccountingDashboard = () => {
               />
             </Card>
           </Col>
-          <Col xs={24} sm={8}>
+          <Col xs={12} sm={8}>
             <Card>
               <Statistic
                 title="Current Cashflow"
@@ -371,11 +372,14 @@ const AccountingDashboard = () => {
               }
               style={{ marginBottom: '16px' }}
             >
-              <Table
+              <ResponsiveTable
                 dataSource={dashboardData.recentExpenses}
                 columns={expenseColumns}
                 pagination={false}
-                size="small"
+                mobileConfig={{
+                  primaryFields: ['description', 'amount'],
+                  secondaryFields: ['category', 'status', 'createdAt']
+                }}
                 locale={{
                   emptyText: (
                     <Empty
@@ -408,11 +412,14 @@ const AccountingDashboard = () => {
               }
               style={{ marginBottom: '16px' }}
             >
-              <Table
+              <ResponsiveTable
                 dataSource={dashboardData.recentPayouts}
                 columns={payoutColumns}
                 pagination={false}
-                size="small"
+                mobileConfig={{
+                  primaryFields: ['description', 'amount'],
+                  secondaryFields: ['type', 'status', 'createdAt']
+                }}
                 locale={{
                   emptyText: (
                     <Empty

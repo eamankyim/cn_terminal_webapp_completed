@@ -35,8 +35,11 @@ const io = new Server(server, {
 // Make io available globally
 global.io = io;
 
-// Middleware
-app.use(cors());
+// Middleware - Configure CORS
+const corsOptions = process.env.CORS_ORIGIN
+  ? { origin: process.env.CORS_ORIGIN.split(','), credentials: true }
+  : { origin: true, credentials: true };
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

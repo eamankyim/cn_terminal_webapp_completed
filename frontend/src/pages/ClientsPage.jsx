@@ -44,6 +44,8 @@ import { getCustomerStatusColor } from '../utils/statusUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { PERMISSIONS } from '../utils/permissions';
 import FileUpload from '../components/common/FileUpload';
+import ResponsiveTable from '../components/common/ResponsiveTable';
+import DocumentPreviewModal from '../components/common/DocumentPreviewModal';
 import { fileService } from '../services/fileService';
 
 const { Title, Text } = Typography;
@@ -62,6 +64,8 @@ const ClientsPage = () => {
   const [viewingConsignmentDocs, setViewingConsignmentDocs] = useState(null);
   const [consignmentDocuments, setConsignmentDocuments] = useState([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [previewFile, setPreviewFile] = useState(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
   const [form] = Form.useForm();
   const [consignmentForm] = Form.useForm();
 
@@ -349,7 +353,7 @@ const ClientsPage = () => {
 
       {/* Statistics Row */}
       <Row gutter={16} style={{ marginBottom: '24px' }}>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Total Clients"
@@ -359,7 +363,7 @@ const ClientsPage = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Active Clients"
@@ -369,7 +373,7 @@ const ClientsPage = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Company Clients"
@@ -379,7 +383,7 @@ const ClientsPage = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Individual Clients"
@@ -424,7 +428,7 @@ const ClientsPage = () => {
 
       {/* Clients Table */}
       <Card>
-        <Table
+        <ResponsiveTable
           columns={columns}
           dataSource={clients}
           rowKey="id"
@@ -435,6 +439,11 @@ const ClientsPage = () => {
             showQuickJumper: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} clients`
           }}
+          mobileConfig={{
+            primaryFields: ['client', 'status'],
+            secondaryFields: ['contact', 'customerType', 'location', 'createdAt']
+          }}
+          onRowClick={(record) => handleViewClient(record)}
         />
       </Card>
 
@@ -935,7 +944,7 @@ const ClientsPage = () => {
           </div>
         ) : consignmentDocuments && consignmentDocuments.length > 0 ? (
           <div>
-            <Table
+            <ResponsiveTable
               dataSource={consignmentDocuments}
               rowKey="id"
               pagination={false}
@@ -969,8 +978,8 @@ const ClientsPage = () => {
                         size="small"
                         icon={<EyeOutlined />}
                         onClick={() => {
-                          const url = file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`;
-                          window.open(url, '_blank');
+                          setPreviewFile(file);
+                          setPreviewVisible(true);
                         }}
                       >
                         View
@@ -997,6 +1006,10 @@ const ClientsPage = () => {
                   )
                 }
               ]}
+              mobileConfig={{
+                primaryFields: ['originalName'],
+                secondaryFields: ['size', 'uploadedAt']
+              }}
             />
           </div>
         ) : (
@@ -1006,6 +1019,12 @@ const ClientsPage = () => {
         )}
       </Modal>
 
+      {/* Document Preview Modal */}
+      <DocumentPreviewModal
+        visible={previewVisible}
+        onClose={() => setPreviewVisible(false)}
+        file={previewFile}
+      />
     </div>
   );
 };

@@ -139,7 +139,8 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
     // Log all invitation links for easy access
 
     invitations.forEach(inv => {
-      const inviteLink = `${process.env.CORS_ORIGIN || 'http://localhost:3000'}/accept-invitation/${inv.id}`;
+      const baseUrl = process.env.APP_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+      const inviteLink = `${baseUrl}/accept-invitation/${inv.id}`;
 
     });
 
@@ -336,7 +337,8 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
     });
 
     // Generate invite link
-    const inviteLink = `${process.env.CORS_ORIGIN || 'http://localhost:3000'}/accept-invitation/${invitation.id}`;
+    const baseUrl = process.env.APP_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+    const inviteLink = `${baseUrl}/accept-invitation/${invitation.id}`;
     
     // Send email notification
 
@@ -640,6 +642,11 @@ router.post('/:id/accept', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // Find the Role ID for the invitation role
+    const role = await prisma.role.findUnique({
+      where: { name: invitation.role }
+    });
+
     // Create user and update invitation in a transaction
 
     const result = await prisma.$transaction(async (tx) => {
@@ -651,6 +658,7 @@ router.post('/:id/accept', async (req, res) => {
           email: invitation.email,
           password: hashedPassword,
           role: invitation.role,
+          roleId: role?.id || null,
           isActive: true
         },
         select: {
@@ -770,7 +778,8 @@ router.post('/:id/resend', authenticateToken, requireAdmin, async (req, res) => 
 
     try {
       const emailService = require('../services/emailService');
-      const inviteLink = `${process.env.CORS_ORIGIN || 'http://localhost:3000'}/accept-invitation/${invitation.id}`;
+      const baseUrl = process.env.APP_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+      const inviteLink = `${baseUrl}/accept-invitation/${invitation.id}`;
 
       const emailResult = await emailService.sendInvitationEmail({
         ...invitation,

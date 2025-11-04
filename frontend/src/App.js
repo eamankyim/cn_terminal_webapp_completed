@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ConfigProvider } from 'antd';
 import { theme } from 'antd';
 import './App.css';
+import './styles/responsive.css';
 
 // Layout and Pages
 import MainLayout from './components/layout/MainLayout';
@@ -95,3 +96,4 @@ function App() {
 }
 
 export default App;
+

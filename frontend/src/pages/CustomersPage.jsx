@@ -36,6 +36,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCustomers } from '../contexts/CustomerContext';
 import { useAuth } from '../contexts/AuthContext';
 import { PERMISSIONS } from '../utils/permissions';
+import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -207,7 +208,7 @@ const CustomersPage = () => {
       {/* Statistics Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         {stats.map((stat, index) => (
-          <Col xs={24} sm={12} lg={6} key={index}>
+          <Col xs={12} sm={12} lg={6} key={index}>
             <Card>
               <Statistic
                 title={stat.title}
@@ -251,7 +252,7 @@ const CustomersPage = () => {
 
       {/* Customers Table */}
       <Card>
-        <Table
+        <ResponsiveTable
           columns={columns}
           dataSource={customers}
           pagination={{
@@ -263,6 +264,11 @@ const CustomersPage = () => {
               `${range[0]}-${range[1]} of ${total} customers`,
           }}
           scroll={{ x: 1200 }}
+          mobileConfig={{
+            primaryFields: ['customerId', 'customer', 'status'],
+            secondaryFields: ['phone', 'city', 'customerType', 'totalJobs']
+          }}
+          onRowClick={(record) => handleViewCustomer(record)}
         />
       </Card>
 

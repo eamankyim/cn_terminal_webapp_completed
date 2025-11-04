@@ -25,6 +25,11 @@
   margin-left: 80px;
 }
 
+/* Mobile Layout */
+.mobile-layout {
+  margin-left: 0 !important;
+}
+
 .main-content {
   margin: 24px;
   padding: 24px;
@@ -33,6 +38,28 @@
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
   min-height: calc(100vh - 112px);
   overflow-y: auto;
+}
+
+/* Mobile Responsive Adjustments */
+@media (max-width: 768px) {
+  .main-header {
+    padding: 0 8px;
+  }
+
+  .main-content {
+    margin: 0;
+    padding: 12px;
+    border-radius: 0;
+    min-height: calc(100vh - 64px);
+  }
+}
+
+@media (max-width: 576px) {
+  .main-content {
+    margin: 0;
+    padding: 8px;
+    border-radius: 0;
+  }
 }
 
 .notification-button {

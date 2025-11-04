@@ -40,6 +40,7 @@ import {
 import CustomerSelector from '../components/common/CustomerSelector';
 import invoiceService from '../services/invoiceService';
 import { useAuth } from '../contexts/AuthContext';
+import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -323,7 +324,7 @@ const InvoiceManagementPage = () => {
         <div>
           <Card size="small" style={{ marginBottom: '16px' }}>
             <Row gutter={[16, 16]}>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Total Invoices"
                   value={invoices.length}
@@ -331,7 +332,7 @@ const InvoiceManagementPage = () => {
                   valueStyle={{ color: '#1890ff' }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Paid"
                   value={invoices.filter(inv => inv.status === 'PAID').length}
@@ -339,7 +340,7 @@ const InvoiceManagementPage = () => {
                   valueStyle={{ color: '#52c41a' }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Pending"
                   value={invoices.filter(inv => inv.status === 'PENDING').length}
@@ -347,7 +348,7 @@ const InvoiceManagementPage = () => {
                   valueStyle={{ color: '#faad14' }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Overdue"
                   value={invoices.filter(inv => inv.status === 'OVERDUE').length}
@@ -371,13 +372,16 @@ const InvoiceManagementPage = () => {
               }
             />
           )}
-          <Table
+          <ResponsiveTable
             columns={invoiceColumns}
             dataSource={invoices}
             loading={loading}
             pagination={false}
-            size="small"
             rowKey="id"
+            mobileConfig={{
+              primaryFields: ['invoiceNumber', 'customer'],
+              secondaryFields: ['amount', 'status', 'date']
+            }}
           />
         </div>
       ),
@@ -389,7 +393,7 @@ const InvoiceManagementPage = () => {
         <div>
           <Card size="small" style={{ marginBottom: '16px' }}>
             <Row gutter={[16, 16]}>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Available for Invoice"
                   value={availableShipments.filter(s => !s.invoiceGenerated).length}
@@ -397,7 +401,7 @@ const InvoiceManagementPage = () => {
                   valueStyle={{ color: '#1890ff' }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Total Weight"
                   value={availableShipments.reduce((sum, s) => sum + parseFloat(s.weight), 0).toFixed(1)}
@@ -405,7 +409,7 @@ const InvoiceManagementPage = () => {
                   valueStyle={{ color: '#52c41a' }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Total Value"
                   value={availableShipments.reduce((sum, s) => sum + s.value, 0)}
@@ -413,7 +417,7 @@ const InvoiceManagementPage = () => {
                   valueStyle={{ color: '#722ed1' }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Premium Service"
                   value={availableShipments.filter(s => s.service === 'Premium').length}
@@ -423,11 +427,14 @@ const InvoiceManagementPage = () => {
               </Col>
             </Row>
           </Card>
-          <Table
+          <ResponsiveTable
             columns={shipmentColumns}
             dataSource={availableShipments.filter(s => !s.invoiceGenerated)}
             pagination={false}
-            size="small"
+            mobileConfig={{
+              primaryFields: ['trackingId'],
+              secondaryFields: ['customer', 'destination', 'service']
+            }}
           />
         </div>
       ),

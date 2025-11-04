@@ -36,6 +36,7 @@ import moment from 'moment';
 import expenseService from '../../services/expenseService';
 import { useAuth } from '../../contexts/AuthContext';
 import PermissionGate from '../common/PermissionGate';
+import ResponsiveTable from '../common/ResponsiveTable';
 import { PERMISSIONS } from '../../utils/permissions';
 
 const { Title, Text } = Typography;
@@ -216,6 +217,7 @@ const ExpenseRequestsList = () => {
     {
       title: 'Request Details',
       key: 'details',
+      dataIndex: 'details',
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{expenseService.formatExpenseAmount(record.amount)}</Text>
@@ -231,6 +233,7 @@ const ExpenseRequestsList = () => {
     {
       title: 'Requested By',
       key: 'requester',
+      dataIndex: 'requester',
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{record.requestedBy?.name}</Text>
@@ -243,6 +246,7 @@ const ExpenseRequestsList = () => {
     {
       title: 'Date',
       key: 'date',
+      dataIndex: 'date',
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text>{moment(record.expenseDate).format('DD/MM/YYYY')}</Text>
@@ -255,6 +259,7 @@ const ExpenseRequestsList = () => {
     {
       title: 'Job',
       key: 'job',
+      dataIndex: 'job',
       render: (_, record) => (
         record.job ? (
           <Space direction="vertical" size={0}>
@@ -271,6 +276,7 @@ const ExpenseRequestsList = () => {
     {
       title: 'Status',
       key: 'status',
+      dataIndex: 'status',
       render: (_, record) => (
         <Tag color={getStatusColor(record.status)}>
           {record.status}
@@ -280,6 +286,7 @@ const ExpenseRequestsList = () => {
     {
       title: 'Actions',
       key: 'actions',
+      dataIndex: 'actions',
       render: (_, record) => (
             <Button
               type="default"
@@ -297,7 +304,7 @@ const ExpenseRequestsList = () => {
     <div>
       {/* Statistics Cards */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Total Amount"
@@ -307,7 +314,7 @@ const ExpenseRequestsList = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Pending Requests"
@@ -316,7 +323,7 @@ const ExpenseRequestsList = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Approved Requests"
@@ -325,7 +332,7 @@ const ExpenseRequestsList = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Total Requests"
@@ -401,7 +408,7 @@ const ExpenseRequestsList = () => {
 
       {/* Table */}
       <Card>
-        <Table
+        <ResponsiveTable
           columns={columns}
           dataSource={requests}
           rowKey="id"
@@ -414,6 +421,11 @@ const ExpenseRequestsList = () => {
               `${range[0]}-${range[1]} of ${total} requests`
           }}
           onChange={handleTableChange}
+          mobileConfig={{
+            primaryFields: ['details'],
+            secondaryFields: ['requester', 'date', 'status']
+          }}
+          onRowClick={(record) => handleViewDetails(record)}
         />
       </Card>
 

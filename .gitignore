@@ -15,12 +15,36 @@ backend/node_modules/.cache/
 
 # testing
 /coverage
+test/
+tests/
+__tests__/
+*.test.js
+*.test.jsx
+*.spec.js
+*.spec.jsx
 
 # production
 /build
 
-# misc
+# logs
+*.log
+logs/
+backend/logs/
+*.log*
+
+# uploads (user content, not source code)
+backend/uploads/
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
+Thumbs.db
+
+# misc
 .env.local
 .env.development.local
 .env.test.local

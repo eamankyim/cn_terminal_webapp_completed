@@ -1,0 +1,128 @@
+/* Mobile Table Card Styles */
+.responsive-table-mobile {
+  width: 100%;
+}
+
+.mobile-table-card {
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  margin-bottom: 8px !important;
+}
+
+/* Override card body padding on mobile cards */
+.mobile-table-card .ant-card-body {
+  padding: 12px !important;
+}
+
+.mobile-table-card:hover {
+  border-color: #2FA2EE;
+  box-shadow: 0 2px 8px rgba(47, 162, 238, 0.15);
+}
+
+/* Field Styles */
+.mobile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mobile-field.secondary {
+  opacity: 0.8;
+}
+
+.mobile-field-label {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.mobile-field-value {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+/* Actions Container */
+.mobile-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.mobile-actions .ant-btn {
+  width: 100%;
+  min-height: 44px;
+}
+
+/* Tag Styles in Mobile View */
+.mobile-table-card .ant-tag {
+  margin: 2px 0;
+  font-size: 12px;
+  padding: 2px 8px;
+  display: inline-block;
+}
+
+/* Typography Adjustments */
+.mobile-table-card .ant-typography {
+  word-break: break-word;
+}
+
+.mobile-table-card strong {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+/* Space Adjustments */
+.mobile-table-card .ant-space {
+  width: 100%;
+}
+
+.mobile-table-card .ant-space-item {
+  width: 100%;
+}
+
+/* Empty State */
+.responsive-table-mobile .ant-empty {
+  padding: 40px 20px;
+}
+
+/* Loading State */
+.responsive-table-mobile .ant-spin-nested-loading {
+  min-height: 200px;
+}
+
+/* Pagination Styles */
+.responsive-table-mobile .ant-pagination {
+  margin-top: 16px;
+  text-align: center;
+}
+
+/* Responsive adjustments for very small screens */
+@media (max-width: 374px) {
+  .mobile-field-label {
+    font-size: 11px;
+  }
+  
+  .mobile-field-value {
+    font-size: 13px;
+  }
+  
+  .mobile-table-card {
+    border-radius: 6px;
+  }
+  
+  .mobile-table-card .ant-card-body {
+    padding: 8px !important;
+  }
+  
+  .mobile-actions {
+    margin-top: 8px;
+    padding-top: 8px;
+    gap: 6px;
+  }
+}

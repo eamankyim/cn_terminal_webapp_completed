@@ -60,6 +60,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { PERMISSIONS } from '../utils/permissions';
 import { calculateVAT, calculateTotalVAT, getVATExplanation } from '../utils/vatCalculator';
 import { getJobStatusColor, getInvoiceStatusColor } from '../utils/statusUtils';
+import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -961,7 +962,7 @@ const InvoicesPage = () => {
 
       {/* Statistics Row */}
       <Row gutter={16} style={{ marginBottom: '24px' }}>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Total Invoices"
@@ -971,7 +972,7 @@ const InvoicesPage = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Paid Invoices"
@@ -981,7 +982,7 @@ const InvoicesPage = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Pending Payment"
@@ -991,7 +992,7 @@ const InvoicesPage = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Overdue"
@@ -1083,7 +1084,7 @@ const InvoicesPage = () => {
             }
           />
         )}
-        <Table
+        <ResponsiveTable
           columns={columns}
           dataSource={invoices}
           loading={loading}
@@ -1093,6 +1094,10 @@ const InvoicesPage = () => {
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} invoices`
+          }}
+          mobileConfig={{
+            primaryFields: ['invoiceNumber', 'status'],
+            secondaryFields: ['customer', 'amount', 'date', 'dueDate']
           }}
                   />
                 </div>
@@ -1104,7 +1109,7 @@ const InvoicesPage = () => {
               children: (
                 <div>
                   {/* Jobs Table */}
-                    <Table
+                    <ResponsiveTable
                       columns={jobColumns}
                       dataSource={jobs}
                       loading={jobsLoading}
@@ -1114,6 +1119,10 @@ const InvoicesPage = () => {
                       showSizeChanger: true,
                       showQuickJumper: true,
                       showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} jobs available for invoicing`
+                    }}
+                    mobileConfig={{
+                      primaryFields: ['trackingId', 'customer'],
+                      secondaryFields: ['goodsTypes', 'status', 'createdAt']
                     }}
                     locale={{
                       emptyText: (

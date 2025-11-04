@@ -1,0 +1,61 @@
+# CN Terminal Production Files Whitelist
+# This file lists all files/folders that SHOULD be in production branch
+
+## Root Level Files
+.gitignore
+.gitignore.production
+production-files.txt
+README.md
+package.json
+package-lock.json
+
+## Deployment Scripts (Keep ALL)
+deploy.sh
+deploy-production.sh
+auto-deploy.sh
+docker-compose.prod.yml
+.github/workflows/deploy.yml
+
+## Frontend (Keep ALL code, but exclude dev-only files)
+frontend/
+frontend/Dockerfile.prod
+frontend/package.json
+frontend/package-lock.json
+frontend/public/
+frontend/src/
+
+## Backend (Keep ALL code, but exclude dev-only files)
+backend/
+backend/Dockerfile.prod
+backend/package.json
+backend/package-lock.json
+backend/config/
+backend/middleware/
+backend/prisma/
+backend/routes/
+backend/services/
+backend/utils/
+backend/server.js
+backend/logger.js
+backend/nodemon.json
+
+## Environment Examples (Keep for reference)
+.env.example
+backend/.env.production.example
+frontend/.env.production.example
+
+## DO NOT Commit to Production
+# ❌ Remove from production:
+# - All .md files except README.md
+# - test/ tests/ __tests__/ directories
+# - .vscode/ .idea/ directories
+# - *.log files
+# - backend/logs/
+# - backend/uploads/ (user content)
+# - backend/backup/
+# - docs/
+# - screenshots/
+# - database dumps
+# - .env files (except examples)
+
+

@@ -22,7 +22,8 @@ import {
   Avatar,
   Modal,
   Checkbox,
-  Form
+  Form,
+  Alert
 } from 'antd';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -43,6 +44,8 @@ import reportService from '../services/reportService';
 import DashboardWidgets from '../components/analytics/DashboardWidgets';
 import RealTimeAnalytics from '../components/analytics/RealTimeAnalytics';
 import { getJobStatusColor, getInvoiceStatusColor } from '../utils/statusUtils';
+import ResponsiveTable from '../components/common/ResponsiveTable';
+import useResponsive from '../hooks/useResponsive';
 
 // Chart Components
 import ChartContainer from '../components/charts/ChartContainer';
@@ -58,6 +61,7 @@ const { TabPane } = Tabs;
 
 const ReportsPage = () => {
   const { currentUser } = useAuth();
+  const { isMobile } = useResponsive();
   const [loading, setLoading] = useState(false);
   const [dateRange, setDateRange] = useState([
     dayjs().subtract(30, 'days'),
@@ -1124,7 +1128,7 @@ const ReportsPage = () => {
           <TabPane tab="Overview" key="overview">
             {/* Main KPI Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
                     title="Total Jobs"
@@ -1143,7 +1147,7 @@ const ReportsPage = () => {
                   </Text>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
                     title="Avg Processing Time"
@@ -1161,7 +1165,7 @@ const ReportsPage = () => {
           </Card>
         </Col>
         {!shouldHideRevenue && (
-          <Col xs={24} sm={12} lg={6}>
+          <Col xs={12} sm={12} lg={6}>
             <Card>
               <Statistic
                       title="Total Revenue"
@@ -1176,7 +1180,7 @@ const ReportsPage = () => {
             </Card>
           </Col>
         )}
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
                     title="Active Customers"
@@ -1191,6 +1195,17 @@ const ReportsPage = () => {
               </Col>
             </Row>
 
+            {/* Mobile Alert - Show only key stats on mobile */}
+            {isMobile && (
+              <Alert
+                message="Mobile View: Key Statistics Only"
+                description="For detailed charts, tables, and analytics, please view this page on a desktop or tablet."
+                type="info"
+                showIcon
+                style={{ marginBottom: '24px' }}
+              />
+            )}
+
             {loading ? (
               <div style={{ textAlign: 'center', padding: '50px' }}>
                 <Spin size="large" />
@@ -1200,7 +1215,9 @@ const ReportsPage = () => {
               </div>
             ) : (
               <>
-                {/* Main Charts Row */}
+                {/* Main Charts Row - Hide on mobile */}
+                {!isMobile && (
+                <>
                 <Row gutter={[16, 16]} style={{ marginTop: '24px' }}>
                   <Col xs={24} lg={12}>
                     <Card title="Job Status Distribution" size="small">
@@ -1377,11 +1394,14 @@ const ReportsPage = () => {
             <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
               <Col xs={24} lg={12}>
                 <Card title="Job Status Summary" size="small">
-                  <Table
+                  <ResponsiveTable
                     dataSource={jobStatusData}
                     columns={jobStatusColumns}
                     pagination={false}
-                    size="small"
+                    mobileConfig={{
+                      primaryFields: ['status'],
+                      secondaryFields: ['count', 'percentage']
+                    }}
                   />
                 </Card>
               </Col>
@@ -1399,17 +1419,21 @@ const ReportsPage = () => {
                 </Card>
               </Col>
             </Row>
+                </>)}
               </>
             )}
           </TabPane>
 
           <TabPane tab="Daily Activity" key="daily">
             <Card title="Daily Activity Report" size="small">
-              <Table
+              <ResponsiveTable
                 dataSource={dailyActivityData}
                 columns={dailyActivityColumns}
                 pagination={false}
-                size="small"
+                mobileConfig={{
+                  primaryFields: ['date'],
+                  secondaryFields: ['jobsCreated', 'invoicesCreated']
+                }}
               />
             </Card>
           </TabPane>
@@ -1417,11 +1441,14 @@ const ReportsPage = () => {
           {!shouldHideRevenue && (
             <TabPane tab="Invoices" key="invoices">
               <Card title="Invoice Reports" size="small">
-                <Table
+                <ResponsiveTable
                   dataSource={invoiceData}
                   columns={invoiceColumns}
                   pagination={false}
-                  size="small"
+                  mobileConfig={{
+                    primaryFields: ['invoiceNumber'],
+                    secondaryFields: ['amount', 'status']
+                  }}
                 />
               </Card>
             </TabPane>
@@ -1429,11 +1456,14 @@ const ReportsPage = () => {
 
           <TabPane tab="Customers" key="customers">
             <Card title="Customer Activity" size="small">
-              <Table
+              <ResponsiveTable
                 dataSource={customerData}
                 columns={customerColumns}
                 pagination={false}
-                size="small"
+                mobileConfig={{
+                  primaryFields: ['customerName'],
+                  secondaryFields: ['totalJobs', 'totalRevenue']
+                }}
               />
             </Card>
           </TabPane>
@@ -1490,7 +1520,7 @@ const ReportsPage = () => {
                 {/* Recent Expenses */}
                 <Col xs={24} lg={12}>
                   <Card title="Recent Expenses" size="small">
-                    <Table
+                    <ResponsiveTable
                       dataSource={financialData.expenses.slice(0, 10)}
                       columns={[
                         {
@@ -1522,7 +1552,10 @@ const ReportsPage = () => {
                         },
                       ]}
                       pagination={false}
-                      size="small"
+                      mobileConfig={{
+                        primaryFields: ['description', 'amount'],
+                        secondaryFields: ['status', 'createdAt']
+                      }}
                       locale={{
                         emptyText: <Empty description="No expenses found" />
                       }}
@@ -1533,7 +1566,7 @@ const ReportsPage = () => {
                 {/* Recent Payouts */}
                 <Col xs={24} lg={12}>
                   <Card title="Recent Payouts" size="small">
-                    <Table
+                    <ResponsiveTable
                       dataSource={financialData.payouts.slice(0, 10)}
                       columns={[
                         {
@@ -1571,7 +1604,10 @@ const ReportsPage = () => {
                         },
                       ]}
                       pagination={false}
-                      size="small"
+                      mobileConfig={{
+                        primaryFields: ['description', 'amount'],
+                        secondaryFields: ['type', 'status', 'createdAt']
+                      }}
                       locale={{
                         emptyText: <Empty description="No payouts found" />
                       }}

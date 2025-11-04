@@ -148,10 +148,18 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
 
     res.json(response);
   } catch (error) {
+    console.error('❌ [Files API] Upload error:', error);
+    console.error('  - Error message:', error.message);
+    console.error('  - Error stack:', error.stack);
 
     // Clean up uploaded file if database operation fails
     if (req.file && fs.existsSync(req.file.path)) {
+      try {
       fs.unlinkSync(req.file.path);
+        console.log('✅ Cleaned up uploaded file:', req.file.path);
+      } catch (cleanupError) {
+        console.error('❌ Failed to clean up file:', cleanupError.message);
+      }
     }
     
     res.status(500).json({ 
@@ -209,12 +217,20 @@ router.post('/upload-multiple', authenticateToken, upload.array('files', 5), asy
       files: uploadedFiles
     });
   } catch (error) {
+    console.error('❌ [Files API] Multiple upload error:', error);
+    console.error('  - Error message:', error.message);
+    console.error('  - Error stack:', error.stack);
 
     // Clean up uploaded files if database operation fails
     if (req.files) {
       req.files.forEach(file => {
         if (fs.existsSync(file.path)) {
+          try {
           fs.unlinkSync(file.path);
+            console.log('✅ Cleaned up uploaded file:', file.path);
+          } catch (cleanupError) {
+            console.error('❌ Failed to clean up file:', file.path, cleanupError.message);
+          }
         }
       });
     }
@@ -258,6 +274,9 @@ router.get('/:id', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('❌ [Files API] Get file by ID error:', error);
+    console.error('  - Error message:', error.message);
+    console.error('  - Error stack:', error.stack);
 
     res.status(500).json({ 
       success: false, 
@@ -356,6 +375,9 @@ router.get('/download/:id', authenticateToken, async (req, res) => {
 
     res.download(file.path, file.originalName);
   } catch (error) {
+    console.error('❌ [Files API] Download error:', error);
+    console.error('  - Error message:', error.message);
+    console.error('  - Error stack:', error.stack);
 
     res.status(500).json({ 
       success: false, 
@@ -392,7 +414,13 @@ router.delete('/delete', authenticateToken, async (req, res) => {
 
     // Delete file from disk
     if (fs.existsSync(file.path)) {
+      try {
       fs.unlinkSync(file.path);
+        console.log('✅ Deleted file from disk:', file.path);
+      } catch (diskError) {
+        console.error('❌ Failed to delete file from disk:', diskError.message);
+        // Continue with database deletion even if disk deletion fails
+      }
     }
 
     // Delete file record from database
@@ -405,6 +433,9 @@ router.delete('/delete', authenticateToken, async (req, res) => {
       message: 'File deleted successfully'
     });
   } catch (error) {
+    console.error('❌ [Files API] Delete error:', error);
+    console.error('  - Error message:', error.message);
+    console.error('  - Error stack:', error.stack);
 
     res.status(500).json({ 
       success: false, 

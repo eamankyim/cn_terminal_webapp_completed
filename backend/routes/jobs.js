@@ -171,6 +171,26 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
         ]
       }
     ];
+    
+    // Role-based filtering: DRIVER only sees assigned jobs
+    if (req.user.role === 'DRIVER') {
+      // DRIVER only sees jobs where they are the assignee OR the driverName matches
+      const driverFilter = {
+        OR: [
+          { assignedToId: req.user.id },
+          { driverName: req.user.name }
+        ]
+      };
+      
+      // Merge driver filter with visibility conditions
+      const conditionsWithDriver = visibilityConditions.map(condition => ({
+        AND: [condition, driverFilter]
+      }));
+      
+      visibilityConditions.splice(0, visibilityConditions.length, ...conditionsWithDriver);
+      
+      console.log('  - Applied DRIVER filtering: only assigned jobs or driver-matched jobs');
+    }
 
     // Add search conditions if provided
     if (search) {

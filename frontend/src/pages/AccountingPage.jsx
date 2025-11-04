@@ -121,7 +121,7 @@ const AccountingPage = () => {
         <div>
           {/* Summary Cards */}
           <Row gutter={16} style={{ marginBottom: 24 }}>
-            <Col span={6}>
+            <Col xs={12} sm={12} lg={6}>
               <Card>
                 <Statistic
                   title="Net Cashflow"
@@ -132,7 +132,7 @@ const AccountingPage = () => {
                 />
               </Card>
             </Col>
-            <Col span={6}>
+            <Col xs={12} sm={12} lg={6}>
               <Card>
                 <Statistic
                   title="Total Inflows"
@@ -143,7 +143,7 @@ const AccountingPage = () => {
                 />
               </Card>
             </Col>
-            <Col span={6}>
+            <Col xs={12} sm={12} lg={6}>
               <Card>
                 <Statistic
                   title="Total Outflows"
@@ -154,7 +154,7 @@ const AccountingPage = () => {
                 />
               </Card>
             </Col>
-            <Col span={6}>
+            <Col xs={12} sm={12} lg={6}>
               <Card>
                 <Statistic
                   title="Pending Expenses"
@@ -167,11 +167,11 @@ const AccountingPage = () => {
 
           {/* Expense Breakdown */}
           <Row gutter={16} style={{ marginBottom: 24 }}>
-            <Col span={12}>
+            <Col xs={24} lg={12}>
               <Card title="Expense Breakdown" size="small">
                 <Row gutter={16}>
                   {expenseStats.categoryBreakdown?.map((category, index) => (
-                    <Col span={12} key={index} style={{ marginBottom: 16 }}>
+                    <Col xs={12} sm={12} key={index} style={{ marginBottom: 16 }}>
                       <Statistic
                         title={category.category}
                         value={category.amount}
@@ -183,11 +183,11 @@ const AccountingPage = () => {
                 </Row>
               </Card>
             </Col>
-            <Col span={12}>
+            <Col xs={24} lg={12}>
               <Card title="Payout Breakdown" size="small">
                 <Row gutter={16}>
                   {payoutStats.methodBreakdown?.map((method, index) => (
-                    <Col span={12} key={index} style={{ marginBottom: 16 }}>
+                    <Col xs={12} sm={12} key={index} style={{ marginBottom: 16 }}>
                       <Statistic
                         title={method.paymentMethod}
                         value={method.amount}
@@ -242,10 +242,10 @@ const AccountingPage = () => {
           </div>
           
           <Row gutter={16}>
-            <Col span={24}>
+            <Col xs={24}>
               <Card title="Cashflow Summary" size="small">
                 <Row gutter={16}>
-                  <Col span={8}>
+                  <Col xs={12} sm={8}>
                     <Statistic
                       title="Total Inflows"
                       value={cashflowData.summary?.totalInflows || 0}
@@ -253,7 +253,7 @@ const AccountingPage = () => {
                       valueStyle={{ color: '#52c41a' }}
                     />
                   </Col>
-                  <Col span={8}>
+                  <Col xs={12} sm={8}>
                     <Statistic
                       title="Total Outflows"
                       value={cashflowData.summary?.totalOutflows || 0}
@@ -261,7 +261,7 @@ const AccountingPage = () => {
                       valueStyle={{ color: '#ff4d4f' }}
                     />
                   </Col>
-                  <Col span={8}>
+                  <Col xs={12} sm={8}>
                     <Statistic
                       title="Net Cashflow"
                       value={cashflowData.summary?.netCashflow || 0}

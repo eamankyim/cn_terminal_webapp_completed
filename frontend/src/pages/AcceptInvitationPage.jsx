@@ -52,6 +52,11 @@ const AcceptInvitationPage = () => {
       
       const response = await invitationService.validateInvitation(id);
       setInvitation(response.invitation);
+      
+      // Auto-populate email in form
+      if (response.invitation?.email) {
+        form.setFieldsValue({ email: response.invitation.email });
+      }
     } catch (error) {
       setError(error.message || 'Invalid or expired invitation');
     } finally {

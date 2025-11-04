@@ -31,6 +31,8 @@ import expenseService from '../services/expenseService';
 import { useAuth } from '../contexts/AuthContext';
 import PermissionGate from '../components/common/PermissionGate';
 import { PERMISSIONS } from '../utils/permissions';
+import ResponsiveTable from '../components/common/ResponsiveTable';
+import DocumentPreviewModal from '../components/common/DocumentPreviewModal';
 
 const { Title, Text } = Typography;
 
@@ -53,6 +55,8 @@ const RequestsPage = () => {
   const [stats, setStats] = useState({});
   const [detailsDrawerVisible, setDetailsDrawerVisible] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [previewFile, setPreviewFile] = useState(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
 
   const expenseStatuses = expenseService.getExpenseStatuses();
 
@@ -279,7 +283,7 @@ const RequestsPage = () => {
 
       {/* My Requests Table */}
       <Card>
-        <Table
+        <ResponsiveTable
           columns={columns}
           dataSource={myRequests}
           rowKey="id"
@@ -291,6 +295,11 @@ const RequestsPage = () => {
             showTotal: (total, range) =>
               `${range[0]}-${range[1]} of ${total} requests`
           }}
+          mobileConfig={{
+            primaryFields: ['amount', 'description', 'status'],
+            secondaryFields: ['date', 'job']
+          }}
+          onRowClick={(record) => handleViewDetails(record)}
           locale={{
             emptyText: (
               <Empty
@@ -380,7 +389,10 @@ const RequestsPage = () => {
                   <Button
                     type="default"
                     size="small"
-                    onClick={() => window.open(selectedRequest.receiptUrl, '_blank')}
+                    onClick={() => {
+                      setPreviewFile({ url: selectedRequest.receiptUrl, originalName: 'Receipt' });
+                      setPreviewVisible(true);
+                    }}
                   >
                     View Receipt
                   </Button>
@@ -438,6 +450,13 @@ const RequestsPage = () => {
           </div>
         )}
       </Drawer>
+
+      {/* Document Preview Modal */}
+      <DocumentPreviewModal
+        visible={previewVisible}
+        onClose={() => setPreviewVisible(false)}
+        file={previewFile}
+      />
     </div>
   );
 };

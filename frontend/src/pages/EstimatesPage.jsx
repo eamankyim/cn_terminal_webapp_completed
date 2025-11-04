@@ -42,10 +42,11 @@ import {
   CalculatorOutlined
 } from '@ant-design/icons';
 import estimateService from '../services/estimateService';
-import { getCustomers } from '../services/api';
+import apiService from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { PERMISSIONS } from '../utils/permissions';
 import PermissionGate from '../components/common/PermissionGate';
+import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -84,7 +85,7 @@ const EstimatesPage = () => {
 
   const loadCustomers = async () => {
     try {
-      const response = await getCustomers();
+      const response = await apiService.getCustomers();
       setCustomers(response.customers || []);
     } catch (error) {
       console.error('Error loading customers:', error);
@@ -359,7 +360,7 @@ const EstimatesPage = () => {
 
       {/* Statistics */}
       <Row gutter={16} style={{ marginBottom: '24px' }}>
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={12} sm={12} md={6}>
           <Card>
             <Statistic
               title="Total Estimates"
@@ -368,7 +369,7 @@ const EstimatesPage = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={12} sm={12} md={6}>
           <Card>
             <Statistic
               title="Draft"
@@ -378,7 +379,7 @@ const EstimatesPage = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={12} sm={12} md={6}>
           <Card>
             <Statistic
               title="Sent"
@@ -388,7 +389,7 @@ const EstimatesPage = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={12} sm={12} md={6}>
           <Card>
             <Statistic
               title="Total Value"
@@ -426,7 +427,7 @@ const EstimatesPage = () => {
           </PermissionGate>
         </div>
 
-        <Table
+        <ResponsiveTable
           columns={columns}
           dataSource={filteredEstimates}
           loading={loading}
@@ -437,6 +438,11 @@ const EstimatesPage = () => {
             showSizeChanger: true,
             showTotal: (total) => `Total ${total} estimates`
           }}
+          mobileConfig={{
+            primaryFields: ['estimateNumber', 'customer', 'amount'],
+            secondaryFields: ['status', 'issueDate', 'validUntil']
+          }}
+          onRowClick={(record) => handleViewEstimate(record)}
         />
       </Card>
 

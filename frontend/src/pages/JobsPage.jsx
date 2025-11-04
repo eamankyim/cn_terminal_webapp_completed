@@ -53,6 +53,8 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import CustomerSelector from '../components/common/CustomerSelector';
 import FileUpload from '../components/common/FileUpload';
+import ResponsiveTable from '../components/common/ResponsiveTable';
+import DocumentPreviewModal from '../components/common/DocumentPreviewModal';
 import { useCustomers } from '../contexts/CustomerContext';
 import { useAuth } from '../contexts/AuthContext';
 import { PERMISSIONS } from '../utils/permissions';
@@ -133,6 +135,8 @@ const JobsPage = () => {
   const [selectedJob, setSelectedJob] = useState(null);
   const [selectedJobDocuments, setSelectedJobDocuments] = useState([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [previewFile, setPreviewFile] = useState(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
   const [isStatusUpdateModalVisible, setIsStatusUpdateModalVisible] = useState(false);
   const [statusUpdateForm] = Form.useForm();
   const [currentJobForStatusUpdate, setCurrentJobForStatusUpdate] = useState(null);
@@ -1079,8 +1083,8 @@ const JobsPage = () => {
 
   const handleViewDocument = (document) => {
     if (document?.url) {
-      const url = document.url.startsWith('http') ? document.url : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${document.url}`;
-      window.open(url, '_blank');
+      setPreviewFile(document);
+      setPreviewVisible(true);
     }
   };
 
@@ -1207,7 +1211,7 @@ const JobsPage = () => {
 
       {/* Statistics Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
             <Card>
               <Statistic
               title="Total Jobs"
@@ -1217,7 +1221,7 @@ const JobsPage = () => {
               />
             </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Pre-invoiced"
@@ -1227,7 +1231,7 @@ const JobsPage = () => {
             />
           </Card>
           </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Invoiced"
@@ -1237,7 +1241,7 @@ const JobsPage = () => {
             />
           </Card>
           </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Cleared"
@@ -1274,7 +1278,7 @@ const JobsPage = () => {
                       }
                     />
                   )}
-                  <Table
+                  <ResponsiveTable
                     columns={columns}
                     dataSource={jobs}
                     loading={jobsLoading}
@@ -1286,6 +1290,11 @@ const JobsPage = () => {
                       showQuickJumper: true,
                       showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} jobs`
                     }}
+                    mobileConfig={{
+                      primaryFields: ['trackingId', 'clientName', 'status'],
+                      secondaryFields: ['goodsTypes', 'assignedTo', 'createdAt', 'documentsBrought', 'containerNumber']
+                    }}
+                    onRowClick={(record) => handleViewJob(record)}
                     locale={{
                       emptyText: (
                         <Empty
@@ -1323,7 +1332,7 @@ const JobsPage = () => {
               label: `Drafts (${draftJobs.length})`,
               children: (
                 <div>
-                  <Table
+                  <ResponsiveTable
                     columns={columns}
                     dataSource={draftJobs}
                     loading={jobsLoading}
@@ -1335,6 +1344,11 @@ const JobsPage = () => {
                       showQuickJumper: true,
                       showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} drafts`
                     }}
+                    mobileConfig={{
+                      primaryFields: ['trackingId', 'clientName', 'status'],
+                      secondaryFields: ['goodsTypes', 'assignedTo', 'createdAt', 'documentsBrought']
+                    }}
+                    onRowClick={(record) => handleViewJob(record)}
                     locale={{
                       emptyText: (
                         <Empty
@@ -2674,6 +2688,13 @@ const JobsPage = () => {
            </Form>
          </div>
        </Modal>
+
+      {/* Document Preview Modal */}
+      <DocumentPreviewModal
+        visible={previewVisible}
+        onClose={() => setPreviewVisible(false)}
+        file={previewFile}
+      />
      </div>
    );
  };

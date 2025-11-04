@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { prisma } = require('../config/database');
+const { autoSeedIfNeeded } = require('../utils/seedUtils');
 
 const router = express.Router();
 
@@ -130,12 +131,26 @@ router.post('/super-admin', async (req, res) => {
     // Set up permissions and roles for the admin user
 
     try {
-      // Import and run the permissions setup
-      const setupPermissions = require('../scripts/setup-permissions');
-      await setupPermissions();
+      // Auto-seed permissions, roles, and settings if they don't exist
+      console.log('🌱 Auto-seeding system data...');
+      const seedResult = await autoSeedIfNeeded(superAdmin.id);
+      console.log('✅ Auto-seeding complete:', seedResult.message);
+
+      // Link the super admin to the ADMIN role
+      const adminRole = await prisma.role.findUnique({
+        where: { name: 'ADMIN' }
+      });
+      
+      if (adminRole) {
+        await prisma.user.update({
+          where: { id: superAdmin.id },
+          data: { roleId: adminRole.id }
+        });
+        console.log('✅ Linked super admin to ADMIN role');
+      }
 
     } catch (permissionError) {
-
+      console.error('⚠️ Error during auto-seeding:', permissionError.message);
       // Don't fail the admin creation if permissions setup fails
     }
 

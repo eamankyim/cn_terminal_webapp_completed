@@ -287,13 +287,19 @@ router.post('/register', authenticateToken, requireAdminOrIT, async (req, res) =
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // Find the Role ID for the specified role
+    const roleRecord = await prisma.role.findUnique({
+      where: { name: role }
+    });
+
     // Create user
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
-        role
+        role,
+        roleId: roleRecord?.id || null
       },
       select: {
         id: true,

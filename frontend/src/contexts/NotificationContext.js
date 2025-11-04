@@ -170,8 +170,12 @@ export const NotificationProvider = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
+      // Socket.IO connects to base URL (remove /api if present)
+      const socketUrl = process.env.REACT_APP_API_URL 
+        ? process.env.REACT_APP_API_URL.replace('/api', '')
+        : 'http://localhost:5000';
 
-      const newSocket = io(process.env.REACT_APP_API_URL || 'http://localhost:5000', {
+      const newSocket = io(socketUrl, {
         auth: {
           token: token
         },

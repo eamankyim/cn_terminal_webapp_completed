@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Spin } from 'antd';
+import { getDashboardRoute } from '../../utils/permissions';
 
 const RoleBasedRedirect = () => {
   const { currentUser, loading } = useAuth();
@@ -19,15 +20,10 @@ const RoleBasedRedirect = () => {
     );
   }
 
-  // Redirect based on user role
+  // Redirect based on user role using centralized utility
   if (currentUser) {
-    // ENQUIRY_OFFICER and ENTRY_OFFICER go to Jobs page (their main page)
-    if (currentUser.role === 'ENQUIRY_OFFICER' || currentUser.role === 'ENTRY_OFFICER') {
-      return <Navigate to="/enquiries" replace />;
-    }
-    
-    // All other roles go to Dashboard
-    return <Navigate to="/dashboard" replace />;
+    const dashboardRoute = getDashboardRoute(currentUser.role);
+    return <Navigate to={dashboardRoute} replace />;
   }
 
   // If no user, redirect to login

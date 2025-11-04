@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Button, Space, Avatar, Dropdown, Menu } from 'antd';
+import { Layout, Button, Space, Avatar, Dropdown, Menu, Drawer } from 'antd';
 import { 
   MenuFoldOutlined, 
   MenuUnfoldOutlined, 
@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import useResponsive from '../../hooks/useResponsive';
 import Sidebar from './Sidebar';
 import NotificationBell from '../common/NotificationBell';
 // import WhatsAppButton from '../common/WhatsAppButton';
@@ -19,7 +20,9 @@ const { Header, Content } = Layout;
 
 const MainLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { currentUser, logout, refreshUserPermissions } = useAuth();
+  const { isMobile } = useResponsive();
   const navigate = useNavigate();
 
   // Function to generate initials from user name
@@ -65,17 +68,49 @@ const MainLayout = () => {
     </Menu>
   );
 
+  // Handle mobile menu toggle
+  const handleMobileMenuToggle = () => {
+    setMobileMenuOpen(!mobileMenuOpen);
+  };
+
+  // Handle desktop sidebar toggle
+  const handleSidebarToggle = () => {
+    setCollapsed(!collapsed);
+  };
+
+  // Close mobile menu when clicking outside
+  const handleMobileMenuClose = () => {
+    setMobileMenuOpen(false);
+  };
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sidebar collapsed={collapsed} />
+      {/* Desktop Sidebar */}
+      {!isMobile && <Sidebar collapsed={collapsed} />}
       
-      <Layout className={`content-layout ${collapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
+      {/* Mobile Sidebar Drawer */}
+      <Drawer
+        title="CN Terminal"
+        placement="left"
+        closable={true}
+        onClose={handleMobileMenuClose}
+        open={mobileMenuOpen}
+        width={250}
+        bodyStyle={{ padding: 0 }}
+      >
+        <Sidebar collapsed={false} onNavigate={handleMobileMenuClose} />
+      </Drawer>
+      
+      <Layout className={`content-layout ${isMobile ? 'mobile-layout' : (collapsed ? 'sidebar-collapsed' : 'sidebar-expanded')}`}>
         <Header className="main-header">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
             <Button
               type="text"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
+              icon={isMobile 
+                ? (mobileMenuOpen ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />)
+                : (collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />)
+              }
+              onClick={isMobile ? handleMobileMenuToggle : handleSidebarToggle}
               style={{
                 fontSize: '16px',
                 width: 64,
@@ -92,20 +127,22 @@ const MainLayout = () => {
                 <Space style={{ cursor: 'pointer' }}>
                   <Avatar 
                     src={currentUser?.avatar} 
-                    size="large"
+                    size={isMobile ? "default" : "large"}
                     className="user-avatar"
                     style={{
                       backgroundColor: currentUser?.avatar ? undefined : '#1890ff',
                       color: currentUser?.avatar ? undefined : '#fff',
                       fontWeight: 'bold',
-                      fontSize: '16px'
+                      fontSize: isMobile ? '14px' : '16px'
                     }}
                   >
                     {currentUser?.avatar ? undefined : getUserInitials(currentUser?.name)}
                   </Avatar>
+                  {!isMobile && (
                   <span style={{ color: '#000', fontWeight: 500 }}>
                     {currentUser?.name || 'User'}
                   </span>
+                  )}
                 </Space>
               </Dropdown>
             </Space>

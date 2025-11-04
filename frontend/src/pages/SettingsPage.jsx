@@ -33,6 +33,8 @@ import RolePermissionManager from '../components/settings/RolePermissionManager'
 import IntegrationTest from '../components/IntegrationTest';
 import UserRoleAssignment from '../components/settings/UserRoleAssignment';
 import InviteManagement from '../components/admin/InviteManagement';
+import ResponsiveTable from '../components/common/ResponsiveTable';
+import useResponsive from '../hooks/useResponsive';
 import { 
   SettingOutlined, 
   UserOutlined, 
@@ -55,6 +57,7 @@ const { TextArea } = Input;
 
 const SettingsPage = () => {
   const { currentUser, updateProfile, refreshUserPermissions } = useAuth();
+  const { isMobile } = useResponsive();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('profile');
   const [isUserModalVisible, setIsUserModalVisible] = useState(false);
@@ -659,7 +662,7 @@ const SettingsPage = () => {
             <Title level={4}>Team Members</Title>
         </div>
 
-        <Table
+        <ResponsiveTable
             columns={[
               {
                 title: 'Name',
@@ -731,6 +734,14 @@ const SettingsPage = () => {
           dataSource={users}
           pagination={{ pageSize: 10 }}
           loading={usersLoading}
+          mobileConfig={{
+            primaryFields: ['name', 'role', 'status'],
+            secondaryFields: ['department']
+          }}
+          onRowClick={(record) => {
+            setSelectedUser(record);
+            setIsDetailsDrawerVisible(true);
+          }}
         />
       </div>
     ),
@@ -1031,6 +1042,11 @@ const SettingsPage = () => {
     
     // Filter tabs based on user permissions
     const filteredTabs = allTabs.filter(tab => {
+      // On mobile, only show profile tab
+      if (isMobile && tab.key !== 'profile') {
+        return false;
+      }
+      
       if (!tab.permission) return true; // Show tabs without permission requirements
       
       // Special case: ADMIN_OR_IT_ONLY tabs
@@ -1065,22 +1081,24 @@ const SettingsPage = () => {
     <div style={{ padding: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <Title level={2} style={{ margin: 0 }}>
-          Settings & Configuration
+          {isMobile ? 'Settings' : 'Settings & Configuration'}
         </Title>
-        <Button 
-          type="default" 
-          icon={<SettingOutlined />}
-          onClick={async () => {
-            const success = await refreshUserPermissions();
-            if (success) {
-              message.success('Permissions refreshed successfully');
-            } else {
-              message.error('Failed to refresh permissions');
-            }
-          }}
-        >
-          Refresh Permissions
-        </Button>
+        {!isMobile && (
+          <Button 
+            type="default" 
+            icon={<SettingOutlined />}
+            onClick={async () => {
+              const success = await refreshUserPermissions();
+              if (success) {
+                message.success('Permissions refreshed successfully');
+              } else {
+                message.error('Failed to refresh permissions');
+              }
+            }}
+          >
+            Refresh Permissions
+          </Button>
+        )}
       </div>
 
       {/* Main Content Tabs */}

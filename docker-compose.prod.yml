@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: cn_terminal_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cn_terminal_db
+      POSTGRES_USER: cn_terminal_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - cn_terminal_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: cn_terminal_backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://cn_terminal_user:${DB_PASSWORD}@postgres:5432/cn_terminal_db?schema=public
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=5000
+      - FRONTEND_URL=${FRONTEND_URL}
+      - PRODUCTION_URL=${PRODUCTION_URL}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+      - APP_BASE_URL=${APP_BASE_URL}
+    ports:
+      - "5001:5000"
+    depends_on:
+      - postgres
+    networks:
+      - cn_terminal_network
+    volumes:
+      - ./backend/uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL}
+    container_name: cn_terminal_frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    ports:
+      - "3001:3000"
+    depends_on:
+      - backend
+    networks:
+      - cn_terminal_network
+
+volumes:
+  postgres_data:
+
+networks:
+  cn_terminal_network:
+    driver: bridge
+

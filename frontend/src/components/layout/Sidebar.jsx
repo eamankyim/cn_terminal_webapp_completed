@@ -3,6 +3,7 @@ import { Layout, Menu } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { UI_PERMISSIONS, hasUIPermission } from '../../utils/uiPermissions';
+import { isEmployeeRole, shouldHideRequestsTab, hasRole } from '../../utils/permissions';
 import PermissionGate from '../common/PermissionGate';
 import {
   DashboardOutlined,
@@ -22,13 +23,17 @@ import './Sidebar.css';
 
 const { Sider } = Layout;
 
-const Sidebar = ({ collapsed }) => {
+const Sidebar = ({ collapsed, onNavigate }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser, hasPermission } = useAuth();
 
   const handleMenuClick = (e) => {
     navigate(e.key);
+    // Close mobile drawer after navigation
+    if (onNavigate) {
+      onNavigate();
+    }
   };
 
   const menuItems = [
@@ -99,21 +104,18 @@ const Sidebar = ({ collapsed }) => {
     if (!item.permission) return true; // Show items without permission requirements
     
     // Hide Dashboard for ENQUIRY_OFFICER and ENTRY_OFFICER (Jobs page is their main page)
-    if (item.key === '/dashboard' && (currentUser?.role === 'ENQUIRY_OFFICER' || currentUser?.role === 'ENTRY_OFFICER')) {
+    if (item.key === '/dashboard' && hasRole(currentUser?.role, ['ENQUIRY_OFFICER', 'ENTRY_OFFICER'])) {
       return false;
     }
     
     // Hide Requests tab for admin, accountant, and IT consultant users since they don't send requests
-    if (item.key === '/requests' && (currentUser?.role === 'ADMIN' || currentUser?.role === 'ACCOUNTANT' || currentUser?.role === 'IT_CONSULTANT')) {
+    if (item.key === '/requests' && shouldHideRequestsTab(currentUser?.role)) {
       return false;
     }
     
-    // Hide Accounting tab for employee roles (STAFF, DRIVER, WAREHOUSE, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, REVIEW_OFFICER, INVOICE_OFFICER, CLEARING_OFFICER)
-    if (item.key === '/accounting') {
-      const employeeRoles = ['STAFF', 'DRIVER', 'WAREHOUSE', 'ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'TRANSPORT_COORDINATOR', 'RELEASE_OFFICER', 'REVIEW_OFFICER', 'INVOICE_OFFICER', 'CLEARING_OFFICER'];
-      if (employeeRoles.includes(currentUser?.role)) {
+    // Hide Accounting tab for employee roles
+    if (item.key === '/accounting' && isEmployeeRole(currentUser?.role)) {
         return false;
-      }
     }
     
     // Check if user has the permission in their database permissions

@@ -34,6 +34,7 @@ import configurationService from '../services/configurationService';
 import { useAuth } from '../contexts/AuthContext';
 import { calculateVAT, getVATExplanation } from '../utils/vatCalculator';
 import { useNavigate } from 'react-router-dom';
+import useResponsive from '../hooks/useResponsive';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -43,6 +44,7 @@ const { TabPane } = Tabs;
 const ConfigurationPage = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const { isMobile } = useResponsive();
   
   // Route guard: Only ADMIN and IT_CONSULTANT can access this page
   useEffect(() => {
@@ -451,46 +453,62 @@ const ConfigurationPage = () => {
         </Text>
       </div>
 
-      <div style={{ marginBottom: 16, textAlign: 'right' }}>
-        <Space>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={loadConfigurations}
-            loading={loading}
-          >
-            Refresh
-          </Button>
-          <Button
-            type="default"
-            icon={<ReloadOutlined />}
-            onClick={handleResetToDefaults}
-            loading={saving}
-          >
-            Reset to Defaults
-          </Button>
-        </Space>
-      </div>
+      {/* Mobile Alert - Hide on mobile */}
+      {isMobile && (
+        <Alert
+          message="Configuration Not Available on Mobile"
+          description="Please access this page on a desktop or tablet."
+          type="warning"
+          showIcon
+          style={{ marginBottom: '24px' }}
+        />
+      )}
 
-      <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
-        type="card"
-        size="large"
-      >
-        {Object.entries(configCategories).map(([key, info]) => (
-          <TabPane
-            tab={
-              <Space>
-                {info.icon}
-                {info.title}
-              </Space>
-            }
-            key={key}
+      {/* Hide all configuration content on mobile */}
+      {!isMobile && (
+        <>
+          <div style={{ marginBottom: 16, textAlign: 'right' }}>
+            <Space>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={loadConfigurations}
+                loading={loading}
+              >
+                Refresh
+              </Button>
+              <Button
+                type="default"
+                icon={<ReloadOutlined />}
+                onClick={handleResetToDefaults}
+                loading={saving}
+              >
+                Reset to Defaults
+              </Button>
+            </Space>
+          </div>
+
+          <Tabs
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            type="card"
+            size="large"
           >
-            {renderConfigCard(key)}
-          </TabPane>
-        ))}
-      </Tabs>
+            {Object.entries(configCategories).map(([key, info]) => (
+              <TabPane
+                tab={
+                  <Space>
+                    {info.icon}
+                    {info.title}
+                  </Space>
+                }
+                key={key}
+              >
+                {renderConfigCard(key)}
+              </TabPane>
+            ))}
+          </Tabs>
+        </>
+      )}
 
       <Modal
         title="Edit System Configuration"

@@ -4,6 +4,7 @@ import { PERMISSIONS } from '../utils/permissions';
 import { UI_PERMISSIONS } from '../utils/uiPermissions';
 import { useAuth } from '../contexts/AuthContext';
 import AccountingDashboard from './AccountingDashboard';
+import ResponsiveTable from '../components/common/ResponsiveTable';
 import { 
   Card, 
   Row, 
@@ -218,7 +219,7 @@ const DashboardPage = () => {
       {/* Statistics Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         {stats.map((stat, index) => (
-          <Col xs={24} sm={12} lg={6} key={index}>
+          <Col xs={12} sm={12} lg={6} key={index}>
             <Card>
               <Statistic
                 title={stat.title}
@@ -253,7 +254,7 @@ const DashboardPage = () => {
             }
             style={{ marginBottom: '16px' }}
           >
-            <Table
+            <ResponsiveTable
               dataSource={dashboardData.recentJobs} 
               columns={[
                 {
@@ -281,7 +282,7 @@ const DashboardPage = () => {
                   dataIndex: 'status',
                   key: 'status',
                   render: (status, record) => {
-                    const displayStatus = record.isDraft ? 'DRAFT' : status.replace(/_/g, ' ');
+                    const displayStatus = record.isDraft ? 'DRAFT' : (status ? status.replace(/_/g, ' ') : 'N/A');
                     return (
                       <Tag color={getJobStatusColor(status, record.isDraft)} icon={getStatusIcon(status, record.isDraft)}>
                         {displayStatus}
@@ -325,11 +326,11 @@ const DashboardPage = () => {
                 }
               ]}
               pagination={false}
-              size="small"
-              onRow={(record) => ({
-                onClick: () => navigate(`/enquiries?jobId=${record.id}`),
-                style: { cursor: 'pointer' }
-              })}
+              mobileConfig={{
+                primaryFields: ['trackingId', 'customer', 'status'],
+                secondaryFields: ['assignedTo', 'eta']
+              }}
+              onRowClick={(record) => navigate(`/enquiries?jobId=${record.id}`)}
               locale={{
                 emptyText: (
                   <Empty
@@ -354,7 +355,7 @@ const DashboardPage = () => {
         {/* Jobs Assigned to You */}
         <Col xs={24} lg={8}>
           <Card title="Jobs Assigned to You" style={{ marginBottom: '16px' }}>
-            <Table
+            <ResponsiveTable
               dataSource={dashboardData.assignedJobs} 
               columns={[
                 {
@@ -382,7 +383,7 @@ const DashboardPage = () => {
                   dataIndex: 'status',
                   key: 'status',
                   render: (status, record) => {
-                    const displayStatus = record.isDraft ? 'DRAFT' : status.replace(/_/g, ' ');
+                    const displayStatus = record.isDraft ? 'DRAFT' : (status ? status.replace(/_/g, ' ') : 'N/A');
                     return (
                       <Tag color={getJobStatusColor(status, record.isDraft)} icon={getStatusIcon(status, record.isDraft)}>
                         {displayStatus}
@@ -406,11 +407,11 @@ const DashboardPage = () => {
                 }
               ]}
               pagination={false}
-              size="small"
-              onRow={(record) => ({
-                onClick: () => navigate(`/enquiries?jobId=${record.id}`),
-                style: { cursor: 'pointer' }
-              })}
+              mobileConfig={{
+                primaryFields: ['trackingId', 'client', 'status'],
+                secondaryFields: []
+              }}
+              onRowClick={(record) => navigate(`/enquiries?jobId=${record.id}`)}
               locale={{
                 emptyText: (
                   <Empty
@@ -440,3 +441,4 @@ const DashboardPage = () => {
 };
 
 export default DashboardPage;
+

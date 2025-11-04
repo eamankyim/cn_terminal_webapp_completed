@@ -38,6 +38,7 @@ import CustomerSelector from '../components/common/CustomerSelector';
 import { useCustomers } from '../contexts/CustomerContext';
 import apiService from '../services/api';
 import { getEnquiryStatusColor } from '../utils/statusUtils';
+import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -278,7 +279,7 @@ const EnquiriesPage = () => {
 
       {/* Statistics Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Total Enquiries"
@@ -288,7 +289,7 @@ const EnquiriesPage = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Pending Review"
@@ -298,7 +299,7 @@ const EnquiriesPage = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Under Review"
@@ -308,7 +309,7 @@ const EnquiriesPage = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Quoted"
@@ -322,7 +323,7 @@ const EnquiriesPage = () => {
 
       {/* Enquiries Table */}
       <Card title="All Enquiries">
-        <Table 
+        <ResponsiveTable 
           columns={columns} 
           dataSource={enquiries}
           pagination={{
@@ -331,6 +332,11 @@ const EnquiriesPage = () => {
             showQuickJumper: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} enquiries`
           }}
+          mobileConfig={{
+            primaryFields: ['trackingId', 'clientName', 'status'],
+            secondaryFields: ['goodsType', 'documents', 'submittedDate']
+          }}
+          onRowClick={(record) => handleViewEnquiry(record)}
         />
       </Card>
 

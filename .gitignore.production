@@ -1,0 +1,95 @@
+# Production .gitignore
+# This is used to ensure only production files are pushed to production branch
+
+# Documentation and guides (not needed in production)
+*.md
+!README.md
+
+# Development files
+.vscode/
+.idea/
+*.code-workspace
+
+# Test files
+test/
+tests/
+__tests__/
+coverage/
+*.test.js
+*.test.jsx
+*.spec.js
+*.spec.jsx
+
+# Log files
+*.log
+logs/
+backend/logs/
+backend/backup/
+
+# Upload directories (user-uploaded content)
+backend/uploads/
+
+# Environment files (except examples)
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production.local
+!**/.env.example
+!**/.env.production.example
+
+# Development dependencies
+backend/package-lock.json
+frontend/package-lock.json
+*.lock
+
+# Build artifacts
+frontend/build
+backend/dist
+*.tsbuildinfo
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# IDE files
+*.swp
+*.swo
+*~
+
+# Node modules (already in root .gitignore, but ensuring here)
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Backup files
+*.bak
+*.backup
+
+# Screenshots and media (development only)
+screenshots/
+*.png
+*.jpg
+*.jpeg
+*.gif
+!**/AppLogo.png
+!**/favicon.ico
+!**/logo192.png
+!**/logo512.png
+
+# Database dumps
+*.sql.gz
+*.dump
+
+# Deployment files (should keep these)
+# !deploy.sh
+# !deploy-production.sh
+# !docker-compose.prod.yml
+# !backend/Dockerfile.prod
+# !frontend/Dockerfile.prod
+
+

@@ -714,12 +714,71 @@ export const hasAllPermissions = (userRole, permissions) => {
   return permissions.every(permission => hasPermission(userRole, permission));
 };
 
+/**
+ * Check if user has a specific role
+ */
+export const hasRole = (userRole, targetRole) => {
+  if (!userRole || !targetRole) return false;
+  
+  // Support checking against multiple roles
+  if (Array.isArray(targetRole)) {
+    return targetRole.includes(userRole);
+  }
+  
+  return userRole === targetRole;
+};
+
 export const getRolePermissions = (role) => {
   return ROLE_PERMISSIONS[role] || [];
 };
 
 export const getRoleInfo = (role) => {
   return ROLE_INFO[role] || { name: role, description: 'Unknown role', color: 'default', icon: '❓', level: 0 };
+};
+
+/**
+ * Get the default dashboard route for a user based on their role
+ */
+export const getDashboardRoute = (userRole) => {
+  if (!userRole) return '/login';
+  
+  // ENQUIRY_OFFICER and ENTRY_OFFICER go to enquiries (jobs page)
+  if (userRole === 'ENQUIRY_OFFICER' || userRole === 'ENTRY_OFFICER') {
+    return '/enquiries';
+  }
+  
+  // ACCOUNTANT goes to accounting dashboard
+  if (userRole === 'ACCOUNTANT') {
+    return '/accounting';
+  }
+  
+  // All other roles go to main dashboard
+  return '/dashboard';
+};
+
+/**
+ * Check if a role is considered an "employee" role (non-admin, non-accountant)
+ */
+export const isEmployeeRole = (role) => {
+  const employeeRoles = [
+    'STAFF', 
+    'DRIVER', 
+    'ENQUIRY_OFFICER', 
+    'ENTRY_OFFICER', 
+    'TRANSPORT_COORDINATOR', 
+    'RELEASE_OFFICER', 
+    'REVIEW_OFFICER', 
+    'INVOICE_OFFICER', 
+    'CLEARING_OFFICER'
+  ];
+  return employeeRoles.includes(role);
+};
+
+/**
+ * Check if a role should not see the accounting/dashboard tabs
+ */
+export const shouldHideRequestsTab = (role) => {
+  return role === 'ADMIN' || role === 'ACCOUNTANT' || role === 'IT_CONSULTANT';
 };
 
 export const canManageRole = (currentUserRole, targetRole) => {

@@ -12,6 +12,7 @@ import {
   FileOutlined
 } from '@ant-design/icons';
 import { fileService } from '../../services/fileService';
+import DocumentPreviewModal from './DocumentPreviewModal';
 
 const { Text } = Typography;
 
@@ -41,6 +42,8 @@ const FileUpload = ({
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [documentPreviewVisible, setDocumentPreviewVisible] = useState(false);
+  const [documentPreviewFile, setDocumentPreviewFile] = useState(null);
 
   const getFileIcon = (file) => {
     const type = file.type || '';
@@ -160,12 +163,13 @@ const FileUpload = ({
   };
 
   const handlePreview = async (file) => {
-    // Open file in new tab instead of showing in modal
+    // Show file in modal using DocumentPreviewModal
     if (file.url) {
-      const url = file.url.startsWith('http') ? file.url : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${file.url}`;
-      window.open(url, '_blank');
+      // For uploaded files with URLs, use DocumentPreviewModal
+      setDocumentPreviewFile(file);
+      setDocumentPreviewVisible(true);
     } else if (file.originFileObj) {
-      // For new files that haven't been uploaded yet, show in modal
+      // For new files that haven't been uploaded yet, show in local modal
       if (!file.preview) {
         file.preview = await getBase64(file.originFileObj);
       }
@@ -334,6 +338,13 @@ const FileUpload = ({
           </div>
         )}
       </Modal>
+
+      {/* Document Preview Modal for uploaded files */}
+      <DocumentPreviewModal
+        visible={documentPreviewVisible}
+        onClose={() => setDocumentPreviewVisible(false)}
+        file={documentPreviewFile}
+      />
     </div>
   );
 };

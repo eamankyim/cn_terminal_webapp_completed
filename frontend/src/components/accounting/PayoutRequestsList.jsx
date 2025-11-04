@@ -209,7 +209,7 @@ const PayoutRecordsList = () => {
     <div>
       {/* Stats Cards */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Total Amount"
@@ -219,7 +219,7 @@ const PayoutRecordsList = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Pending Requests"
@@ -228,7 +228,7 @@ const PayoutRecordsList = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Approved"
@@ -237,7 +237,7 @@ const PayoutRecordsList = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Total Requests"

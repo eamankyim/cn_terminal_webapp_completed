@@ -37,6 +37,7 @@ import userService from '../services/userService';
 import configurationService from '../services/configurationService';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -260,7 +261,7 @@ const AdminDashboardPage = () => {
           finance: 'purple',
           'customer-service': 'cyan'
         };
-        return <Tag color={roleColors[role] || 'default'}>{role.replace('-', ' ').toUpperCase()}</Tag>;
+        return <Tag color={roleColors[role] || 'default'}>{role ? role.replace('-', ' ').toUpperCase() : 'N/A'}</Tag>;
       },
     },
     {
@@ -1274,11 +1275,15 @@ const AdminDashboardPage = () => {
               Invite Team Member
             </Button>
           </div>
-          <Table
+          <ResponsiveTable
             columns={userColumns}
             dataSource={users}
             pagination={false}
-            size="small"
+            mobileConfig={{
+              primaryFields: ['user', 'role', 'status'],
+              secondaryFields: ['department', 'joinedDate']
+            }}
+            onRowClick={(record) => handleViewUser(record)}
             loading={usersLoading}
           />
         </div>
