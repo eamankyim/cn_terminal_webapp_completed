@@ -47,36 +47,21 @@ jobs:
             DB_URL="postgresql://cn_terminal_user:${DB_PASSWORD_SECRET}@postgres:5432/cn_terminal_db?schema=public"
           fi
           
-          # Create .env.production file
-          cat > .env.production << 'ENVEOF'
-NODE_ENV=production
-DATABASE_URL=__DATABASE_URL_PLACEHOLDER__
-PORT=5000
-JWT_SECRET=__JWT_SECRET_PLACEHOLDER__
-FRONTEND_URL=__FRONTEND_URL_PLACEHOLDER__
-PRODUCTION_URL=__PRODUCTION_URL_PLACEHOLDER__
-APP_BASE_URL=__APP_BASE_URL_PLACEHOLDER__
-CORS_ORIGIN=__CORS_ORIGIN_PLACEHOLDER__
-REACT_APP_API_URL=__REACT_APP_API_URL_PLACEHOLDER__
-REACT_APP_SENDGRID_API_KEY=__REACT_APP_SENDGRID_API_KEY_PLACEHOLDER__
-REACT_APP_FROM_EMAIL=__REACT_APP_FROM_EMAIL_PLACEHOLDER__
-REACT_APP_FROM_NAME=__REACT_APP_FROM_NAME_PLACEHOLDER__
-REACT_APP_EMAIL_DEV_MODE=false
-DB_PASSWORD=__DB_PASSWORD_PLACEHOLDER__
-ENVEOF
-          
-          # Replace placeholders with actual values (using | as delimiter to avoid issues with special chars)
-          sed -i "s|__DATABASE_URL_PLACEHOLDER__|${DB_URL}|g" .env.production
-          sed -i "s|__JWT_SECRET_PLACEHOLDER__|${{ secrets.JWT_SECRET }}|g" .env.production
-          sed -i "s|__FRONTEND_URL_PLACEHOLDER__|${{ secrets.FRONTEND_URL }}|g" .env.production
-          sed -i "s|__PRODUCTION_URL_PLACEHOLDER__|${{ secrets.PRODUCTION_URL }}|g" .env.production
-          sed -i "s|__APP_BASE_URL_PLACEHOLDER__|${{ secrets.APP_BASE_URL }}|g" .env.production
-          sed -i "s|__CORS_ORIGIN_PLACEHOLDER__|${{ secrets.CORS_ORIGIN }}|g" .env.production
-          sed -i "s|__REACT_APP_API_URL_PLACEHOLDER__|${{ secrets.REACT_APP_API_URL }}|g" .env.production
-          sed -i "s|__REACT_APP_SENDGRID_API_KEY_PLACEHOLDER__|${{ secrets.REACT_APP_SENDGRID_API_KEY }}|g" .env.production
-          sed -i "s|__REACT_APP_FROM_EMAIL_PLACEHOLDER__|${{ secrets.REACT_APP_FROM_EMAIL }}|g" .env.production
-          sed -i "s|__REACT_APP_FROM_NAME_PLACEHOLDER__|${{ secrets.REACT_APP_FROM_NAME }}|g" .env.production
-          sed -i "s|__DB_PASSWORD_PLACEHOLDER__|${DB_PASSWORD_SECRET}|g" .env.production
+          # Create .env.production file using echo (to avoid YAML parsing issues with heredoc)
+          echo "NODE_ENV=production" > .env.production
+          echo "DATABASE_URL=${DB_URL}" >> .env.production
+          echo "PORT=5000" >> .env.production
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env.production
+          echo "FRONTEND_URL=${{ secrets.FRONTEND_URL }}" >> .env.production
+          echo "PRODUCTION_URL=${{ secrets.PRODUCTION_URL }}" >> .env.production
+          echo "APP_BASE_URL=${{ secrets.APP_BASE_URL }}" >> .env.production
+          echo "CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}" >> .env.production
+          echo "REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}" >> .env.production
+          echo "REACT_APP_SENDGRID_API_KEY=${{ secrets.REACT_APP_SENDGRID_API_KEY }}" >> .env.production
+          echo "REACT_APP_FROM_EMAIL=${{ secrets.REACT_APP_FROM_EMAIL }}" >> .env.production
+          echo "REACT_APP_FROM_NAME=${{ secrets.REACT_APP_FROM_NAME }}" >> .env.production
+          echo "REACT_APP_EMAIL_DEV_MODE=false" >> .env.production
+          echo "DB_PASSWORD=${DB_PASSWORD_SECRET}" >> .env.production
           
           echo "✅ .env.production file created from GitHub secrets"
           
