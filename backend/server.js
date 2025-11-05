@@ -247,6 +247,27 @@ app.use('/api/*', (req, res, next) => {
  *       404:
  *         description: Tracking ID not found
  */
+// API root endpoint
+app.get('/api', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'CN Terminal API is running',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      docs: '/api-docs',
+      auth: '/api/auth',
+      customers: '/api/customers',
+      jobs: '/api/jobs',
+      consignments: '/api/consignments',
+      enquiries: '/api/enquiries',
+      shipments: '/api/shipments',
+      invoices: '/api/invoices'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
