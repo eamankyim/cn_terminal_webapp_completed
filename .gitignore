@@ -45,10 +45,15 @@ backend/uploads/
 Thumbs.db
 
 # misc
+.env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
+.env.*.local
+!env.example
+!env.production.template
 
 npm-debug.log*
 yarn-debug.log*

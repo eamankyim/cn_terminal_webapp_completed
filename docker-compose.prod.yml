@@ -8,9 +8,9 @@ services:
       POSTGRES_USER: cn_terminal_user
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "5434:5432"
+      - "5434:5432"  # Using 5434 (5432, 5433 are taken by other services)
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - cn_terminal_postgres_data:/var/lib/postgresql/data
     networks:
       - cn_terminal_network
 
@@ -29,6 +29,10 @@ services:
       - PRODUCTION_URL=${PRODUCTION_URL}
       - CORS_ORIGIN=${CORS_ORIGIN}
       - APP_BASE_URL=${APP_BASE_URL}
+      - REACT_APP_SENDGRID_API_KEY=${REACT_APP_SENDGRID_API_KEY}
+      - REACT_APP_FROM_EMAIL=${REACT_APP_FROM_EMAIL}
+      - REACT_APP_FROM_NAME=${REACT_APP_FROM_NAME}
+      - REACT_APP_EMAIL_DEV_MODE=${REACT_APP_EMAIL_DEV_MODE}
     ports:
       - "5001:5000"
     depends_on:
@@ -49,16 +53,32 @@ services:
     environment:
       - NODE_ENV=production
     ports:
-      - "3004:3000"
+      - "3004:3000"  # Using 3004 (3000 is taken by another service)
     depends_on:
       - backend
     networks:
       - cn_terminal_network
 
+  # Nginx service for CN Terminal (connects to existing host-network)
+  nginx:
+    image: nginx:alpine
+    container_name: cn_terminal-nginx
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - cn_terminal_network
+      - host-network  # Connect to existing host-network
+    # Note: Do NOT expose ports 80/443 here - host-nginx handles that
+
 volumes:
-  postgres_data:
+  cn_terminal_postgres_data:  # Unique volume name to avoid conflicts
 
 networks:
   cn_terminal_network:
     driver: bridge
+  host-network:
+    external: true  # Use existing host-network
 

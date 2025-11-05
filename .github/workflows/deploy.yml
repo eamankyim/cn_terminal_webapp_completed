@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - production
+  workflow_dispatch:  # Allow manual trigger
 
 jobs:
   deploy:
@@ -17,44 +18,79 @@ jobs:
         username: ${{ secrets.PROD_SERVER_USER }}
         key: ${{ secrets.PROD_SERVER_SSH_KEY }}
         script: |
-          cd ~/cn_terminal
+          cd ~/cn_terminal || mkdir -p ~/cn_terminal && cd ~/cn_terminal
           
           # Pull latest code from production branch
           echo "📥 Pulling latest code..."
-          git pull origin production || git clone https://github.com/${{ github.repository }}.git .
-          git checkout production
-          
-          # Create .env file from GitHub secrets (if doesn't exist)
-          if [ ! -f .env ]; then
-            echo "📝 Creating .env file from GitHub secrets..."
-            cat > .env << EOF
-DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-JWT_SECRET=${{ secrets.JWT_SECRET }}
-REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}
-FRONTEND_URL=${{ secrets.FRONTEND_URL }}
-PRODUCTION_URL=${{ secrets.PRODUCTION_URL }}
-CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}
-APP_BASE_URL=${{ secrets.APP_BASE_URL }}
-EOF
-            echo "✅ .env file created from GitHub secrets"
+          if [ -d .git ]; then
+            git fetch origin
+            git checkout production || git checkout -b production
+            git pull origin production
+          else
+            echo "📥 Cloning repository..."
+            git clone -b production https://github.com/${{ github.repository }}.git .
+            git checkout production
           fi
           
-          # Make scripts executable
-          chmod +x deploy.sh auto-deploy.sh 2>/dev/null || true
+          # Create .env.production file from GitHub secrets
+          echo "📝 Creating/updating .env.production file from GitHub secrets..."
           
-          # Deploy using deploy.sh
-          echo "🚀 Starting deployment..."
-          ./deploy.sh
+          # Use DATABASE_URL secret if provided, otherwise construct from DB_PASSWORD
+          if [ -n "${{ secrets.DATABASE_URL }}" ]; then
+            DB_URL="${{ secrets.DATABASE_URL }}"
+          else
+            # Construct DATABASE_URL from DB_PASSWORD
+            DB_URL="postgresql://cn_terminal_user:${{ secrets.DB_PASSWORD }}@postgres:5432/cn_terminal_db?schema=public"
+          fi
+          
+          cat > .env.production << EOF
+NODE_ENV=production
+DATABASE_URL=${DB_URL}
+PORT=5000
+JWT_SECRET=${{ secrets.JWT_SECRET }}
+FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+PRODUCTION_URL=${{ secrets.PRODUCTION_URL }}
+APP_BASE_URL=${{ secrets.APP_BASE_URL }}
+CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}
+REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}
+REACT_APP_SENDGRID_API_KEY=${{ secrets.REACT_APP_SENDGRID_API_KEY }}
+REACT_APP_FROM_EMAIL=${{ secrets.REACT_APP_FROM_EMAIL }}
+REACT_APP_FROM_NAME=${{ secrets.REACT_APP_FROM_NAME }}
+REACT_APP_EMAIL_DEV_MODE=false
+DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+EOF
+          echo "✅ .env.production file created from GitHub secrets"
+          
+          # Make scripts executable
+          chmod +x deploy.sh auto-deploy.sh deploy-production.sh 2>/dev/null || true
+          
+          # Load environment variables
+          source .env.production
+          
+          # Build and start containers
+          echo "🚀 Building and starting containers..."
+          docker-compose -f docker-compose.prod.yml down || true
+          docker-compose -f docker-compose.prod.yml build --no-cache
+          docker-compose -f docker-compose.prod.yml up -d
           
           # Wait for containers to be fully up
           echo "⏳ Waiting for containers to be ready..."
-          sleep 15
+          sleep 20
           
-          # Setup database (only for first deployment)
+          # Connect nginx to host-network (if not already connected)
+          echo "🔗 Connecting nginx to host-network..."
+          docker network connect host-network cn_terminal-nginx 2>/dev/null || echo "Already connected or network doesn't exist"
+          
+          # Setup database (only for first deployment or schema changes)
           echo "🗄️ Setting up database..."
+          docker exec cn_terminal_backend npx prisma generate || true
           docker exec cn_terminal_backend npx prisma db push || true
           
           echo "✅ Deployment complete!"
+          echo ""
           echo "📊 Container Status:"
           docker-compose -f docker-compose.prod.yml ps
-
+          echo ""
+          echo "📋 Next steps:"
+          echo "  - Create admin user: docker exec -it cn_terminal_backend node scripts/create-admin.js"
+          echo "  - Check logs: docker-compose -f docker-compose.prod.yml logs -f"
