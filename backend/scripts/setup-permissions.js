@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const { PERMISSIONS, ROLE_PERMISSIONS } = require('../utils/permissions');
+const { seedUIPermissions } = require('../utils/uiPermissionSeeder');
 
 const prisma = new PrismaClient();
 
@@ -76,10 +77,12 @@ async function setupPermissions() {
 
     // Update admin user to use the new role
 
-    await prisma.user.update({
+    const updatedAdmin = await prisma.user.update({
       where: { id: adminUser.id },
       data: { roleId: adminRole.id }
     });
+
+    await seedUIPermissions(updatedAdmin.id);
 
   } catch (error) {
 

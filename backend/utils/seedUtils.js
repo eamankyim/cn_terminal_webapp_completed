@@ -1,5 +1,6 @@
 const { prisma } = require('../config/database');
 const { PERMISSIONS, ROLE_PERMISSIONS } = require('./permissions');
+const { seedUIPermissions } = require('./uiPermissionSeeder');
 
 // Role information mapping for seeding
 const ROLE_INFO = {
@@ -318,7 +319,7 @@ async function autoSeedIfNeeded(creatorId) {
   }
   
   console.log('🌱 Auto-seeding system data...');
-  
+
   // Always seed permissions first (they're the foundation)
   const permissionMap = await seedPermissions();
   
@@ -347,10 +348,14 @@ async function autoSeedIfNeeded(creatorId) {
     settingsCount = await seedSettings(creatorId);
   }
   
+  const uiSeedResult = creatorId ? await seedUIPermissions(creatorId) : { permissionCount: 0, assignmentsCreated: 0 };
+
   console.log(`✅ Auto-seeding complete:`);
   console.log(`   - Permissions: ${Object.keys(permissionMap).length}`);
   console.log(`   - Roles: ${rolesCount}`);
   console.log(`   - Settings: ${settingsCount}`);
+  console.log(`   - UI Permissions: ${uiSeedResult.permissionCount}`);
+  console.log(`   - UI Assignments Ensured: ${uiSeedResult.assignmentsCreated}`);
   
   return {
     rolesSeeded: !rolesAlreadyExist,
@@ -359,7 +364,8 @@ async function autoSeedIfNeeded(creatorId) {
     rolesCount,
     settingsCount,
     permissionsCount: Object.keys(permissionMap).length,
-    message: `Successfully seeded ${Object.keys(permissionMap).length} permissions, ${rolesCount} roles, and ${settingsCount} settings`
+    uiPermissionsCount: uiSeedResult.permissionCount,
+    message: `Successfully seeded ${Object.keys(permissionMap).length} permissions, ${rolesCount} roles, ${settingsCount} settings, and ensured UI permission assignments`
   };
 }
 
