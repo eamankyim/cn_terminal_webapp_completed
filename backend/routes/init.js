@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { prisma } = require('../config/database');
 const { autoSeedIfNeeded } = require('../utils/seedUtils');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -205,6 +206,187 @@ router.get('/check', async (req, res) => {
   } catch (error) {
 
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/init/create-all-user-types:
+ *   post:
+ *     summary: Create users for all role types (Admin only)
+ *     description: Creates one user for each role type in the system with a default password. Existing users are skipped.
+ *     tags: [Initialization]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               password:
+ *                 type: string
+ *                 default: "Testpassword123"
+ *                 description: Password to use for all created users
+ *                 example: "Testpassword123"
+ *     responses:
+ *       200:
+ *         description: Users created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Successfully created users for all role types"
+ *                 created:
+ *                   type: integer
+ *                   description: Number of users created
+ *                   example: 12
+ *                 skipped:
+ *                   type: integer
+ *                   description: Number of users skipped (already exist)
+ *                   example: 1
+ *                 users:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       email:
+ *                         type: string
+ *                         example: "it.consultant@cnterminal.com"
+ *                       role:
+ *                         type: string
+ *                         example: "IT_CONSULTANT"
+ *                       name:
+ *                         type: string
+ *                         example: "IT Consultant"
+ *       401:
+ *         description: Unauthorized - Invalid or missing token
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/create-all-user-types', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const password = req.body.password || 'Testpassword123';
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // All user roles in the system
+    const USER_ROLES = [
+      'ADMIN',
+      'IT_CONSULTANT',
+      'ENQUIRY_OFFICER',
+      'ENTRY_OFFICER',
+      'TRANSPORT_COORDINATOR',
+      'RELEASE_OFFICER',
+      'PREINVOICE_OFFICER',
+      'REVIEW_OFFICER',
+      'VETTING_OFFICER',
+      'CLEARING_OFFICER',
+      'ACCOUNTANT',
+      'STAFF',
+      'DRIVER'
+    ];
+
+    // Role display names
+    const ROLE_DISPLAY_NAMES = {
+      'ADMIN': 'Administrator',
+      'IT_CONSULTANT': 'IT Consultant',
+      'ENQUIRY_OFFICER': 'Enquiry Officer',
+      'ENTRY_OFFICER': 'Entry Officer',
+      'TRANSPORT_COORDINATOR': 'Transport Coordinator',
+      'RELEASE_OFFICER': 'Release Officer',
+      'PREINVOICE_OFFICER': 'Preinvoice Officer',
+      'REVIEW_OFFICER': 'Review Officer',
+      'VETTING_OFFICER': 'Vetting Officer',
+      'CLEARING_OFFICER': 'Clearing Officer',
+      'ACCOUNTANT': 'Accountant',
+      'STAFF': 'Staff',
+      'DRIVER': 'Driver'
+    };
+
+    const createdUsers = [];
+    const skippedUsers = [];
+
+    for (const role of USER_ROLES) {
+      const email = `${role.toLowerCase().replace(/_/g, '.')}@cnterminal.com`;
+      const name = ROLE_DISPLAY_NAMES[role] || role;
+
+      try {
+        // Check if user already exists
+        const existingUser = await prisma.user.findUnique({
+          where: { email }
+        });
+
+        if (existingUser) {
+          skippedUsers.push({ email, role, name });
+          continue;
+        }
+
+        // Get the role from database to link it
+        const roleRecord = await prisma.role.findUnique({
+          where: { name: role }
+        });
+
+        // Create user
+        const user = await prisma.user.create({
+          data: {
+            name,
+            email,
+            password: hashedPassword,
+            role: role,
+            isActive: true,
+            roleId: roleRecord?.id || null
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isActive: true,
+            createdAt: true
+          }
+        });
+
+        createdUsers.push(user);
+      } catch (error) {
+        console.error(`❌ Failed to create ${role}:`, error.message);
+        // Continue with other roles even if one fails
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Successfully created users for all role types',
+      created: createdUsers.length,
+      skipped: skippedUsers.length,
+      users: createdUsers.map(u => ({
+        email: u.email,
+        role: u.role,
+        name: u.name
+      })),
+      skipped: skippedUsers.map(u => ({
+        email: u.email,
+        role: u.role,
+        name: u.name
+      })),
+      password: password
+    });
+  } catch (error) {
+    console.error('❌ [Init API] POST /create-all-user-types error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 

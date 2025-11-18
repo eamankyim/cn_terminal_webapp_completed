@@ -138,9 +138,11 @@ export const validateVATConfig = (config) => {
   };
 };
 
-export default {
+const vatCalculator = {
   calculateVAT,
   calculateTotalVAT,
   getVATExplanation,
   validateVATConfig
 };
+
+export default vatCalculator;

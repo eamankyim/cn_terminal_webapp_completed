@@ -130,5 +130,7 @@ class ReportService {
   }
 }
 
-export default new ReportService();
+const reportServiceInstance = new ReportService();
+
+export default reportServiceInstance;
 

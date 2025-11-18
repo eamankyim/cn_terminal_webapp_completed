@@ -1,10 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
+const { prisma } = require('../config/database');
 const { authenticateToken, requirePermission } = require('../middleware/auth');
 const { PERMISSIONS } = require('../utils/permissions');
-
-const prisma = new PrismaClient();
 
 // Generate unique estimate number
 const generateEstimateNumber = async () => {
@@ -84,7 +82,14 @@ router.get('/', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ [Estimates API] GET /estimates error:', error);
-    res.status(500).json({ error: 'Failed to fetch estimates' });
+    console.error('  - Error message:', error.message);
+    console.error('  - Error code:', error.code);
+    console.error('  - Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to fetch estimates',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 

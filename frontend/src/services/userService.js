@@ -4,16 +4,45 @@ import apiService from './api';
 class UserService {
   // Get all users
   async getUsers() {
-    console.log('🔷 [UserService] getUsers called');
+    console.log('\n🔷 [UserService] getUsers called');
+    console.log('  - Timestamp:', new Date().toISOString());
     try {
-      console.log('  - Fetching from: /auth/users');
+      console.log('  - Calling apiService.get("/auth/users")');
       const response = await apiService.get('/auth/users');
-      console.log('✅ [UserService] getUsers response:', response);
+      console.log('✅ [UserService] getUsers response received');
+      console.log('  - Response type:', typeof response);
+      console.log('  - Response keys:', response ? Object.keys(response) : 'null/undefined');
+      console.log('  - Has users property:', !!response?.users);
+      console.log('  - Users is array:', Array.isArray(response?.users));
       console.log('  - Users count:', response?.users?.length || 0);
+      
+      if (!response) {
+        console.error('❌ [UserService] Response is null or undefined');
+        throw new Error('Invalid response from server');
+      }
+      
+      if (!response.users) {
+        console.error('❌ [UserService] Response missing users property');
+        console.error('  - Response structure:', response);
+        throw new Error('Response missing users property');
+      }
+      
+      if (!Array.isArray(response.users)) {
+        console.error('❌ [UserService] Response.users is not an array');
+        console.error('  - Users type:', typeof response.users);
+        console.error('  - Users value:', response.users);
+        throw new Error('Users property is not an array');
+      }
+      
+      console.log('✅ [UserService] getUsers completed successfully');
       return response;
     } catch (error) {
-      console.error('❌ [UserService] getUsers error:', error);
+      console.error('\n❌ [UserService] getUsers ERROR:');
+      console.error('  - Error name:', error.name);
+      console.error('  - Error message:', error.message);
+      console.error('  - Error status:', error.status);
       console.error('  - Error response:', error.response?.data);
+      console.error('  - Error stack:', error.stack);
       throw error;
     }
   }

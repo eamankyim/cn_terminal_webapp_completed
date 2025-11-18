@@ -262,6 +262,13 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       }
     });
 
+    // Send real-time update for notification deletion
+    if (global.io) {
+      global.io.to(`user_${req.user.id}`).emit('notification_deleted', {
+        notificationId: id
+      });
+    }
+
     // Send real-time update for unread count
     await RealtimeNotificationService.sendUnreadCountUpdate(req.user.id);
 

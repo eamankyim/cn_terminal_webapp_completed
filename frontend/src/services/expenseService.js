@@ -90,6 +90,16 @@ export const expenseService = {
     }
   },
 
+  markExpenseRequestAsPaid: async (id) => {
+    try {
+      const response = await api.patch(`${EXPENSE_API_BASE}/requests/${id}/mark-paid`);
+      return response; // API service returns data directly, not wrapped in .data
+    } catch (error) {
+
+      throw error;
+    }
+  },
+
   // Expenses (Approved)
   getExpenses: async (params = {}) => {
     try {
@@ -138,7 +148,8 @@ export const expenseService = {
     return [
       { value: 'PENDING', label: 'Pending', color: 'orange' },
       { value: 'APPROVED', label: 'Approved', color: 'green' },
-      { value: 'REJECTED', label: 'Rejected', color: 'red' }
+      { value: 'REJECTED', label: 'Rejected', color: 'red' },
+      { value: 'PAID', label: 'Paid', color: 'blue' }
     ];
   },
 

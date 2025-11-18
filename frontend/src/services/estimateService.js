@@ -76,5 +76,7 @@ class EstimateService {
   }
 }
 
-export default new EstimateService();
+const estimateService = new EstimateService();
+
+export default estimateService;
 

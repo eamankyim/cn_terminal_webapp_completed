@@ -61,21 +61,27 @@ router.get('/stats', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOA
       totalShipments,
       totalConsignments,
       totalInvoices,
-      totalPayments
+      totalPayments,
+      jobsDelivered
     ] = await Promise.all([
       prisma.job.count(),
       prisma.customer.count(), // This is actually clients in your system
       prisma.shipment.count(),
       prisma.consignment.count(),
       prisma.invoice.count(),
-      prisma.payment.count()
+      prisma.payment.count(),
+      prisma.job.count({
+        where: {
+          status: 'DELIVERED'
+        }
+      })
     ]);
 
-    // Get jobs in progress (excluding completed statuses)
+    // Get jobs in progress (excluding NEW, CLEARED, DELIVERED)
     const jobsInProgress = await prisma.job.count({
       where: {
         status: {
-          notIn: ['CLEARED', 'DELIVERED']
+          notIn: ['NEW', 'CLEARED', 'DELIVERED']
         }
       }
     });
@@ -178,7 +184,8 @@ router.get('/stats', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOA
       stats: {
         totalJobs,
         jobsInProgress,
-        totalClients, // Now using the correct variable name
+        totalClients, // Keep for backward compatibility if needed elsewhere
+        jobsDelivered, // New stat for delivered jobs
         revenueThisMonth: revenueThisMonth._sum.amount || 0,
         workflowStatuses: workflowStatusCounts,
         totalShipments,
@@ -294,7 +301,7 @@ router.get('/recent-shipments', authenticateToken, requirePermission(UI_PERMISSI
  *         description: Internal server error
  */
 
-// Get jobs in progress (excludes REJECTED, ON_HOLD, DELIVERED, CLOSED)
+// Get jobs in progress (excludes NEW, CLEARED, DELIVERED)
 router.get('/recent-jobs', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOARD), async (req, res) => {
   try {
     const { limit = 10 } = req.query;
@@ -302,7 +309,7 @@ router.get('/recent-jobs', authenticateToken, requirePermission(UI_PERMISSIONS.D
     const jobs = await prisma.job.findMany({
       where: {
         status: {
-          notIn: ['CLEARED', 'DELIVERED']
+          notIn: ['NEW', 'CLEARED', 'DELIVERED']
         }
       },
       take: parseInt(limit),

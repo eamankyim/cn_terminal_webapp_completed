@@ -178,12 +178,17 @@ export const ROLE_UI_PERMISSIONS = {
     ...Object.values(UI_PERMISSIONS)
   ],
   
+  PREINVOICE_OFFICER: [
+    // Full access to everything
+    ...Object.values(UI_PERMISSIONS)
+  ],
+  
   REVIEW_OFFICER: [
     // Full access to everything
     ...Object.values(UI_PERMISSIONS)
   ],
   
-  INVOICE_OFFICER: [
+  VETTING_OFFICER: [
     // Full access to everything
     ...Object.values(UI_PERMISSIONS)
   ],

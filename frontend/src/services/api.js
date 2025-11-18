@@ -52,17 +52,100 @@ class ApiService {
       ...options,
     };
 
+    // Add logging for team members endpoint
+    const isUsersEndpoint = endpoint.includes('/auth/users');
+    
+    if (isUsersEndpoint) {
+      console.log('  - [ApiService] Making request to:', url);
+      console.log('  - [ApiService] Request method:', config.method || 'GET');
+      console.log('  - [ApiService] Request headers:', {
+        'Content-Type': config.headers['Content-Type'],
+        'Authorization': config.headers['Authorization'] ? 'Bearer ***' : 'MISSING'
+      });
+      console.log('  - [ApiService] Base URL:', this.baseURL);
+      console.log('  - [ApiService] Token from localStorage:', !!localStorage.getItem('cn_terminal_token'));
+    }
+
     try {
+      const startTime = Date.now();
       const response = await fetch(url, config);
+      const requestTime = Date.now() - startTime;
+      
+      if (isUsersEndpoint) {
+        console.log('  - [ApiService] Response received in', requestTime, 'ms');
+        console.log('  - [ApiService] Response status:', response.status);
+        console.log('  - [ApiService] Response statusText:', response.statusText);
+        console.log('  - [ApiService] Response ok:', response.ok);
+        console.log('  - [ApiService] Response headers:', {
+          'content-type': response.headers.get('content-type'),
+          'content-length': response.headers.get('content-length')
+        });
+      }
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        let errorData = {};
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          console.error('  - [ApiService] Failed to parse error response:', parseError);
+          const text = await response.text().catch(() => '');
+          console.error('  - [ApiService] Error response text:', text);
+        }
+        
+        if (isUsersEndpoint) {
+          console.error('❌ [ApiService] Request failed:');
+          console.error('  - Status:', response.status);
+          console.error('  - StatusText:', response.statusText);
+          console.error('  - Error data:', errorData);
+        }
+        
+        const error = new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        error.status = response.status;
+        error.response = { data: errorData };
+        throw error;
       }
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error('❌ [ApiService] Failed to parse response JSON:', parseError);
+        console.error('  - Response status:', response.status);
+        const text = await response.text().catch(() => '');
+        console.error('  - Response text:', text.substring(0, 200));
+        throw new Error('Invalid JSON response from server');
+      }
+      
+      if (isUsersEndpoint) {
+        console.log('✅ [ApiService] Response parsed successfully');
+        console.log('  - Response data type:', typeof data);
+        console.log('  - Has users property:', !!data.users);
+        console.log('  - Users is array:', Array.isArray(data.users));
+        console.log('  - Users count:', data.users?.length || 0);
+        if (data.users && data.users.length > 0) {
+          console.log('  - Sample user:', {
+            id: data.users[0].id,
+            email: data.users[0].email,
+            role: data.users[0].role
+          });
+        }
+      }
+      
       return data;
     } catch (error) {
+      if (isUsersEndpoint) {
+        console.error('❌ [ApiService] Request error:');
+        console.error('  - Error name:', error.name);
+        console.error('  - Error message:', error.message);
+        console.error('  - Error status:', error.status);
+        console.error('  - Network error:', error.name === 'TypeError' && error.message.includes('fetch'));
+        if (error.response) {
+          console.error('  - Error response data:', error.response.data);
+        }
+        if (error.stack) {
+          console.error('  - Error stack:', error.stack);
+        }
+      }
       throw error;
     }
   }
@@ -72,6 +155,17 @@ class ApiService {
     const { params = {} } = options;
     const queryString = new URLSearchParams(params).toString();
     const url = queryString ? `${endpoint}?${queryString}` : endpoint;
+    
+    // Add logging for team members endpoint
+    if (endpoint.includes('/auth/users')) {
+      console.log('\n🔷 [ApiService] GET /auth/users called');
+      console.log('  - Endpoint:', endpoint);
+      console.log('  - Full URL:', `${this.baseURL}${url}`);
+      console.log('  - Token present:', !!this.token);
+      console.log('  - Token length:', this.token?.length || 0);
+      console.log('  - Token preview:', this.token ? `${this.token.substring(0, 20)}...` : 'NONE');
+    }
+    
     return this.request(url, { method: 'GET' });
   }
 
@@ -225,7 +319,7 @@ class ApiService {
     return this.put(`/jobs/${id}`, data);
   }
 
-  async updateJobStatus(id, status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, demurrageType) {
+  async updateJobStatus(id, status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, demurrageType, boeNumber) {
     const data = { status, comment };
     if (eta) {
       data.eta = eta;
@@ -259,6 +353,9 @@ class ApiService {
     }
     if (demurrageType !== undefined) {
       data.demurrageType = demurrageType;
+    }
+    if (boeNumber !== undefined) {
+      data.boeNumber = boeNumber;
     }
     
     return this.put(`/jobs/${id}/status`, data);

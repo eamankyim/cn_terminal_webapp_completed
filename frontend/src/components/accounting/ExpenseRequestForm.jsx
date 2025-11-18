@@ -27,6 +27,7 @@ import {
 import expenseService from '../../services/expenseService';
 import jobService from '../../services/jobService';
 import { useAuth } from '../../contexts/AuthContext';
+import { fileService } from '../../services/fileService';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -76,14 +77,32 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
         category: values.category,
         description: values.description,
         expenseDate: values.expenseDate ? values.expenseDate.toISOString() : new Date().toISOString(),
-        jobId: values.jobId || null
+        jobId: values.jobId || null,
+        receiptUrl: null
       };
 
-      // Handle file upload if any
+      // Handle file upload if any (invoice/receipt)
       if (fileList.length > 0 && fileList[0].originFileObj) {
-        // TODO: Implement file upload service
-        // For now, we'll just show a message
-        message.info('Receipt upload will be implemented with file service');
+        try {
+          const file = fileList[0].originFileObj;
+          // Upload file to expense_requests folder
+          const uploadResponse = await fileService.uploadFile(file, {
+            folder: 'expense_requests',
+            category: 'expense_receipt'
+          });
+          
+          if (uploadResponse?.file?.url) {
+            formData.receiptUrl = uploadResponse.file.url;
+            message.success('Invoice/receipt uploaded successfully');
+          } else {
+            message.warning('File uploaded but URL not received');
+          }
+        } catch (uploadError) {
+          console.error('File upload error:', uploadError);
+          message.error('Failed to upload invoice/receipt. Please try again.');
+          setLoading(false);
+          return;
+        }
       }
 
       if (mode === 'record') {
@@ -253,9 +272,9 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
           </Form.Item>
 
           <Form.Item
-            label="Receipt (Optional)"
+            label="Invoice/Receipt (Optional)"
             name="receipt"
-            tooltip="Upload a receipt or supporting document"
+            tooltip="Upload an invoice or receipt document"
           >
             <Upload
               fileList={fileList}
@@ -266,10 +285,10 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
               style={{ width: '100%' }}
             >
               <Button 
-                icon={<PlusOutlined />} 
+                icon={<UploadOutlined />} 
                 style={{ width: '100%', height: '40px' }}
               >
-                Upload Receipt
+                Upload Invoice/Receipt
               </Button>
             </Upload>
             <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginTop: 8 }}>

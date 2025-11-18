@@ -80,5 +80,7 @@ class ConsignmentService {
   }
 }
 
-export default new ConsignmentService();
+const consignmentService = new ConsignmentService();
+
+export default consignmentService;
 

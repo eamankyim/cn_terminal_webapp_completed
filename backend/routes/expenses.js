@@ -408,8 +408,12 @@ router.post('/requests', authenticateToken, requirePermission(PERMISSIONS.EXPENS
   }
 });
 
-// Approve expense request
-router.patch('/requests/:id/approve', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
+// Approve expense request (Admin can approve, Accountant can also approve)
+router.patch('/requests/:id/approve', authenticateToken, async (req, res) => {
+  // Check if user is ADMIN or has EXPENSE_APPROVE permission
+  if (req.user.role !== 'ADMIN' && !req.user.permissions?.some(p => p.permission === PERMISSIONS.EXPENSE_APPROVE)) {
+    return res.status(403).json({ error: 'Only Admin or users with expense approval permission can approve requests' });
+  }
   try {
     const { id } = req.params;
     const { approvalComment } = req.body;
@@ -553,6 +557,84 @@ router.patch('/requests/:id/approve', authenticateToken, requirePermission(UI_PE
     });
     res.status(500).json({ 
       error: 'Failed to approve expense request',
+      details: error.message 
+    });
+  }
+});
+
+// Mark expense request as paid (Accountant only, after approval)
+router.patch('/requests/:id/mark-paid', authenticateToken, async (req, res) => {
+  try {
+    // Only ACCOUNTANT can mark as paid
+    if (req.user.role !== 'ACCOUNTANT') {
+      return res.status(403).json({ error: 'Only Accountant can mark expense requests as paid' });
+    }
+
+    const { id } = req.params;
+    
+    // Check if request exists and is approved
+    const request = await prisma.expenseRequest.findUnique({
+      where: { id },
+      include: { 
+        requestedBy: { select: { name: true, email: true } },
+        approvedBy: { select: { name: true, email: true } }
+      }
+    });
+
+    if (!request) {
+      return res.status(404).json({ error: 'Expense request not found' });
+    }
+
+    if (request.status !== 'APPROVED') {
+      return res.status(400).json({ 
+        error: 'Only approved expense requests can be marked as paid' 
+      });
+    }
+
+    // Update request status to PAID
+    const updatedRequest = await prisma.expenseRequest.update({
+      where: { id },
+      data: {
+        status: 'PAID'
+      },
+      include: {
+        requestedBy: {
+          select: { id: true, name: true, email: true, role: true }
+        },
+        approvedBy: {
+          select: { id: true, name: true, email: true, role: true }
+        },
+        job: {
+          select: { id: true, trackingId: true, status: true }
+        },
+        expense: true
+      }
+    });
+
+    // Create notification for requester
+    try {
+      await RealtimeNotificationService.sendRealtimeNotification(request.requestedById, {
+        title: 'Expense Request Paid',
+        message: `Your expense request for GH₵${request.amount.toFixed(2)} has been marked as paid`,
+        type: 'SUCCESS',
+        category: 'EXPENSE_APPROVED',
+        metadata: {
+          expenseRequestId: id,
+          amount: request.amount,
+          category: request.category,
+          markedPaidBy: req.user.name,
+          markedPaidById: req.user.id
+        }
+      });
+    } catch (notificationError) {
+      console.error('Failed to send expense paid notification:', notificationError);
+    }
+
+    res.json(updatedRequest);
+  } catch (error) {
+    console.error('Error marking expense request as paid:', error);
+    res.status(500).json({ 
+      error: 'Failed to mark expense request as paid',
       details: error.message 
     });
   }

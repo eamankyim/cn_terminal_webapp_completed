@@ -330,7 +330,7 @@ const InvoicesPage = () => {
     const statusColors = {
       'NEW': 'green',
       'PREINVOICED': 'blue',
-      'INVOICED': 'purple',
+      'VETTED': 'purple',
       'ENTRY_COMPLETED': 'orange',
       'READY_FOR_RELEASE': 'geekblue',
       'RELEASE': 'cyan',
@@ -345,7 +345,7 @@ const InvoicesPage = () => {
     const statusIcons = {
       'NEW': <PlusOutlined />,
       'PREINVOICED': <FileTextOutlined />,
-      'INVOICED': <DollarOutlined />,
+      'VETTED': <DollarOutlined />,
       'ENTRY_COMPLETED': <CalendarOutlined />,
       'READY_FOR_RELEASE': <CarOutlined />,
       'RELEASE': <CheckCircleOutlined />,

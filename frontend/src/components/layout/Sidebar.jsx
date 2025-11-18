@@ -42,6 +42,8 @@ const Sidebar = ({ collapsed, onNavigate }) => {
       icon: <DashboardOutlined />,
       label: 'Dashboard',
       permission: UI_PERMISSIONS.DASHBOARD,
+      // Only show Dashboard for ADMIN, ACCOUNTANT, and IT_CONSULTANT
+      allowedRoles: ['ADMIN', 'ACCOUNTANT', 'IT_CONSULTANT'],
     },
     {
       key: '/enquiries',
@@ -99,13 +101,16 @@ const Sidebar = ({ collapsed, onNavigate }) => {
     },
   ];
 
-  // Filter menu items based on user permissions
+  // Filter menu items based on user permissions and role restrictions
   const filteredMenuItems = menuItems.filter(item => {
     if (!item.permission) return true; // Show items without permission requirements
     
-    // Hide Dashboard for ENQUIRY_OFFICER and ENTRY_OFFICER (Jobs page is their main page)
-    if (item.key === '/dashboard' && hasRole(currentUser?.role, ['ENQUIRY_OFFICER', 'ENTRY_OFFICER'])) {
-      return false;
+    // Hide Dashboard for all roles except ADMIN, ACCOUNTANT, and IT_CONSULTANT
+    if (item.key === '/dashboard') {
+      const allowedRoles = item.allowedRoles || ['ADMIN', 'ACCOUNTANT', 'IT_CONSULTANT'];
+      if (!allowedRoles.includes(currentUser?.role)) {
+        return false;
+      }
     }
     
     // Hide Requests tab for admin, accountant, and IT consultant users since they don't send requests
