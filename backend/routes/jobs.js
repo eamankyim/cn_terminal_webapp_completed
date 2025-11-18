@@ -4,6 +4,7 @@ const { authenticateToken, requirePermission } = require('../middleware/auth');
 const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 const NotificationService = require('../services/notificationService');
 const RealtimeNotificationService = require('../services/realtimeNotificationService');
+const SocketService = require('../services/socketService');
 
 const router = express.Router();
 
@@ -552,9 +553,10 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
     }
 
     // Check if consignment exists and belongs to customer (if provided)
+    let consignment = null;
     if (consignmentId) {
 
-      const consignment = await prisma.consignment.findFirst({
+      consignment = await prisma.consignment.findFirst({
         where: {
           id: consignmentId,
           customerId
@@ -566,6 +568,32 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
         return res.status(400).json({ error: 'Consignment not found or does not belong to this customer' });
       }
 
+    }
+
+    // Validate that at least one of Ghana Card or TIN is provided
+    // Check customer first, then consignment if available
+    const hasGhanaCard = customer.ghanaCard || (consignment && consignment.ghanaCard);
+    const hasTin = customer.tin || (consignment && consignment.tin);
+    
+    if (!hasGhanaCard && !hasTin) {
+      return res.status(400).json({ 
+        error: 'At least one of Ghana Card or TIN must be provided for the customer/consignee' 
+      });
+    }
+
+    // Validate BL number is unique (if provided)
+    if (blNumber && blNumber.trim() !== '') {
+      const existingJobWithBL = await prisma.job.findFirst({
+        where: {
+          blNumber: blNumber.trim()
+        }
+      });
+
+      if (existingJobWithBL) {
+        return res.status(400).json({ 
+          error: `BL number "${blNumber.trim()}" is already in use by another job (Job ID: ${existingJobWithBL.trackingId})` 
+        });
+      }
     }
 
     // Generate system job ID
@@ -586,7 +614,7 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
       mediumOfEnquiry,
       documentsBrought,
       containerNumber,
-      blNumber,
+      blNumber: blNumber && blNumber.trim() !== '' ? blNumber.trim() : null, // Trim and store BL number
       vesselName,
       line,
       jobDescription,
@@ -642,16 +670,15 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
 
     // Create notifications for job creation and assignment with real-time updates
     try {
-      // Notify the assigned user about the new job
+      // Notify all users about the new job assignment
       await RealtimeNotificationService.notifyJobAssignmentRealtime(job.id, job.assignedToId, req.user.id);
 
-      // Notify all staff about new job creation (optional - for visibility)
-      await NotificationService.createNotification({
+      // Notify all users about new job creation
+      await NotificationService.createNotificationForAllUsers({
         title: 'New Job Created',
         message: `New job ${job.trackingId} has been created for ${job.customer.name}`,
         type: 'INFO',
         category: 'JOB_CREATED',
-        userId: req.user.id,
         jobId: job.id,
         metadata: {
           jobTrackingId: job.trackingId,
@@ -662,9 +689,12 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
       });
 
     } catch (notificationError) {
-
+      console.error('❌ [Jobs API] Error creating notifications:', notificationError);
       // Don't fail the job creation if notifications fail
     }
+
+    // Emit socket event for real-time update
+    SocketService.emitJobCreated(job);
 
     res.status(201).json({
       message: 'Job created successfully',
@@ -799,7 +829,26 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
 
     // Add B/L number if provided
     if (blNumber !== undefined) {
-      updateData.blNumber = blNumber;
+      // Validate BL number is unique (if provided and not empty)
+      if (blNumber && blNumber.trim() !== '') {
+        const trimmedBlNumber = blNumber.trim();
+        const existingJobWithBL = await prisma.job.findFirst({
+          where: {
+            blNumber: trimmedBlNumber,
+            id: { not: id } // Exclude current job
+          }
+        });
+
+        if (existingJobWithBL) {
+          return res.status(400).json({ 
+            error: `BL number "${trimmedBlNumber}" is already in use by another job (Job ID: ${existingJobWithBL.trackingId})` 
+          });
+        }
+        updateData.blNumber = trimmedBlNumber;
+      } else {
+        // Allow clearing BL number by setting to null
+        updateData.blNumber = null;
+      }
     }
 
     // Add vessel name if provided
@@ -864,6 +913,9 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
       });
     }
 
+    // Emit socket event for real-time update
+    SocketService.emitJobUpdated(updatedJob);
+
     res.json({
       message: 'Job updated successfully',
       job: updatedJob
@@ -891,6 +943,22 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
           error: 'BoE number is required when status is ENTRY_COMPLETED' 
         });
       }
+      
+      const trimmedBoeNumber = boeNumber.trim();
+      
+      // Validate BoE number is exactly 11 characters
+      if (trimmedBoeNumber.length !== 11) {
+        return res.status(400).json({ 
+          error: 'BoE number must be exactly 11 characters' 
+        });
+      }
+      
+      // Validate BoE number contains only numeric digits
+      if (!/^\d{11}$/.test(trimmedBoeNumber)) {
+        return res.status(400).json({ 
+          error: 'BoE number must contain only numeric digits (0-9)' 
+        });
+      }
     }
 
     // Validate demurrage/free days and release money are required for RELEASED status
@@ -912,16 +980,16 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
       }
     }
 
-    // Validate shipper name and invoice number are required for INVOICED status
-    if (status === 'INVOICED') {
+    // Validate shipper name and invoice number are required for VETTED status
+    if (status === 'VETTED') {
       if (!shipperName || shipperName.trim() === '') {
         return res.status(400).json({ 
-          error: 'Shipper name is required when status is INVOICED' 
+          error: 'Shipper name is required when status is VETTED' 
         });
       }
       if (!invoiceNumber || invoiceNumber.trim() === '') {
         return res.status(400).json({ 
-          error: 'Invoice number is required when status is INVOICED' 
+          error: 'Invoice number is required when status is VETTED' 
         });
       }
     }
@@ -980,12 +1048,13 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
     const STATUS_HIERARCHY = {
       'NEW': 1,
       'PREINVOICED': 2,
-      'INVOICED': 3,           // Auto-set only when invoice is created
+      'VETTED': 3,           // Job has been vetted/reviewed
       'ENTRY_COMPLETED': 4,
-      'READY_FOR_RELEASE': 5,  // Transport coordinator assigns and uploads docs
-      'RELEASED': 6,
-      'CLEARED': 7,
-      'DELIVERED': 8           // Final status - no further changes
+      'DUTY_PAID': 5,        // Duty has been paid
+      'READY_FOR_RELEASE': 6,  // Transport coordinator assigns and uploads docs
+      'RELEASED': 7,
+      'CLEARED': 8,
+      'DELIVERED': 9           // Final status - no further changes
     };
 
     const currentLevel = STATUS_HIERARCHY[existingJob.status];
@@ -998,14 +1067,23 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
       });
     }
 
-    // Validate forward progression only
-    if (newLevel <= currentLevel) {
-      return res.status(400).json({ 
-        error: 'Jobs can only progress forward in the workflow. Cannot move to previous or same status.' 
-      });
+    // DELIVERED can only be set from CLEARED status (final stage)
+    if (status === 'DELIVERED') {
+      if (existingJob.status !== 'CLEARED') {
+        return res.status(400).json({ 
+          error: 'DELIVERED status can only be set from CLEARED status' 
+        });
+      }
+    } else {
+      // Validate forward progression only (for all other statuses)
+      if (newLevel <= currentLevel) {
+        return res.status(400).json({ 
+          error: 'Jobs can only progress forward in the workflow. Cannot move to previous or same status.' 
+        });
+      }
     }
 
-    // INVOICED is now a regular status that can be set manually
+    // VETTED is now a regular status that can be set manually
 
     // DELIVERED is final status - no further changes allowed
     if (existingJob.status === 'DELIVERED') {
@@ -1042,12 +1120,18 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
       updateData.releaseMoneyReceived = releaseMoneyReceived;
     }
 
-    // Add shipper name and invoice number if provided (for INVOICED status)
-    if (shipperName !== undefined) {
-      updateData.shipperName = shipperName.trim();
+    // Add shipper name and invoice number if provided (for VETTED status)
+    if (shipperName !== undefined && shipperName !== null) {
+      const trimmedShipperName = shipperName.trim();
+      if (trimmedShipperName !== '') {
+        updateData.shipperName = trimmedShipperName;
+      }
     }
-    if (invoiceNumber !== undefined) {
-      updateData.invoiceNumber = invoiceNumber.trim();
+    if (invoiceNumber !== undefined && invoiceNumber !== null) {
+      const trimmedInvoiceNumber = invoiceNumber.trim();
+      if (trimmedInvoiceNumber !== '') {
+        updateData.invoiceNumber = trimmedInvoiceNumber;
+      }
     }
 
     // Add RELEASED status fields if provided
@@ -1065,8 +1149,11 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
     }
 
     // Add BoE number if provided (for ENTRY_COMPLETED status)
-    if (boeNumber !== undefined) {
-      updateData.boeNumber = boeNumber.trim();
+    if (boeNumber !== undefined && boeNumber !== null) {
+      const trimmedBoeNumber = boeNumber.trim();
+      if (trimmedBoeNumber !== '') {
+        updateData.boeNumber = trimmedBoeNumber;
+      }
     }
 
     // Add demurrage type if provided (for RELEASED status)
@@ -1109,6 +1196,12 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
         releaseMoneyReceived: true,
         shipperName: true,
         invoiceNumber: true,
+        boeNumber: true,
+        terminalName: true,
+        scheduleTime: true,
+        driverName: true,
+        driverContact: true,
+        demurrageType: true,
         createdAt: true,
         updatedAt: true,
         goodsTypes: true,
@@ -1177,6 +1270,54 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
 
       // Don't fail the status update if notification fails
     }
+
+    // Send SMS to customer if job status changed and SMS is enabled
+    try {
+      const smsService = require('../services/smsService');
+      
+      // Check if SMS notifications are enabled
+      const smsConfig = await prisma.configuration.findUnique({
+        where: { key: 'SMS_NOTIFICATIONS' }
+      });
+      
+      // Check if SMS is enabled (handle both boolean and string values)
+      const isSmsEnabled = smsConfig && (
+        smsConfig.value === 'true' || 
+        smsConfig.value === true || 
+        (smsConfig.type === 'BOOLEAN' && smsConfig.value === 'true')
+      );
+      
+      if (isSmsEnabled) {
+        // Get complete job with customer info
+        const jobWithCustomer = await prisma.job.findUnique({
+          where: { id: id },
+          include: {
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                email: true
+              }
+            }
+          }
+        });
+        
+        if (jobWithCustomer && jobWithCustomer.customer) {
+          // Send SMS for important status changes
+          const importantStatuses = ['ENTRY_COMPLETED', 'DUTY_PAID', 'RELEASED', 'CLEARED', 'DELIVERED'];
+          if (importantStatuses.includes(status)) {
+            await smsService.sendJobStatusUpdate(jobWithCustomer, status, existingJob.status);
+          }
+        }
+      }
+    } catch (smsError) {
+      console.error('❌ Failed to send SMS notification:', smsError.message);
+      // Don't fail the status update if SMS fails
+    }
+
+    // Emit socket event for real-time update
+    SocketService.emitJobStatusUpdated(completeJob);
 
     res.json({
       message: 'Job status updated successfully',
@@ -1262,9 +1403,102 @@ router.delete('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS),
       where: { id }
     });
 
+    // Emit socket event for real-time update
+    SocketService.emitJobDeleted(id);
+
     res.json({ message: 'Job deleted successfully' });
   } catch (error) {
 
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Add comment to job (doesn't change status)
+router.post('/:id/comments', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { comment } = req.body;
+
+    if (!comment || comment.trim() === '') {
+      return res.status(400).json({ error: 'Comment is required' });
+    }
+
+    // Check if job exists
+    const job = await prisma.job.findUnique({
+      where: { id }
+    });
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Create comment
+    const jobComment = await prisma.jobComment.create({
+      data: {
+        jobId: id,
+        comment: comment.trim(),
+        createdById: req.user.id
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    // Emit socket event for real-time update
+    SocketService.emitJobCommentAdded(id, jobComment);
+
+    res.status(201).json({
+      message: 'Comment added successfully',
+      comment: jobComment
+    });
+  } catch (error) {
+    console.error('Error adding job comment:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get all comments for a job
+router.get('/:id/comments', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if job exists
+    const job = await prisma.job.findUnique({
+      where: { id }
+    });
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Get all comments
+    const comments = await prisma.jobComment.findMany({
+      where: { jobId: id },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    res.json({
+      comments
+    });
+  } catch (error) {
+    console.error('Error fetching job comments:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

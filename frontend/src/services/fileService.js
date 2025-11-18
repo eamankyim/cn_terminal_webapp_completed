@@ -34,29 +34,41 @@ class FileService {
       }
       
       console.log('  - Posting to /files/upload...');
+      const uploadStartTime = Date.now();
       const response = await api.post('/files/upload', formData, {
         // Don't set Content-Type for FormData - let the browser set it with boundary
+        // The api.post method will handle this correctly
         onUploadProgress: (progressEvent) => {
           if (options.onProgress) {
             const percentCompleted = Math.round(
               (progressEvent.loaded * 100) / progressEvent.total
             );
-
+            console.log('  - Upload progress:', percentCompleted + '%');
             options.onProgress(percentCompleted);
           }
         },
       });
+      const uploadTime = Date.now() - uploadStartTime;
 
-      console.log('✅ [FileService] Upload response:', response);
+      console.log('✅ [FileService] Upload response received in', uploadTime, 'ms');
+      console.log('  - Full response:', response);
       console.log('  - File ID:', response?.file?.id);
+      console.log('  - File URL:', response?.file?.url);
       console.log('  - Entity ID in response:', response?.file?.entityId);
       console.log('  - Entity Type in response:', response?.file?.entityType);
+      console.log('  - Success:', response?.success);
       
       return response;
     } catch (error) {
       console.error('❌ [FileService] Upload error:', error);
+      console.error('  - Error name:', error.name);
+      console.error('  - Error message:', error.message);
+      console.error('  - Error status:', error.status);
       console.error('  - Error response:', error.response?.data);
-      throw new Error(error.message || 'Failed to upload file');
+      console.error('  - Error response status:', error.response?.status);
+      console.error('  - Error response headers:', error.response?.headers);
+      console.error('  - Full error object:', error);
+      throw new Error(error.response?.data?.message || error.message || 'Failed to upload file');
     }
   }
 

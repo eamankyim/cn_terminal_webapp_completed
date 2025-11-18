@@ -34,14 +34,19 @@ const ROLE_INFO = {
     description: 'Can create jobs, customers, invoices, and release shipments',
     isSystem: true
   },
+  PREINVOICE_OFFICER: {
+    displayName: 'Preinvoice Officer',
+    description: 'Handles pre-invoicing tasks and prepares billing information',
+    isSystem: true
+  },
   REVIEW_OFFICER: {
     displayName: 'Review Officer',
     description: 'Reviews and preinvoices jobs',
     isSystem: true
   },
-  INVOICE_OFFICER: {
-    displayName: 'Invoice Officer',
-    description: 'Creates and manages invoices',
+  VETTING_OFFICER: {
+    displayName: 'Vetting Officer',
+    description: 'Vets jobs and prepares them for invoicing',
     isSystem: true
   },
   CLEARING_OFFICER: {

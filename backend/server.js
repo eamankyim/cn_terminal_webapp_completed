@@ -385,23 +385,47 @@ app.use((req, res) => {
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
+  console.log('📡 [Socket.IO] New client connected:', socket.id);
 
   // Handle user authentication and join user room
   socket.on('authenticate', (userId) => {
     if (userId) {
       socket.join(`user_${userId}`);
-
+      console.log(`✅ [Socket.IO] User ${userId} authenticated and joined room: user_${userId}`);
+    } else {
+      console.warn('⚠️ [Socket.IO] Authentication attempted without userId');
     }
   });
 
   // Handle disconnect
   socket.on('disconnect', () => {
-
+    console.log('📡 [Socket.IO] Client disconnected:', socket.id);
   });
 });
 
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || 'localhost';
+const BASE_URL = `http://${HOST}:${PORT}`;
 
 server.listen(PORT, () => {
-
+  console.log('\n' + '='.repeat(80));
+  console.log('🚀 CN Terminal Backend Server Started Successfully!');
+  console.log('='.repeat(80));
+  console.log(`📡 Server running on: ${BASE_URL}`);
+  console.log(`🔌 Port: ${PORT}`);
+  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log('\n📚 API Documentation:');
+  console.log(`   Swagger UI: ${BASE_URL}/api-docs`);
+  console.log(`   API Root: ${BASE_URL}/api`);
+  console.log(`   Health Check: ${BASE_URL}/api/health`);
+  console.log('\n🔗 Key API Endpoints:');
+  console.log(`   Authentication: ${BASE_URL}/api/auth`);
+  console.log(`   Jobs: ${BASE_URL}/api/jobs`);
+  console.log(`   Customers: ${BASE_URL}/api/customers`);
+  console.log(`   Invoices: ${BASE_URL}/api/invoices`);
+  console.log(`   Dashboard: ${BASE_URL}/api/dashboard`);
+  console.log(`   Reports: ${BASE_URL}/api/reports`);
+  console.log(`   Settings: ${BASE_URL}/api/configurations`);
+  console.log('\n💡 Tip: Visit the Swagger UI to explore all available endpoints');
+  console.log('='.repeat(80) + '\n');
 });

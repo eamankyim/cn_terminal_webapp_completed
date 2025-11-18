@@ -217,7 +217,7 @@ router.post('/login', async (req, res) => {
  *                 example: Password123
  *               role:
  *                 type: string
- *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, RELEASE_OFFICER, REVIEW_OFFICER, INVOICE_OFFICER, CLEARING_OFFICER, STAFF]
+ *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, PREINVOICE_OFFICER, REVIEW_OFFICER, VETTING_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, ACCOUNTANT]
  *                 default: STAFF
  *                 description: User's role in the system
  *                 example: STAFF
@@ -257,7 +257,7 @@ router.post('/register', authenticateToken, requireAdminOrIT, async (req, res) =
     const { name, email, password, role = 'STAFF' } = req.body;
     
     // Validate role
-    const validRoles = ['ADMIN', 'IT_CONSULTANT', 'ENQUIRY_OFFICER', 'RELEASE_OFFICER', 'REVIEW_OFFICER', 'INVOICE_OFFICER', 'CLEARING_OFFICER', 'STAFF'];
+    const validRoles = ['ADMIN', 'IT_CONSULTANT', 'ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'TRANSPORT_COORDINATOR', 'RELEASE_OFFICER', 'PREINVOICE_OFFICER', 'REVIEW_OFFICER', 'VETTING_OFFICER', 'CLEARING_OFFICER', 'STAFF', 'DRIVER', 'ACCOUNTANT'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ error: 'Invalid role specified' });
     }
@@ -415,7 +415,13 @@ router.get('/profile', authenticateToken, async (req, res) => {
 // Update user profile
 router.put('/profile', authenticateToken, async (req, res) => {
   try {
-    const { name, email } = req.body;
+    const { name, email, phone, profilePicture, firstName, lastName } = req.body;
+
+    // Combine firstName and lastName if provided separately
+    let finalName = name;
+    if (firstName || lastName) {
+      finalName = `${firstName || ''} ${lastName || ''}`.trim();
+    }
 
     // Check if email is already taken by another user
     if (email && email !== req.user.email) {
@@ -428,13 +434,22 @@ router.put('/profile', authenticateToken, async (req, res) => {
       }
     }
 
+    // Prepare update data
+    const updateData = {};
+    if (finalName) updateData.name = finalName;
+    if (email) updateData.email = email;
+    if (phone !== undefined) updateData.phone = phone;
+    if (profilePicture !== undefined) updateData.profilePicture = profilePicture;
+
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
-      data: { name, email },
+      data: updateData,
       select: {
         id: true,
         name: true,
         email: true,
+        phone: true,
+        profilePicture: true,
         role: true,
         isActive: true,
         createdAt: true,
@@ -696,10 +711,39 @@ router.put('/change-password', authenticateToken, async (req, res) => {
  */
 // Get all users (all authenticated users can view, only admins can edit)
 router.get('/users', authenticateToken, async (req, res) => {
-  console.log('🔷 [API] GET /auth/users called');
-  console.log('  - Requesting user:', req.user?.email, 'Role:', req.user?.role);
+  console.log('\n🔷 [API] GET /auth/users called');
+  console.log('  - Timestamp:', new Date().toISOString());
+  console.log('  - Requesting user ID:', req.user?.id);
+  console.log('  - Requesting user email:', req.user?.email);
+  console.log('  - Requesting user role:', req.user?.role);
+  console.log('  - Request headers:', {
+    'content-type': req.headers['content-type'],
+    'authorization': req.headers['authorization'] ? 'Bearer ***' : 'MISSING'
+  });
+  
   try {
+    // Check if user is authenticated
+    if (!req.user) {
+      console.error('❌ [API] Authentication failed - req.user is missing');
+      return res.status(401).json({ error: 'Unauthorized - User not authenticated' });
+    }
+    
+    console.log('  - User authenticated successfully');
+    console.log('  - Checking database connection...');
+    
+    // Test database connection
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      console.log('  - Database connection: OK');
+    } catch (dbError) {
+      console.error('❌ [API] Database connection failed:', dbError.message);
+      console.error('  - Database error stack:', dbError.stack);
+      return res.status(500).json({ error: 'Database connection failed' });
+    }
+    
     console.log('  - Fetching users from database...');
+    const startTime = Date.now();
+    
     const users = await prisma.user.findMany({
       select: {
         id: true,
@@ -712,14 +756,62 @@ router.get('/users', authenticateToken, async (req, res) => {
       },
       orderBy: { createdAt: 'desc' }
     });
+    
+    const queryTime = Date.now() - startTime;
+    console.log('  - Database query completed in', queryTime, 'ms');
     console.log('✅ [API] Found', users.length, 'users');
+    
+    if (users.length > 0) {
+      console.log('  - Sample user:', {
+        id: users[0].id,
+        email: users[0].email,
+        role: users[0].role,
+        isActive: users[0].isActive
+      });
+    } else {
+      console.warn('⚠️ [API] No users found in database');
+    }
+    
+    console.log('  - Preparing response...');
+    const response = { users };
+    console.log('  - Response structure:', {
+      hasUsers: !!response.users,
+      usersCount: response.users?.length || 0,
+      usersType: Array.isArray(response.users) ? 'array' : typeof response.users
+    });
+    
     console.log('  - Sending response...');
-    res.json({ users });
-    console.log('✅ [API] GET /auth/users completed\n');
+    res.json(response);
+    console.log('✅ [API] GET /auth/users completed successfully\n');
   } catch (error) {
-    console.error('❌ [API] GET /auth/users error:', error);
+    console.error('\n❌ [API] GET /auth/users ERROR:');
+    console.error('  - Error name:', error.name);
+    console.error('  - Error message:', error.message);
+    console.error('  - Error code:', error.code);
     console.error('  - Error stack:', error.stack);
-    res.status(500).json({ error: 'Internal server error' });
+    
+    // Check for specific error types
+    if (error.code === 'P2002') {
+      console.error('  - Prisma error: Unique constraint violation');
+    } else if (error.code === 'P2025') {
+      console.error('  - Prisma error: Record not found');
+    } else if (error.code === 'P1001') {
+      console.error('  - Prisma error: Cannot reach database server');
+    } else if (error.code === 'P1008') {
+      console.error('  - Prisma error: Operations timed out');
+    }
+    
+    console.error('  - Request user:', req.user?.email);
+    console.error('  - Request timestamp:', new Date().toISOString());
+    
+    const errorResponse = {
+      error: 'Internal server error',
+      message: error.message,
+      code: error.code || 'UNKNOWN_ERROR'
+    };
+    
+    res.status(500).json(errorResponse);
+    console.error('❌ [API] GET /auth/users failed\n');
   }
 });
 
@@ -905,7 +997,7 @@ router.put('/users/:id/status', authenticateToken, requireAdmin, async (req, res
  *                 example: john@example.com
  *               role:
  *                 type: string
- *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, RELEASE_OFFICER, REVIEW_OFFICER, INVOICE_OFFICER, CLEARING_OFFICER, STAFF]
+ *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, PREINVOICE_OFFICER, REVIEW_OFFICER, VETTING_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, ACCOUNTANT]
  *                 description: User's role
  *                 example: STAFF
  *               isActive:

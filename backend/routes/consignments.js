@@ -105,9 +105,9 @@ router.post('/', authenticateToken, async (req, res) => {
       date
     } = req.body;
 
-    // Validate required fields
-    if (!customerId || !consigneeName || !consigneePhone || !consigneeAddress || !ghanaCard || !tin) {
-      return res.status(400).json({ error: 'All fields are required' });
+    // Validate required fields (Ghana Card and TIN are optional)
+    if (!customerId || !consigneeName || !consigneePhone || !consigneeAddress) {
+      return res.status(400).json({ error: 'Customer ID, Consignee Name, Phone, and Address are required' });
     }
 
     // Generate unique tracking ID

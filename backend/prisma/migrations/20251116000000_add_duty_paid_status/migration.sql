@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "JobStatus" ADD VALUE IF NOT EXISTS 'DUTY_PAID';
+

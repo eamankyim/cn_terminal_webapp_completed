@@ -41,9 +41,9 @@ class JobService {
     }
   }
 
-  async updateJobStatus(id, status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, demurrageType) {
+  async updateJobStatus(id, status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, demurrageType, boeNumber) {
     try {
-      const response = await apiService.updateJobStatus(id, status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, demurrageType);
+      const response = await apiService.updateJobStatus(id, status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, demurrageType, boeNumber);
       return response; // Return the full response object
     } catch (error) {
 
@@ -70,6 +70,28 @@ class JobService {
       throw error;
     }
   }
+
+  async addJobComment(jobId, comment) {
+    try {
+      const response = await apiService.post(`/jobs/${jobId}/comments`, { comment });
+      return response;
+    } catch (error) {
+
+      throw error;
+    }
+  }
+
+  async getJobComments(jobId) {
+    try {
+      const response = await apiService.get(`/jobs/${jobId}/comments`);
+      return response.comments || [];
+    } catch (error) {
+
+      throw error;
+    }
+  }
 }
 
-export default new JobService();
+const jobService = new JobService();
+
+export default jobService;

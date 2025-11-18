@@ -12,6 +12,8 @@ model User {
   email               String               @unique
   password            String
   name                String
+  phone               String?
+  profilePicture      String?
   role                UserRole             @default(STAFF)
   isActive            Boolean              @default(true)
   createdAt           DateTime             @default(now())
@@ -36,6 +38,7 @@ model User {
   rolePermissions     RolePermission[]     @relation("RolePermissionCreator")
   grantedPermissions  UserPermission[]     @relation("UserPermissionGranter")
   userPermissions     UserPermission[]     @relation("UserPermissionUser")
+  jobComments         JobComment[]         @relation("JobComments")
   assignedRole        Role?                @relation(fields: [roleId], references: [id])
 
   @@map("users")
@@ -122,6 +125,7 @@ model Job {
   invoices             Invoice[]
   documents            JobDocument[]
   statusHistory        JobStatusHistory[]
+  comments             JobComment[]
   assignedTo           User                  @relation("AssignedJobs", fields: [assignedToId], references: [id])
   consignment          Consignment?          @relation(fields: [consignmentId], references: [id])
   createdBy            User                  @relation("CreatedJobs", fields: [createdById], references: [id])
@@ -145,6 +149,18 @@ model JobStatusHistory {
   updatedByUser User      @relation("StatusHistory", fields: [updatedById], references: [id])
 
   @@map("job_status_history")
+}
+
+model JobComment {
+  id            String    @id @default(cuid())
+  jobId         String
+  comment       String
+  createdAt     DateTime  @default(now())
+  createdById   String
+  job           Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdBy     User      @relation("JobComments", fields: [createdById], references: [id])
+
+  @@map("job_comments")
 }
 
 model JobDocument {
@@ -530,8 +546,9 @@ enum UserRole {
   ENTRY_OFFICER
   TRANSPORT_COORDINATOR
   RELEASE_OFFICER
+  PREINVOICE_OFFICER
   REVIEW_OFFICER
-  INVOICE_OFFICER
+  VETTING_OFFICER
   CLEARING_OFFICER
   ACCOUNTANT
 }
@@ -555,9 +572,10 @@ enum ConsignmentStatus {
 enum JobStatus {
   NEW
   PREINVOICED
-  INVOICED
+  VETTED
   ENTRY
   ENTRY_COMPLETED
+  DUTY_PAID
   READY_FOR_RELEASE
   RELEASE
   RELEASED
@@ -680,6 +698,7 @@ enum ExpenseStatus {
   PENDING
   APPROVED
   REJECTED
+  PAID
 }
 
 enum PayoutStatus {

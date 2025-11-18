@@ -538,11 +538,8 @@ const ExpenseRequestsList = () => {
               <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
                 <Text strong style={{ marginBottom: 16, display: 'block' }}>Actions:</Text>
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <PermissionGate 
-                    userRole={currentUser?.role} 
-                    userPermissions={currentUser?.permissions}
-                    permissions={PERMISSIONS.EXPENSE_APPROVE}
-                  >
+                  {/* Admin can approve, or users with EXPENSE_APPROVE permission */}
+                  {(currentUser?.role === 'ADMIN' || currentUser?.permissions?.some(p => p.permission === PERMISSIONS.EXPENSE_APPROVE)) && (
                     <Space size={8}>
                       <Button
                         type="primary"
@@ -559,7 +556,33 @@ const ExpenseRequestsList = () => {
                         Reject Request
                       </Button>
                     </Space>
-                  </PermissionGate>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Mark as Paid Button (Accountant only, for approved requests) */}
+            {selectedRequest.status === 'APPROVED' && currentUser?.role === 'ACCOUNTANT' && (
+              <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
+                <Text strong style={{ marginBottom: 16, display: 'block' }}>Actions:</Text>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button
+                    type="primary"
+                    icon={<DollarOutlined />}
+                    onClick={async () => {
+                      try {
+                        const updatedRequest = await expenseService.markExpenseRequestAsPaid(selectedRequest.id);
+                        message.success('Expense request marked as paid');
+                        setSelectedRequest(updatedRequest);
+                        await loadRequests();
+                        await loadStats();
+                      } catch (error) {
+                        message.error(error.response?.data?.error || 'Failed to mark expense as paid');
+                      }
+                    }}
+                  >
+                    Mark as Paid
+                  </Button>
                 </div>
               </div>
             )}

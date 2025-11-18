@@ -56,6 +56,7 @@ const DashboardPage = () => {
       totalJobs: 0,
       jobsInTransit: 0,
       totalClients: 0,
+      jobsDelivered: 0,
       revenueThisMonth: 0,
       workflowStatuses: {}
     },
@@ -63,9 +64,10 @@ const DashboardPage = () => {
     assignedJobs: []
   });
 
-  // Redirect ENQUIRY_OFFICER and ENTRY_OFFICER to Jobs page (their main page)
+  // Redirect all roles except ADMIN, ACCOUNTANT, and IT_CONSULTANT to Jobs page
   useEffect(() => {
-    if (currentUser?.role === 'ENQUIRY_OFFICER' || currentUser?.role === 'ENTRY_OFFICER') {
+    const allowedRoles = ['ADMIN', 'ACCOUNTANT', 'IT_CONSULTANT'];
+    if (currentUser?.role && !allowedRoles.includes(currentUser.role)) {
       navigate('/enquiries', { replace: true });
     }
   }, [currentUser, navigate]);
@@ -79,16 +81,15 @@ const DashboardPage = () => {
       setLoading(true);
       setError(null);
       
-      const [statsResponse, recentJobsResponse, assignedJobsResponse] = await Promise.all([
+      const [statsResponse, recentJobsResponse] = await Promise.all([
         apiService.getDashboardStats(),
-        apiService.getRecentJobs(5),
-        apiService.getAssignedJobs(5)
+        apiService.getRecentJobs(5)
       ]);
 
       setDashboardData({
         stats: statsResponse.stats,
         recentJobs: recentJobsResponse.jobs || [],
-        assignedJobs: assignedJobsResponse.jobs || []
+        assignedJobs: []
       });
     } catch (error) {
 
@@ -108,8 +109,9 @@ const DashboardPage = () => {
     'ENTRY_OFFICER',
     'TRANSPORT_COORDINATOR',
     'RELEASE_OFFICER', 
+    'PREINVOICE_OFFICER',
     'REVIEW_OFFICER', 
-    'INVOICE_OFFICER', 
+    'VETTING_OFFICER', 
     'CLEARING_OFFICER'
   ];
   
@@ -131,9 +133,9 @@ const DashboardPage = () => {
       suffix: ''
     },
     {
-      title: 'Total Clients',
-      value: dashboardData.stats.totalClients,
-      prefix: <UserOutlined />,
+      title: 'Jobs Delivered',
+      value: dashboardData.stats.jobsDelivered || 0,
+      prefix: <CheckCircleOutlined />,
       color: '#52c41a',
       suffix: ''
     },
@@ -158,7 +160,7 @@ const DashboardPage = () => {
     const statusIcons = {
       'NEW': <FileAddOutlined />,
       'PREINVOICED': <FileTextOutlined />,
-      'INVOICED': <CalculatorOutlined />,
+      'VETTED': <CalculatorOutlined />,
       'ENTRY_COMPLETED': <ContainerOutlined />,
       'READY_FOR_RELEASE': <CarOutlined />,
       'RELEASE': <CheckCircleOutlined />,
@@ -235,7 +237,7 @@ const DashboardPage = () => {
 
       <Row gutter={[16, 16]}>
         {/* Jobs in Progress */}
-        <Col xs={24} lg={16}>
+        <Col xs={24} lg={24}>
           <Card 
             title="Jobs in Progress" 
             extra={
@@ -352,87 +354,6 @@ const DashboardPage = () => {
           </Card>
         </Col>
 
-        {/* Jobs Assigned to You */}
-        <Col xs={24} lg={8}>
-          <Card title="Jobs Assigned to You" style={{ marginBottom: '16px' }}>
-            <ResponsiveTable
-              dataSource={dashboardData.assignedJobs} 
-              columns={[
-                {
-                  title: 'Job ID',
-                  dataIndex: 'trackingId',
-                  key: 'trackingId',
-                  render: (text, record) => (
-                    <Button 
-                      type="link" 
-                      onClick={() => navigate(`/enquiries?jobId=${record.id}`)}
-                      style={{ padding: 0, height: 'auto' }}
-                    >
-                      <Text strong style={{ color: '#1890ff' }}>{text}</Text>
-                    </Button>
-                  )
-                },
-                {
-                  title: 'Client',
-                  dataIndex: ['customer', 'name'],
-                  key: 'customer',
-                  render: (text) => <Text>{text}</Text>
-                },
-                {
-                  title: 'Status',
-                  dataIndex: 'status',
-                  key: 'status',
-                  render: (status, record) => {
-                    const displayStatus = record.isDraft ? 'DRAFT' : (status ? status.replace(/_/g, ' ') : 'N/A');
-                    return (
-                      <Tag color={getJobStatusColor(status, record.isDraft)} icon={getStatusIcon(status, record.isDraft)}>
-                        {displayStatus}
-                      </Tag>
-                    );
-                  }
-                },
-                {
-                  title: 'Action',
-                  key: 'action',
-                  render: (_, record) => (
-                    <Button 
-                      type="link" 
-                      icon={<EyeOutlined />}
-                      onClick={() => navigate(`/enquiries?jobId=${record.id}`)}
-                      size="small"
-                    >
-                      View
-                    </Button>
-                  )
-                }
-              ]}
-              pagination={false}
-              mobileConfig={{
-                primaryFields: ['trackingId', 'client', 'status'],
-                secondaryFields: []
-              }}
-              onRowClick={(record) => navigate(`/enquiries?jobId=${record.id}`)}
-              locale={{
-                emptyText: (
-                  <Empty
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description={
-                      <div>
-                        <Text type="secondary" style={{ fontSize: '14px', marginBottom: '4px' }}>
-                          No jobs assigned to you
-                        </Text>
-                        <Text type="secondary" style={{ fontSize: '12px' }}>
-                          Assigned jobs will appear here
-                        </Text>
-                      </div>
-                    }
-                  />
-                )
-              }}
-            />
-          </Card>
-
-        </Col>
       </Row>
 
       </div>

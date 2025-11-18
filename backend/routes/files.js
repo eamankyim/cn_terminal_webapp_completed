@@ -48,6 +48,10 @@ const storage = multer.diskStorage({
 
 // File filter function
 const fileFilter = (req, file, cb) => {
+  console.log('🔷 [Multer] File filter checking:', file.originalname);
+  console.log('  - MIME type:', file.mimetype);
+  console.log('  - Field name:', file.fieldname);
+  
   // Define allowed file types
   const allowedTypes = [
     'image/jpeg',
@@ -65,8 +69,10 @@ const fileFilter = (req, file, cb) => {
   ];
 
   if (allowedTypes.includes(file.mimetype)) {
+    console.log('  ✅ File type allowed');
     cb(null, true);
   } else {
+    console.error('  ❌ File type not allowed:', file.mimetype);
     cb(new Error('Invalid file type. Only images, PDFs, documents, and archives are allowed.'), false);
   }
 };
@@ -82,53 +88,99 @@ const upload = multer({
 });
 
 // Upload single file
-router.post('/upload', authenticateToken, upload.single('file'), async (req, res) => {
+router.post('/upload', authenticateToken, (req, res, next) => {
+  console.log('\n🔷 [Files API] ========== FILE UPLOAD REQUEST START ==========');
+  console.log('  - Timestamp:', new Date().toISOString());
+  console.log('  - Request method:', req.method);
+  console.log('  - Request URL:', req.originalUrl);
+  console.log('  - User:', req.user?.email || 'NOT AUTHENTICATED');
+  console.log('  - User ID:', req.user?.id || 'N/A');
+  console.log('  - Request headers:', {
+    'content-type': req.headers['content-type'],
+    'content-length': req.headers['content-length'],
+    'authorization': req.headers['authorization'] ? 'Bearer ***' : 'MISSING'
+  });
+  console.log('  - Request body keys:', Object.keys(req.body || {}));
+  console.log('  - Request body:', req.body);
+  console.log('  - Has file in request (before multer):', !!req.file);
+  console.log('  - Has files in request (before multer):', !!req.files);
+  next();
+}, upload.single('file'), async (req, res) => {
   try {
-    console.log('🔷 [Files API] POST /files/upload');
-    console.log('  - User:', req.user?.email);
+    console.log('\n🔷 [Files API] After multer processing:');
+    console.log('  - Has file in request:', !!req.file);
+    console.log('  - Has files in request:', !!req.files);
     
     if (!req.file) {
-      console.log('❌ No file in request');
-      return res.status(400).json({ message: 'No file uploaded' });
+      console.error('❌ [Files API] No file in request after multer processing');
+      console.error('  - Request body:', req.body);
+      console.error('  - Request files:', req.files);
+      return res.status(400).json({ 
+        error: 'No file uploaded',
+        message: 'Please select a file to upload'
+      });
     }
 
-    console.log('✅ File received:', req.file.originalname);
-    console.log('  - Size:', req.file.size, 'bytes');
+    console.log('\n✅ [Files API] File received successfully:');
+    console.log('  - Original name:', req.file.originalname);
+    console.log('  - File size:', req.file.size, 'bytes');
+    console.log('  - File mimetype:', req.file.mimetype);
+    console.log('  - File encoding:', req.file.encoding);
     console.log('  - Saved to:', req.file.path);
     console.log('  - Filename:', req.file.filename);
+    console.log('  - Fieldname:', req.file.fieldname);
+    console.log('  - Destination:', req.file.destination);
     
     const { folder = 'general', category, entityId, entityType } = req.body;
-    
-    console.log('  - Metadata:');
-    console.log('    - folder:', folder);
-    console.log('    - category:', category);
-    console.log('    - entityId:', entityId);
-    console.log('    - entityType:', entityType);
+    console.log('\n🔷 [Files API] Upload metadata:');
+    console.log('  - Folder:', folder);
+    console.log('  - Category:', category);
+    console.log('  - Entity ID:', entityId);
+    console.log('  - Entity Type:', entityType);
 
     // Create file record in database
-    console.log('  - Creating file record in database...');
-    const fileRecord = await prisma.file.create({
-      data: {
-        originalName: req.file.originalname,
-        filename: req.file.filename,
-        path: req.file.path,
-        url: `/uploads/${folder}/${req.file.filename}`,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        folder: folder,
-        category: category,
-        entityId: entityId || null,  // Keep as string to match database schema
-        entityType: entityType,
-        uploadedBy: req.user.id,
-        uploadedAt: new Date()
-      }
+    console.log('\n🔷 [Files API] Creating file record in database...');
+    const dbStartTime = Date.now();
+    const fileData = {
+      originalName: req.file.originalname,
+      filename: req.file.filename,
+      path: req.file.path,
+      url: `/uploads/${folder}/${req.file.filename}`,
+      mimeType: req.file.mimetype,
+      size: req.file.size,
+      folder: folder,
+      category: category,
+      entityId: entityId || null,  // Keep as string to match database schema
+      entityType: entityType,
+      uploadedBy: req.user.id,
+      uploadedAt: new Date()
+    };
+    console.log('  - File data to insert:', {
+      originalName: fileData.originalName,
+      filename: fileData.filename,
+      url: fileData.url,
+      size: fileData.size,
+      folder: fileData.folder,
+      category: fileData.category,
+      entityId: fileData.entityId,
+      entityType: fileData.entityType,
+      uploadedBy: fileData.uploadedBy
     });
     
-    console.log('✅ File record created:');
-    console.log('  - ID:', fileRecord.id);
+    const fileRecord = await prisma.file.create({
+      data: fileData
+    });
+    
+    const dbTime = Date.now() - dbStartTime;
+    console.log('\n✅ [Files API] File record created successfully in', dbTime, 'ms');
+    console.log('  - File record ID:', fileRecord.id);
     console.log('  - Original Name:', fileRecord.originalName);
+    console.log('  - Filename:', fileRecord.filename);
+    console.log('  - URL:', fileRecord.url);
     console.log('  - Entity ID:', fileRecord.entityId);
     console.log('  - Entity Type:', fileRecord.entityType);
+    console.log('  - Uploaded By:', fileRecord.uploadedBy);
+    console.log('  - Uploaded At:', fileRecord.uploadedAt);
 
     const response = {
       success: true,
@@ -142,25 +194,55 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
         size: fileRecord.size,
         folder: fileRecord.folder,
         category: fileRecord.category,
+        entityId: fileRecord.entityId,
+        entityType: fileRecord.entityType,
         uploadedAt: fileRecord.uploadedAt
       }
     };
 
+    console.log('\n✅ [Files API] Sending success response:');
+    console.log('  - Success:', response.success);
+    console.log('  - File ID:', response.file.id);
+    console.log('  - File URL:', response.file.url);
+    console.log('  - File size:', response.file.size, 'bytes');
+    console.log('  - Entity ID:', response.file.entityId);
+    console.log('  - Entity Type:', response.file.entityType);
+    console.log('🔷 [Files API] ========== FILE UPLOAD REQUEST END (SUCCESS) ==========\n');
+    
     res.json(response);
   } catch (error) {
-    console.error('❌ [Files API] Upload error:', error);
+    console.error('\n❌ [Files API] ========== FILE UPLOAD ERROR ==========');
+    console.error('  - Error name:', error.name);
     console.error('  - Error message:', error.message);
+    console.error('  - Error code:', error.code);
     console.error('  - Error stack:', error.stack);
+    
+    // Log Prisma-specific errors
+    if (error.code) {
+      console.error('  - Prisma error code:', error.code);
+      console.error('  - Prisma meta:', error.meta);
+    }
+    
+    // Log request context for debugging
+    console.error('  - Request context:');
+    console.error('    - User:', req.user?.email);
+    console.error('    - File received:', !!req.file);
+    console.error('    - File path:', req.file?.path);
+    console.error('    - Body:', req.body);
 
     // Clean up uploaded file if database operation fails
     if (req.file && fs.existsSync(req.file.path)) {
       try {
-      fs.unlinkSync(req.file.path);
-        console.log('✅ Cleaned up uploaded file:', req.file.path);
+        console.log('  - Attempting to clean up uploaded file:', req.file.path);
+        fs.unlinkSync(req.file.path);
+        console.log('  ✅ Cleaned up uploaded file successfully');
       } catch (cleanupError) {
-        console.error('❌ Failed to clean up file:', cleanupError.message);
+        console.error('  ❌ Failed to clean up file:', cleanupError.message);
+        console.error('    - Cleanup error stack:', cleanupError.stack);
       }
     }
+
+    console.error('🔷 [Files API] ========== FILE UPLOAD REQUEST END (ERROR) ==========\n');
     
     res.status(500).json({ 
       success: false, 

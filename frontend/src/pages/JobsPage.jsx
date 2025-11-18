@@ -63,25 +63,28 @@ import jobService from '../services/jobService';
 import { fileService } from '../services/fileService';
 import apiService from '../services/api';
 import { getJobStatusColor, getJobStatusIcon as getStatusIconUtil } from '../utils/statusUtils';
+import { useJobSocket } from '../hooks/useJobSocket';
 
 // Status hierarchy system - jobs can only progress forward
 const STATUS_HIERARCHY = {
   'NEW': 1,
   'PREINVOICED': 2,
-  'INVOICED': 3,           // Regular status option - can be set manually
+  'VETTED': 3,           // Job has been vetted/reviewed
   'ENTRY_COMPLETED': 4,
-  'READY_FOR_RELEASE': 5,  // Transport coordinator assigns and uploads docs
-  'RELEASED': 6,
-  'CLEARED': 7,
-  'DELIVERED': 8           // Final status - no further changes
+  'DUTY_PAID': 5,        // Duty has been paid
+  'READY_FOR_RELEASE': 6,  // Transport coordinator assigns and uploads docs
+  'RELEASED': 7,
+  'CLEARED': 8,
+  'DELIVERED': 9           // Final status - no further changes
 };
 
 // Status display names
 const STATUS_LABELS = {
   'NEW': 'New',
   'PREINVOICED': 'Pre-invoiced',
-  'INVOICED': 'Invoiced',
+  'VETTED': 'Vetted',
   'ENTRY_COMPLETED': 'Entry Completed',
+  'DUTY_PAID': 'Duty Paid',
   'READY_FOR_RELEASE': 'Ready for Release',
   'RELEASED': 'Released',
   'CLEARED': 'Cleared',
@@ -96,8 +99,12 @@ const getAvailableStatuses = (currentStatus) => {
   return Object.entries(STATUS_HIERARCHY)
     .filter(([status, level]) => {
       // Only allow forward progression
-      // Exclude DELIVERED (final status) - INVOICED is now a regular status option
-      return level > currentLevel && status !== 'DELIVERED';
+      // Allow DELIVERED only if current status is CLEARED (it's the final stage)
+      if (status === 'DELIVERED') {
+        return currentStatus === 'CLEARED';
+      }
+      // For all other statuses, allow forward progression
+      return level > currentLevel;
     })
     .map(([status]) => status);
 };
@@ -109,10 +116,15 @@ const isValidStatusTransition = (currentStatus, newStatus) => {
   
   if (!currentLevel || !newLevel) return false;
   
+  // DELIVERED can only be set from CLEARED status (final stage)
+  if (newStatus === 'DELIVERED') {
+    return currentStatus === 'CLEARED';
+  }
+  
   // Must be forward progression
   if (newLevel <= currentLevel) return false;
   
-  // INVOICED is now a regular status option that can be set manually
+  // VETTED is now a regular status option that can be set manually
   return true;
 };
 
@@ -148,6 +160,11 @@ const JobsPage = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [staffMembers, setStaffMembers] = useState([]);
   const [jobsLoading, setJobsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState(null);
+  const [jobComments, setJobComments] = useState([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentForm] = Form.useForm();
   
   // Dynamic dropdown states
   const [goodsTypes, setGoodsTypes] = useState([
@@ -162,7 +179,15 @@ const JobsPage = () => {
   const [lineOptions, setLineOptions] = useState([
     'PIL', 'SAF', 'COSCO', 'CMA', 'OOCL', 'MSK', 'ONE'
   ]);
-  const [terminalOptions, setTerminalOptions] = useState([]);
+  const [terminalOptions, setTerminalOptions] = useState([
+    { value: 'Golden Jubilee', label: 'Golden Jubilee' },
+    { value: 'MPS', label: 'MPS' },
+    { value: 'TBT', label: 'TBT' },
+    { value: 'Terminal 2', label: 'Terminal 2' },
+    { value: 'Custom', label: 'Custom (Other)' }
+  ]);
+  const [showCustomTerminalInput, setShowCustomTerminalInput] = useState(false);
+  const [customTerminalValue, setCustomTerminalValue] = useState('');
   const [error, setError] = useState(null);
   
   // Custom option modal state
@@ -204,6 +229,71 @@ const JobsPage = () => {
       }
     }
   }, [jobs, selectedJob]);
+
+  // Set up Socket.io listeners for real-time job updates
+  useJobSocket({
+    onJobCreated: (job) => {
+      console.log('📡 [JobsPage] Job created via socket:', job);
+      message.info(`New job ${job.trackingId} created`, 3);
+      loadJobs(); // Reload jobs list
+    },
+    onJobUpdated: (job) => {
+      console.log('📡 [JobsPage] Job updated via socket:', job);
+      // Update job in the list if it exists
+      setJobs(prevJobs => {
+        const index = prevJobs.findIndex(j => j.id === job.id);
+        if (index !== -1) {
+          const updated = [...prevJobs];
+          updated[index] = job;
+          return updated;
+        }
+        return prevJobs;
+      });
+      // If this is the currently selected job, update it
+      if (selectedJob && selectedJob.id === job.id) {
+        setSelectedJob(job);
+      }
+    },
+    onJobDeleted: (jobId) => {
+      console.log('📡 [JobsPage] Job deleted via socket:', jobId);
+      message.info('Job deleted', 3);
+      // Remove from jobs list
+      setJobs(prevJobs => prevJobs.filter(j => j.id !== jobId));
+      setDraftJobs(prevDrafts => prevDrafts.filter(j => j.id !== jobId));
+      // If this is the currently selected job, close the drawer
+      if (selectedJob && selectedJob.id === jobId) {
+        setIsDetailsDrawerVisible(false);
+        setSelectedJob(null);
+      }
+    },
+    onJobStatusUpdated: (job) => {
+      console.log('📡 [JobsPage] Job status updated via socket:', job);
+      message.success(`Job ${job.trackingId} status updated to ${job.status}`, 3);
+      // Update job in the list
+      setJobs(prevJobs => {
+        const index = prevJobs.findIndex(j => j.id === job.id);
+        if (index !== -1) {
+          const updated = [...prevJobs];
+          updated[index] = job;
+          return updated;
+        }
+        return prevJobs;
+      });
+      // If this is the currently selected job, reload it to get updated status history
+      if (selectedJob && selectedJob.id === job.id) {
+        handleViewJob(job);
+      }
+    },
+    onJobCommentAdded: (jobId, comment) => {
+      console.log('📡 [JobsPage] Job comment added via socket:', jobId, comment);
+      // If this is the currently selected job, reload comments
+      if (selectedJob && selectedJob.id === jobId) {
+        jobService.getJobComments(jobId).then(comments => {
+          setJobComments(comments);
+        }).catch(err => console.error('Error reloading comments:', err));
+      }
+    }
+  });
 
   const loadJobs = async () => {
     try {
@@ -254,34 +344,43 @@ const JobsPage = () => {
 
   const loadTerminalOptions = async () => {
     try {
+      // Base terminal options (always available)
+      const baseTerminals = [
+        { value: 'Golden Jubilee', label: 'Golden Jubilee' },
+        { value: 'MPS', label: 'MPS' },
+        { value: 'TBT', label: 'TBT' },
+        { value: 'Terminal 2', label: 'Terminal 2' },
+        { value: 'Custom', label: 'Custom (Other)' }
+      ];
 
-      // Load terminals from database (existing jobs)
-      const response = await jobService.getJobs({ limit: 1000 }); // Get more jobs to find all terminals
+      // Load terminals from database (existing jobs) for custom terminals
+      const response = await jobService.getJobs({ limit: 1000 });
       const allJobs = response.jobs || [];
       
-      // Extract unique terminal names from jobs with RELEASED status
+      // Extract unique custom terminal names (exclude predefined ones)
+      const predefinedTerminals = ['Golden Jubilee', 'MPS', 'TBT', 'Terminal 2'];
       const dbTerminals = [...new Set(
         allJobs
-          .filter(job => job.status === 'RELEASED' && job.terminalName)
+          .filter(job => job.status === 'RELEASED' && job.terminalName && !predefinedTerminals.includes(job.terminalName))
           .map(job => job.terminalName)
       )];
       
       // Load terminals from localStorage (user-typed terminals)
       const savedTerminals = JSON.parse(localStorage.getItem('terminalOptions') || '[]');
       
-      // Combine and deduplicate terminals
-      const allTerminals = [...new Set([...dbTerminals, ...savedTerminals.map(t => t.value)])];
-      
-      // Convert to options format
-      const terminalOptions = allTerminals.map(terminal => ({
-        value: terminal,
-        label: terminal
-      }));
+      // Combine custom terminals and deduplicate
+      const customTerminals = [...new Set([...dbTerminals, ...savedTerminals.map(t => typeof t === 'string' ? t : t.value)])]
+        .filter(t => t && !predefinedTerminals.includes(t))
+        .map(terminal => ({
+          value: terminal,
+          label: terminal
+        }));
 
-      setTerminalOptions(terminalOptions);
+      // Set options: base terminals + custom terminals (if any)
+      setTerminalOptions([...baseTerminals, ...customTerminals]);
     } catch (error) {
-
       // Don't set error state as this is not critical
+      console.error('Error loading terminal options:', error);
     }
   };
 
@@ -318,7 +417,7 @@ const JobsPage = () => {
     const statusIcons = {
       'NEW': <PlusOutlined />,
       'PREINVOICED': <FileTextOutlined />,
-      'INVOICED': <DollarOutlined />,
+      'VETTED': <DollarOutlined />,
       'ENTRY': <ContainerOutlined />,
       'RELEASED': <CheckCircleOutlined />,
       'CLEARED': <ContainerOutlined />,
@@ -569,6 +668,19 @@ const JobsPage = () => {
     setDocumentsLoading(true);
     setSelectedJobDocuments([]);
     
+    // Load job comments
+    setCommentsLoading(true);
+    setJobComments([]);
+    try {
+      const comments = await jobService.getJobComments(job.id);
+      setJobComments(comments);
+    } catch (error) {
+      console.error('Error loading job comments:', error);
+      setJobComments([]);
+    } finally {
+      setCommentsLoading(false);
+    }
+    
     // Fetch documents for this job
     try {
       console.log('  - Fetching documents for job:', job.id);
@@ -589,6 +701,23 @@ const JobsPage = () => {
       setSelectedJobDocuments([]);
     } finally {
       setDocumentsLoading(false);
+    }
+  };
+
+  const handleAddComment = async (values) => {
+    if (!selectedJob) return;
+    
+    try {
+      await jobService.addJobComment(selectedJob.id, values.comment);
+      message.success('Comment added successfully');
+      commentForm.resetFields();
+      
+      // Reload comments
+      const comments = await jobService.getJobComments(selectedJob.id);
+      setJobComments(comments);
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      message.error(error.response?.data?.error || 'Failed to add comment');
     }
   };
 
@@ -623,7 +752,40 @@ const JobsPage = () => {
       console.log('  - Documents from form:', documentsValue);
       console.log('  - Extracted documents array:', documents);
       
-      // Debug: Log the form values
+      // Validate Ghana Card OR TIN requirement
+      // Get customer data to check for Ghana Card or TIN
+      const customerId = jobData.customerId;
+      if (customerId) {
+        // Fetch customer details to check for Ghana Card or TIN
+        try {
+          const customerResponse = await apiService.get(`/customers/${customerId}`);
+          const customer = customerResponse.customer;
+          const consignmentId = jobData.consignmentId;
+          let consignment = null;
+          
+          if (consignmentId) {
+            try {
+              const consignmentResponse = await apiService.get(`/consignments/${consignmentId}`);
+              consignment = consignmentResponse.consignment;
+            } catch (err) {
+              // Consignment not found, continue with customer only
+            }
+          }
+          
+          // Check if at least one of Ghana Card or TIN is provided
+          const hasGhanaCard = customer?.ghanaCard || consignment?.ghanaCard;
+          const hasTin = customer?.tin || consignment?.tin;
+          
+          if (!hasGhanaCard && !hasTin) {
+            message.error('At least one of Ghana Card or TIN must be provided for the customer/consignee');
+            setSubmitLoading(false);
+            return;
+          }
+        } catch (error) {
+          console.error('Error validating customer data:', error);
+          // Continue with submission if we can't validate (backend will handle it)
+        }
+      }
 
       if (documents && documents.length > 0) {
 
@@ -909,11 +1071,22 @@ const JobsPage = () => {
       const driverName = updateData.driverName;
       const driverContact = updateData.driverContact;
 
-      // Handle shipper name and invoice number for INVOICED status
+      // Handle shipper name and invoice number for VETTED status
       const shipperName = updateData.shipperName;
       const invoiceNumber = updateData.invoiceNumber;
 
-      const response = await jobService.updateJobStatus(selectedJob.id, updateData.status, updateData.comment, undefined, updateData.assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, demurrageType);
+      // Handle BOE number for ENTRY_COMPLETED status
+      const boeNumber = updateData.boeNumber;
+
+      // Use currentJobForStatusUpdate instead of selectedJob for status updates
+      const jobId = currentJobForStatusUpdate?.id || selectedJob?.id;
+      if (!jobId) {
+        message.error('Job ID not found');
+        setLoading(false);
+        return;
+      }
+
+      const response = await jobService.updateJobStatus(jobId, updateData.status, updateData.comment, undefined, updateData.assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, demurrageType, boeNumber);
       
       let documentsUploaded = false;
       
@@ -932,7 +1105,7 @@ const JobsPage = () => {
               await fileService.uploadFile(file.originFileObj, {
                 folder: 'jobs',
                 category: 'status_update_document',
-                entityId: selectedJob.id,
+                entityId: jobId,
                 entityType: 'job'
               });
               console.log('  ✅ Uploaded:', file.name);
@@ -945,7 +1118,7 @@ const JobsPage = () => {
           
           // Reload documents for the job drawer
           try {
-            const documentsResponse = await fileService.getFilesByEntity('job', selectedJob.id);
+            const documentsResponse = await fileService.getFilesByEntity('job', jobId);
             if (documentsResponse && documentsResponse.files) {
               setSelectedJobDocuments(documentsResponse.files);
             }
@@ -970,7 +1143,7 @@ const JobsPage = () => {
               await fileService.uploadFile(file.originFileObj, {
                 folder: 'jobs',
                 category: 'demurrage_invoice',
-                entityId: selectedJob.id,
+                entityId: jobId,
                 entityType: 'job'
               });
               console.log('  ✅ Uploaded demurrage invoice:', file.name);
@@ -998,7 +1171,7 @@ const JobsPage = () => {
               await fileService.uploadFile(file.originFileObj, {
                 folder: 'jobs',
                 category: 'payment_receipt',
-                entityId: selectedJob.id,
+                entityId: jobId,
                 entityType: 'job'
               });
               console.log('  ✅ Uploaded payment receipt:', file.name);
@@ -1014,7 +1187,7 @@ const JobsPage = () => {
       // Reload documents if any were uploaded
       if (documentsUploaded) {
         try {
-          const documentsResponse = await fileService.getFilesByEntity('job', selectedJob.id);
+          const documentsResponse = await fileService.getFilesByEntity('job', jobId);
           if (documentsResponse && documentsResponse.files) {
             setSelectedJobDocuments(documentsResponse.files);
           }
@@ -1100,23 +1273,50 @@ const JobsPage = () => {
   };
 
   const handleFileChange = (fileList) => {
-
-    form.setFieldsValue({ documents: fileList });
-
+    console.log('🔷 [JobsPage] handleFileChange called');
+    console.log('  - New fileList length:', fileList?.length || 0);
+    console.log('  - New fileList:', fileList?.map(f => ({ name: f.name, uid: f.uid, size: f.size, hasOriginFileObj: !!f.originFileObj })));
+    
+    // Prevent duplicate updates by checking if the value actually changed
+    const currentDocuments = form.getFieldValue('documents');
+    const currentFileList = Array.isArray(currentDocuments) 
+      ? currentDocuments 
+      : currentDocuments?.fileList || [];
+    
+    console.log('  - Current documents from form:', currentFileList?.length || 0);
+    console.log('  - Current fileList:', currentFileList?.map(f => ({ name: f.name, uid: f.uid, size: f.size })));
+    
+    // Only update if the file list actually changed
+    const currentKeys = JSON.stringify(currentFileList.map(f => ({ uid: f.uid, name: f.name, size: f.size })));
+    const newKeys = JSON.stringify(fileList.map(f => ({ uid: f.uid, name: f.name, size: f.size })));
+    
+    if (currentKeys !== newKeys) {
+      console.log('  - File list changed, updating form...');
+      form.setFieldsValue({ documents: fileList });
+      console.log('  - Form updated with new fileList');
+    } else {
+      console.log('  - File list unchanged, skipping form update');
+    }
   };
 
   const handleFileUpload = async (file, options = {}) => {
     console.log('🔷 [JobsPage] handleFileUpload called');
-    console.log('  - File:', file?.name);
+    console.log('  - File name:', file?.name);
+    console.log('  - File size:', file?.size, 'bytes');
+    console.log('  - File type:', file?.type);
+    console.log('  - File uid:', file?.uid);
     console.log('  - Editing Job:', editingJob);
+    console.log('  - Editing Job ID:', editingJob?.id);
+    console.log('  - Options:', options);
     
     try {
       // Only upload immediately if editing existing job
       // For NEW jobs, files will be uploaded AFTER job creation
       if (!editingJob?.id) {
         console.log('  - NEW job mode: Skipping upload, will upload after job is created');
+        console.log('  - Returning temporary response to prevent Upload component retry');
         // Return a fake success response so the Upload component thinks it uploaded
-        return {
+        const tempResponse = {
           success: true,
           file: {
             id: 'temp-' + Date.now(),
@@ -1125,6 +1325,8 @@ const JobsPage = () => {
             pending: true
           }
         };
+        console.log('  - Temporary response:', tempResponse);
+        return tempResponse;
       }
       
       // Upload file with job-specific options if we have a job ID
@@ -1136,12 +1338,22 @@ const JobsPage = () => {
         ...options
       };
       
-      console.log('  - EDIT job mode: Uploading with entityId:', editingJob.id);
+      console.log('  - EDIT job mode: Uploading with options:', uploadOptions);
+      console.log('  - Calling fileService.uploadFile...');
+      const uploadStartTime = Date.now();
       const response = await fileService.uploadFile(file, uploadOptions);
+      const uploadTime = Date.now() - uploadStartTime;
+      console.log('  - Upload completed in', uploadTime, 'ms');
       console.log('  - Upload response:', response);
+      console.log('  - Response file URL:', response?.file?.url || response?.url);
       return response;
     } catch (error) {
       console.error('❌ [JobsPage] handleFileUpload error:', error);
+      console.error('  - Error name:', error.name);
+      console.error('  - Error message:', error.message);
+      console.error('  - Error status:', error.status);
+      console.error('  - Error response:', error.response?.data);
+      console.error('  - Error stack:', error.stack);
       throw error;
     }
   };
@@ -1149,36 +1361,60 @@ const JobsPage = () => {
   const handleJobDocuments = async (jobId, documents, action) => {
     console.log('🔷 [JobsPage] handleJobDocuments called');
     console.log('  - Job ID:', jobId);
-    console.log('  - Documents:', documents);
+    console.log('  - Documents count:', documents?.length || 0);
+    console.log('  - Documents:', documents?.map(d => ({ 
+      name: d.name, 
+      uid: d.uid, 
+      hasUrl: !!d.url, 
+      hasOriginFileObj: !!d.originFileObj,
+      status: d.status 
+    })));
     console.log('  - Action:', action);
     
     try {
       // Filter out files that are already uploaded (have URLs)
       const filesToUpload = documents.filter(file => !file.url && file.originFileObj);
       console.log('  - Files to upload after filtering:', filesToUpload.length);
+      console.log('  - Filtered files:', filesToUpload.map(f => ({ 
+        name: f.name, 
+        hasUrl: !!f.url, 
+        hasOriginFileObj: !!f.originFileObj 
+      })));
       
       if (filesToUpload.length === 0) {
         console.log('  - No files to upload, returning');
+        console.log('  - Reason: All files either have URLs or missing originFileObj');
         return;
       }
 
       // Upload each file and associate with job
-      for (const file of filesToUpload) {
+      for (let i = 0; i < filesToUpload.length; i++) {
+        const file = filesToUpload[i];
         try {
-          console.log('  - Uploading file:', file.name);
-          console.log('    - With options: { folder: jobs, category: job_document, entityId:', jobId, ', entityType: job }');
+          console.log(`  - [${i + 1}/${filesToUpload.length}] Uploading file:`, file.name);
+          console.log('    - File size:', file.originFileObj?.size, 'bytes');
+          console.log('    - File type:', file.originFileObj?.type);
+          console.log('    - Upload options: { folder: jobs, category: job_document, entityId:', jobId, ', entityType: job }');
           
+          const uploadStartTime = Date.now();
           const uploadResponse = await fileService.uploadFile(file.originFileObj, {
             folder: 'jobs',
             category: 'job_document',
             entityId: jobId,
             entityType: 'job'
           });
+          const uploadTime = Date.now() - uploadStartTime;
           
-          console.log('    ✅ Upload successful:', uploadResponse);
+          console.log('    ✅ Upload successful in', uploadTime, 'ms');
+          console.log('    - Response:', uploadResponse);
+          console.log('    - File URL:', uploadResponse?.file?.url || uploadResponse?.url);
 
         } catch (uploadError) {
-          console.error('    ❌ Upload failed:', uploadError);
+          console.error(`    ❌ [${i + 1}/${filesToUpload.length}] Upload failed for ${file.name}:`, uploadError);
+          console.error('      - Error name:', uploadError.name);
+          console.error('      - Error message:', uploadError.message);
+          console.error('      - Error status:', uploadError.status);
+          console.error('      - Error response:', uploadError.response?.data);
           message.error(`Failed to upload ${file.name}`);
         }
       }
@@ -1186,6 +1422,9 @@ const JobsPage = () => {
 
     } catch (error) {
       console.error('❌ [JobsPage] handleJobDocuments error:', error);
+      console.error('  - Error name:', error.name);
+      console.error('  - Error message:', error.message);
+      console.error('  - Error stack:', error.stack);
       message.error('Failed to process some documents');
     }
   };
@@ -1234,8 +1473,8 @@ const JobsPage = () => {
         <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Invoiced"
-              value={jobs.filter(j => j.status === 'INVOICED').length}
+              title="Vetted"
+              value={jobs.filter(j => j.status === 'VETTED').length}
               prefix={<DollarOutlined />}
               valueStyle={{ color: '#722ed1' }}
             />
@@ -1278,9 +1517,55 @@ const JobsPage = () => {
                       }
                     />
                   )}
+                  <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Input.Search
+                      placeholder="Search by Job ID (e.g., JOB-001)"
+                      allowClear
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onSearch={(value) => setSearchQuery(value)}
+                      style={{ maxWidth: '400px', flex: '1 1 300px' }}
+                      enterButton
+                    />
+                    <Select
+                      placeholder="Filter by Status"
+                      allowClear
+                      value={statusFilter}
+                      onChange={(value) => setStatusFilter(value)}
+                      style={{ width: '200px' }}
+                    >
+                      {Object.entries(STATUS_LABELS).map(([status, label]) => (
+                        <Option key={status} value={status}>
+                          {label}
+                        </Option>
+                      ))}
+                    </Select>
+                    <Button 
+                      icon={<ClockCircleOutlined />}
+                      onClick={loadJobs}
+                      loading={jobsLoading}
+                    >
+                      Refresh
+                    </Button>
+                  </div>
                   <ResponsiveTable
                     columns={columns}
-                    dataSource={jobs}
+                    dataSource={jobs.filter(job => {
+                      // Search filter
+                      if (searchQuery) {
+                        const query = searchQuery.toLowerCase();
+                        const matchesSearch = job.trackingId?.toLowerCase().includes(query) || 
+                                           job.id?.toLowerCase().includes(query);
+                        if (!matchesSearch) return false;
+                      }
+                      
+                      // Status filter
+                      if (statusFilter) {
+                        if (job.status !== statusFilter) return false;
+                      }
+                      
+                      return true;
+                    })}
                     loading={jobsLoading}
                     rowKey="id"
                     scroll={{ x: 1500 }}
@@ -1382,6 +1667,7 @@ const JobsPage = () => {
         footer={null}
         width={800}
         style={{ top: 20 }}
+        maskClosable={false}
         styles={{ 
           body: {
             maxHeight: 'calc(100vh - 200px)', 
@@ -1558,7 +1844,7 @@ const JobsPage = () => {
                   <Option value="Email">Email</Option>
                   <Option value="Dispatch">Dispatch</Option>
                   <Option value="VVIP">VVIP</Option>
-                  {/* <Option value="WhatsApp">WhatsApp</Option> */}
+                  <Option value="WhatsApp">WhatsApp</Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -1579,6 +1865,7 @@ const JobsPage = () => {
                   <Option value="Parking list copy">Parking list copy</Option>
                   <Option value="Parking list original">Parking list original</Option>
                   <Option value="Container No">Container No</Option>
+                  <Option value="Copy BL">Copy BL</Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -1708,6 +1995,7 @@ const JobsPage = () => {
           statusUpdateForm.resetFields();
         }}
         footer={null}
+        maskClosable={false}
         width={700}
         >
           
@@ -1718,15 +2006,29 @@ const JobsPage = () => {
           >
             <Form.Item
               name="status"
-              label="New Status"
-            rules={[{ required: true, message: 'Please select new status' }]}
+              label="Status"
+            rules={[{ required: true, message: 'Please select status' }]}
           >
-            <Select placeholder="Select new status">
-              {currentJobForStatusUpdate && getAvailableStatuses(currentJobForStatusUpdate.status).map(status => (
-                <Option key={status} value={status}>
-                  {STATUS_LABELS[status]}
-                </Option>
-              ))}
+            <Select placeholder="Select status">
+              {currentJobForStatusUpdate && (
+                <>
+                  {/* Show current status first (disabled) */}
+                  <Option 
+                    key={currentJobForStatusUpdate.status} 
+                    value={currentJobForStatusUpdate.status}
+                    disabled
+                    style={{ color: '#999', fontStyle: 'italic' }}
+                  >
+                    {STATUS_LABELS[currentJobForStatusUpdate.status]} (Current)
+                  </Option>
+                  {/* Show available next statuses */}
+                  {getAvailableStatuses(currentJobForStatusUpdate.status).map(status => (
+                    <Option key={status} value={status}>
+                      {STATUS_LABELS[status]}
+                    </Option>
+                  ))}
+                </>
+              )}
             </Select>
             </Form.Item>
 
@@ -1770,12 +2072,25 @@ const JobsPage = () => {
                   <Form.Item
                     name="boeNumber"
                     label="BoE Number"
-                    rules={[{ required: true, message: 'BoE number is required for Entry Completed status' }]}
-                    help="Enter the Bill of Entry (BoE) number"
+                    validateTrigger="onSubmit"
+                    rules={[
+                      { required: true, message: 'BoE number is required for Entry Completed status' },
+                      { 
+                        pattern: /^\d{11}$/, 
+                        message: 'BoE number must be exactly 11 numeric digits' 
+                      }
+                    ]}
                   >
                     <Input 
-                      placeholder="Enter BoE number"
+                      placeholder="Enter 11-digit BoE number"
                       style={{ width: '100%' }}
+                      maxLength={11}
+                      onKeyPress={(e) => {
+                        // Only allow numeric input
+                        if (!/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
+                          e.preventDefault();
+                        }
+                      }}
                     />
                   </Form.Item>
                 );
@@ -1787,33 +2102,59 @@ const JobsPage = () => {
                       name="terminalName"
                       label="Terminal Name"
                       rules={[{ required: true, message: 'Terminal name is required for Release status' }]}
-                      help="Type to enter a new terminal name or select from previously used terminals"
+                      help={showCustomTerminalInput ? "Enter custom terminal name" : "Select terminal or choose Custom to enter a new one"}
                     >
                       <Select
-                        placeholder="Type terminal name or select from list"
-                        mode="combobox"
+                        placeholder="Select terminal name"
                         allowClear
                         showSearch
                         filterOption={(input, option) =>
                           (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                         }
-                        onSearch={(value) => {
-                          // Add new terminal to the list when user types
-                          if (value && !terminalOptions.some(opt => opt.value === value)) {
-                            const newTerminal = { value, label: value };
-                            setTerminalOptions(prev => [...prev, newTerminal]);
-                            
-                            // Save to localStorage for persistence
-                            const savedTerminals = JSON.parse(localStorage.getItem('terminalOptions') || '[]');
-                            if (!savedTerminals.some(opt => opt.value === value)) {
-                              savedTerminals.push(newTerminal);
-                              localStorage.setItem('terminalOptions', JSON.stringify(savedTerminals));
-                            }
+                        onChange={(value) => {
+                          if (value === 'Custom') {
+                            setShowCustomTerminalInput(true);
+                            setCustomTerminalValue('');
+                            form.setFieldsValue({ terminalName: undefined });
+                          } else {
+                            setShowCustomTerminalInput(false);
+                            setCustomTerminalValue('');
                           }
                         }}
                         options={terminalOptions}
                       />
                     </Form.Item>
+                    {showCustomTerminalInput && (
+                      <Form.Item
+                        name="customTerminalName"
+                        label="Custom Terminal Name"
+                        rules={[{ required: showCustomTerminalInput, message: 'Please enter custom terminal name' }]}
+                      >
+                        <Input
+                          placeholder="Enter custom terminal name"
+                          value={customTerminalValue}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setCustomTerminalValue(value);
+                            form.setFieldsValue({ terminalName: value });
+                            
+                            // Save custom terminal to localStorage
+                            if (value) {
+                              const savedTerminals = JSON.parse(localStorage.getItem('terminalOptions') || '[]');
+                              if (!savedTerminals.includes(value)) {
+                                savedTerminals.push(value);
+                                localStorage.setItem('terminalOptions', JSON.stringify(savedTerminals));
+                              }
+                              
+                              // Add to options if not already there
+                              if (!terminalOptions.some(opt => opt.value === value)) {
+                                setTerminalOptions(prev => [...prev, { value, label: value }]);
+                              }
+                            }
+                          }}
+                        />
+                      </Form.Item>
+                    )}
                     <Form.Item
                       name="scheduleTime"
                       label="Schedule Time"
@@ -1933,14 +2274,14 @@ const JobsPage = () => {
                     </Form.Item>
                   </>
                 );
-              } else if (status === 'INVOICED') {
+              } else if (status === 'VETTED') {
                 return (
                   <>
                     <Form.Item
                       name="shipperName"
                       label="Shipper Name"
-                      rules={[{ required: true, message: 'Shipper name is required for Invoiced status' }]}
-                      help="Enter the name of the shipper for this invoice"
+                      rules={[{ required: true, message: 'Shipper name is required for Vetted status' }]}
+                      help="Enter the name of the shipper"
                     >
                       <Input 
                         placeholder="Enter shipper name"
@@ -1950,7 +2291,7 @@ const JobsPage = () => {
                     <Form.Item
                       name="invoiceNumber"
                       label="Invoice Number"
-                      rules={[{ required: true, message: 'Invoice number is required for Invoiced status' }]}
+                      rules={[{ required: true, message: 'Invoice number is required for Vetted status' }]}
                       help="Enter the invoice number (not auto-generated)"
                     >
                       <Input 
@@ -2021,8 +2362,10 @@ const JobsPage = () => {
               icon={<EditOutlined />}
               onClick={() => {
                 setCurrentJobForStatusUpdate(selectedJob);
+                // Get the first available next status as default, or leave empty
+                const availableStatuses = getAvailableStatuses(selectedJob.status);
                 statusUpdateForm.setFieldsValue({ 
-                  status: selectedJob.status,
+                  status: availableStatuses.length > 0 ? availableStatuses[0] : undefined,
                   assignedToId: selectedJob.assignedToId,
                   demurrageFreeDays: selectedJob.demurrageFreeDays,
                   releaseMoneyReceived: selectedJob.releaseMoneyReceived
@@ -2089,7 +2432,7 @@ const JobsPage = () => {
               } 
               key="timeline"
             >
-              <Card title="Status Timeline" size="small">
+              <Card title="Status Timeline" size="small" style={{ marginBottom: '16px' }}>
                 {selectedJob.statusHistory && selectedJob.statusHistory.length > 0 ? (
                        <Timeline>
                     {selectedJob.statusHistory.map((entry, index) => (
@@ -2118,6 +2461,63 @@ const JobsPage = () => {
                   </div>
                 )}
                      </Card>
+
+              {/* Comments Section */}
+              <Card title="Comments" size="small" style={{ marginBottom: '16px' }}>
+                <Spin spinning={commentsLoading}>
+                  {jobComments.length > 0 ? (
+                    <Timeline>
+                      {jobComments.map((comment) => (
+                        <Timeline.Item
+                          key={comment.id}
+                          dot={<InfoCircleOutlined style={{ color: '#1890ff' }} />}
+                        >
+                          <div>
+                            <Text>{comment.comment}</Text>
+                            <br />
+                            <Text type="secondary" style={{ fontSize: '12px' }}>
+                              {dayjs(comment.createdAt).format('DD/MM/YYYY HH:mm')} - {comment.createdBy?.name || 'Unknown'}
+                            </Text>
+                          </div>
+                        </Timeline.Item>
+                      ))}
+                    </Timeline>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '20px' }}>
+                      <Text type="secondary">No comments yet</Text>
+                    </div>
+                  )}
+                </Spin>
+              </Card>
+
+              {/* Add Comment Form */}
+              <Card title="Add Comment" size="small">
+                <Form
+                  form={commentForm}
+                  layout="vertical"
+                  onFinish={handleAddComment}
+                >
+                  <Form.Item
+                    name="comment"
+                    rules={[
+                      { required: true, message: 'Please enter a comment' },
+                      { min: 3, message: 'Comment must be at least 3 characters' }
+                    ]}
+                  >
+                    <TextArea
+                      rows={3}
+                      placeholder="Add a comment to this job..."
+                      showCount
+                      maxLength={500}
+                    />
+                  </Form.Item>
+                  <Form.Item>
+                    <Button type="primary" htmlType="submit" icon={<PlusOutlined />}>
+                      Add Comment
+                    </Button>
+                  </Form.Item>
+                </Form>
+              </Card>
             </TabPane>
 
             <TabPane 
@@ -2308,7 +2708,7 @@ const JobsPage = () => {
                     </div>
                   </>
                 )}
-                {(selectedJob.status === 'INVOICED' || selectedJob.status === 'ENTRY_COMPLETED' || selectedJob.status === 'READY_FOR_RELEASE' || selectedJob.status === 'RELEASED' || selectedJob.status === 'CLEARED' || selectedJob.status === 'DELIVERED') && (
+                {(selectedJob.status === 'VETTED' || selectedJob.status === 'ENTRY_COMPLETED' || selectedJob.status === 'READY_FOR_RELEASE' || selectedJob.status === 'RELEASED' || selectedJob.status === 'CLEARED' || selectedJob.status === 'DELIVERED') && (
                   <>
                     <div style={{ marginBottom: '16px', display: 'flex' }}>
                       <div style={{ width: '140px', fontWeight: 'bold' }}>Shipper Name:</div>
@@ -2648,6 +3048,7 @@ const JobsPage = () => {
          }
          open={isCustomOptionModalVisible}
          onOk={handleCustomOptionSubmit}
+         maskClosable={false}
          onCancel={handleCustomOptionCancel}
          okText="Add"
          cancelText="Cancel"

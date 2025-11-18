@@ -6,12 +6,12 @@ export const testApiIntegration = async () => {
   try {
     // Test 1: Health Check
 
-    const health = await apiService.healthCheck();
+    await apiService.healthCheck();
 
     // Test 2: Login (if credentials available)
 
     try {
-      const loginResponse = await apiService.login('admin@cnterminal.com', 'admin123');
+      await apiService.login('admin@cnterminal.com', 'admin123');
 
     } catch (error) {
 
@@ -20,7 +20,7 @@ export const testApiIntegration = async () => {
     // Test 3: Get customers (requires authentication)
 
     try {
-      const customers = await apiService.getCustomers();
+      await apiService.getCustomers();
 
     } catch (error) {
 

@@ -35,15 +35,21 @@ const ROLES_TO_CREATE = [
     isSystem: true
   },
   {
+    name: 'PREINVOICE_OFFICER',
+    displayName: 'Preinvoice Officer',
+    description: 'Handles pre-invoicing tasks and prepares billing information',
+    isSystem: true
+  },
+  {
     name: 'REVIEW_OFFICER',
     displayName: 'Review Officer',
     description: 'Reviews and preinvoices jobs',
     isSystem: true
   },
   {
-    name: 'INVOICE_OFFICER',
-    displayName: 'Invoice Officer',
-    description: 'Creates and manages invoices',
+    name: 'VETTING_OFFICER',
+    displayName: 'Vetting Officer',
+    description: 'Vets jobs and prepares them for invoicing',
     isSystem: true
   },
   {

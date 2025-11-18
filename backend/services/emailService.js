@@ -467,8 +467,9 @@ CN Terminal Team
       case 'IT_CONSULTANT': return 'IT Consultant';
       case 'ENQUIRY_OFFICER': return 'Enquiry Officer';
       case 'RELEASE_OFFICER': return 'Release Officer';
+      case 'PREINVOICE_OFFICER': return 'Preinvoice Officer';
       case 'REVIEW_OFFICER': return 'Review Officer';
-      case 'INVOICE_OFFICER': return 'Invoice Officer';
+      case 'VETTING_OFFICER': return 'Vetting Officer';
       case 'CLEARING_OFFICER': return 'Clearing Officer';
       case 'admin': return 'Administrator';
       case 'staff1': return 'Staff Level 1';

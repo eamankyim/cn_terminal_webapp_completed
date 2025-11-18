@@ -8,32 +8,14 @@ class RealtimeNotificationService {
    */
   static async sendRealtimeNotification(userId, notificationData) {
     try {
-      // Create notification in database
+      // Create notification in database for the specific user
       const notification = await NotificationService.createNotification({
         ...notificationData,
         userId
       });
 
-      // Send real-time notification via WebSocket
-      if (global.io) {
-        console.log(`🌐 Sending WebSocket notification to user_${userId}`);
-        global.io.to(`user_${userId}`).emit('new_notification', {
-          id: notification.id,
-          title: notification.title,
-          message: notification.message,
-          type: notification.type,
-          category: notification.category,
-          createdAt: notification.createdAt,
-          isRead: notification.isRead,
-          metadata: notification.metadata,
-          job: notification.job,
-          invoice: notification.invoice,
-          payment: notification.payment
-        });
-        console.log(`✅ WebSocket notification sent to user_${userId}`);
-      } else {
-        console.log('⚠️ Global.io not available - notification saved to database only');
-      }
+      // Note: Real-time broadcast is now handled by NotificationService.createNotification
+      // which broadcasts to all users automatically
 
       return notification;
     } catch (error) {
@@ -98,23 +80,11 @@ class RealtimeNotificationService {
    */
   static async notifyJobAssignmentRealtime(jobId, assignedToUserId, assignedByUserId) {
     try {
-      // Create database notification
+      // Create database notification for the assigned user
       const notification = await NotificationService.notifyJobAssignment(jobId, assignedToUserId, assignedByUserId);
       
-      // Send real-time notification
-      if (global.io && notification) {
-        global.io.to(`user_${assignedToUserId}`).emit('new_notification', {
-          id: notification.id,
-          title: notification.title,
-          message: notification.message,
-          type: notification.type,
-          category: notification.category,
-          createdAt: notification.createdAt,
-          isRead: notification.isRead,
-          metadata: notification.metadata,
-          job: notification.job
-        });
-      }
+      // Note: Real-time broadcast is now handled by NotificationService.createNotification
+      // which broadcasts to all users automatically
 
       return notification;
     } catch (error) {
@@ -130,20 +100,8 @@ class RealtimeNotificationService {
       // Create database notification
       const notification = await NotificationService.notifyJobStatusChange(jobId, oldStatus, newStatus, updatedByUserId);
       
-      // Send real-time notification
-      if (global.io && notification) {
-        global.io.to(`user_${notification.userId}`).emit('new_notification', {
-          id: notification.id,
-          title: notification.title,
-          message: notification.message,
-          type: notification.type,
-          category: notification.category,
-          createdAt: notification.createdAt,
-          isRead: notification.isRead,
-          metadata: notification.metadata,
-          job: notification.job
-        });
-      }
+      // Note: Real-time broadcast is now handled by NotificationService.createNotification
+      // which broadcasts to all users automatically
 
       return notification;
     } catch (error) {
@@ -159,20 +117,8 @@ class RealtimeNotificationService {
       // Create database notification
       const notification = await NotificationService.notifyInvoiceCreated(invoiceId, createdByUserId);
       
-      // Send real-time notification
-      if (global.io && notification) {
-        global.io.to(`user_${createdByUserId}`).emit('new_notification', {
-          id: notification.id,
-          title: notification.title,
-          message: notification.message,
-          type: notification.type,
-          category: notification.category,
-          createdAt: notification.createdAt,
-          isRead: notification.isRead,
-          metadata: notification.metadata,
-          invoice: notification.invoice
-        });
-      }
+      // Note: Real-time broadcast is now handled by NotificationService.createNotification
+      // which broadcasts to all users automatically
 
       return notification;
     } catch (error) {
@@ -188,20 +134,8 @@ class RealtimeNotificationService {
       // Create database notification
       const notification = await NotificationService.notifyPaymentReceived(paymentId, createdByUserId);
       
-      // Send real-time notification
-      if (global.io && notification) {
-        global.io.to(`user_${createdByUserId}`).emit('new_notification', {
-          id: notification.id,
-          title: notification.title,
-          message: notification.message,
-          type: notification.type,
-          category: notification.category,
-          createdAt: notification.createdAt,
-          isRead: notification.isRead,
-          metadata: notification.metadata,
-          payment: notification.payment
-        });
-      }
+      // Note: Real-time broadcast is now handled by NotificationService.createNotification
+      // which broadcasts to all users automatically
 
       return notification;
     } catch (error) {

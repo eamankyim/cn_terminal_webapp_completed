@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Upload, Button, message, Modal, Image, Typography, Space, Tag, Progress } from 'antd';
 import { 
   UploadOutlined, 
@@ -31,12 +31,43 @@ const FileUpload = ({
   uploadText = 'Upload Files',
   ...props
 }) => {
-  const [fileList, setFileList] = useState(Array.isArray(value) ? value : []);
+  const [fileList, setFileList] = useState(() => Array.isArray(value) ? value : []);
+  const prevValueRef = useRef(null);
+  const isUpdatingFromPropsRef = useRef(false);
+  const isInternalUpdateRef = useRef(false);
   
-  // Update fileList when value prop changes
+  // Helper to create a stable key from file array for comparison
+  const getFileArrayKey = (arr) => {
+    if (!Array.isArray(arr) || arr.length === 0) return '';
+    return arr.map(f => `${f.uid || ''}-${f.name || ''}-${f.size || 0}-${f.url || ''}`).join('|');
+  };
+  
+  // Update fileList when value prop changes (only if content actually changed)
   useEffect(() => {
-    if (value && Array.isArray(value) && value !== fileList) {
-      setFileList(value);
+    // Skip if this is an internal update (from our own state changes)
+    if (isInternalUpdateRef.current) {
+      isInternalUpdateRef.current = false;
+      return;
+    }
+    
+    const currentValue = Array.isArray(value) ? value : [];
+    const currentKey = getFileArrayKey(currentValue);
+    const prevKey = prevValueRef.current;
+    
+    // Only update if the key actually changed
+    if (currentKey !== prevKey) {
+      console.log('🔷 [FileUpload] Value prop changed, updating fileList');
+      console.log('  - Previous value length:', prevKey ? prevKey.split('|').length : 0);
+      console.log('  - New value length:', currentValue.length);
+      
+      isUpdatingFromPropsRef.current = true;
+      setFileList(currentValue);
+      prevValueRef.current = currentKey;
+      
+      // Reset flag in next tick
+      requestAnimationFrame(() => {
+        isUpdatingFromPropsRef.current = false;
+      });
     }
   }, [value]);
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -72,39 +103,85 @@ const FileUpload = ({
   };
 
   const handleUpload = async (file) => {
+    console.log('🔷 [FileUpload] handleUpload called');
+    console.log('  - File name:', file?.name);
+    console.log('  - File size:', file?.size, 'bytes');
+    console.log('  - File type:', file?.type);
+    console.log('  - File uid:', file?.uid);
+    console.log('  - Current fileList length:', fileList.length);
+    console.log('  - Has onFileUpload callback:', !!onFileUpload);
+    
+    // Prevent duplicate uploads by checking if file already exists
+    const fileExists = fileList.some(f => f.uid === file.uid || (f.name === file.name && f.size === file.size));
+    if (fileExists) {
+      console.log('⚠️ [FileUpload] File already in list, skipping:', file.name);
+      console.log('  - Existing files:', fileList.map(f => ({ name: f.name, uid: f.uid })));
+      return Promise.resolve(); // Return resolved promise
+    }
 
+    console.log('  - File is new, proceeding with upload...');
     setUploading(true);
     try {
       let response;
       
       if (onFileUpload) {
-
+        console.log('  - Calling onFileUpload callback...');
+        const uploadStartTime = Date.now();
         response = await onFileUpload(file);
+        const uploadTime = Date.now() - uploadStartTime;
+        console.log('  - onFileUpload completed in', uploadTime, 'ms');
+        console.log('  - Response received:', response);
         
         const newFile = {
           uid: file.uid,
           name: file.name,
           status: 'done',
-          url: response.file?.url || response.url,
+          url: response?.file?.url || response?.url || null,
           response: response,
           size: file.size,
           type: file.type,
           originFileObj: file // Keep reference to original file
         };
 
-        const newFileList = [...fileList, newFile];
+        // Check again before adding to prevent duplicates (using current fileList state)
+        console.log('  - Updating fileList state...');
+        isInternalUpdateRef.current = true;
+        setFileList(currentList => {
+          console.log('    - Current list length:', currentList.length);
+          const alreadyExists = currentList.some(f => f.uid === newFile.uid || (f.name === newFile.name && f.size === newFile.size));
+          if (alreadyExists) {
+            console.log('⚠️ [FileUpload] File already exists after upload, skipping add:', newFile.name);
+            isInternalUpdateRef.current = false;
+            return currentList; // Return unchanged list
+          }
 
-        setFileList(newFileList);
-        
-        if (onFileChange) {
+          const newFileList = [...currentList, newFile];
+          console.log('    - New list length:', newFileList.length);
+          console.log('    - New file added:', { name: newFile.name, uid: newFile.uid, url: newFile.url });
+          
+          // Update ref to track this value (using stable key)
+          prevValueRef.current = getFileArrayKey(newFileList);
+          
+          // Only call onFileChange if this update is from user action, not from props
+          if (onFileChange && !isUpdatingFromPropsRef.current) {
+            console.log('    - Calling onFileChange callback...');
+            // Use setTimeout to avoid blocking
+            setTimeout(() => {
+              onFileChange(newFileList);
+              console.log('    - onFileChange callback completed');
+            }, 0);
+          } else if (isUpdatingFromPropsRef.current) {
+            console.log('    - Skipping onFileChange (update from props)');
+          }
 
-          onFileChange(newFileList);
-        }
+          return newFileList;
+        });
 
+        console.log('✅ [FileUpload] File uploaded and added successfully');
         message.success(`${file.name} uploaded successfully`);
-        return false; // Prevent default upload
+        return Promise.resolve();
       } else {
-
+        console.log('  - No onFileUpload callback, storing file locally for later upload');
         // For new jobs, store the file locally without uploading
         const newFile = {
           uid: file.uid,
@@ -117,24 +194,56 @@ const FileUpload = ({
           originFileObj: file // Keep reference to original file for later upload
         };
 
-        const newFileList = [...fileList, newFile];
+        console.log('  - Created new file object:', { name: newFile.name, uid: newFile.uid, hasOriginFileObj: !!newFile.originFileObj });
 
-        setFileList(newFileList);
-        
-        if (onFileChange) {
+        // Check again before adding to prevent duplicates (using current fileList state)
+        console.log('  - Updating fileList state...');
+        isInternalUpdateRef.current = true;
+        setFileList(currentList => {
+          console.log('    - Current list length:', currentList.length);
+          const alreadyExists = currentList.some(f => f.uid === newFile.uid || (f.name === newFile.name && f.size === newFile.size));
+          if (alreadyExists) {
+            console.log('⚠️ [FileUpload] File already exists, skipping add:', newFile.name);
+            isInternalUpdateRef.current = false;
+            return currentList; // Return unchanged list
+          }
 
-          onFileChange(newFileList);
-        }
+          const newFileList = [...currentList, newFile];
+          console.log('    - New list length:', newFileList.length);
+          console.log('    - New file added:', { name: newFile.name, uid: newFile.uid });
+          
+          // Update ref to track this value (using stable key)
+          prevValueRef.current = getFileArrayKey(newFileList);
+          
+          // Only call onFileChange if this update is from user action, not from props
+          if (onFileChange && !isUpdatingFromPropsRef.current) {
+            console.log('    - Calling onFileChange callback...');
+            // Use setTimeout to avoid blocking
+            setTimeout(() => {
+              onFileChange(newFileList);
+              console.log('    - onFileChange callback completed');
+            }, 0);
+          } else if (isUpdatingFromPropsRef.current) {
+            console.log('    - Skipping onFileChange (update from props)');
+          }
 
+          return newFileList;
+        });
+
+        console.log('✅ [FileUpload] File added to list (will upload when job is created)');
         message.success(`${file.name} added (will upload when job is created)`);
-        return false; // Prevent default upload
+        return Promise.resolve();
       }
     } catch (error) {
-
+      console.error('❌ [FileUpload] Upload error:', error);
+      console.error('  - Error name:', error.name);
+      console.error('  - Error message:', error.message);
+      console.error('  - Error stack:', error.stack);
       message.error(`Failed to upload ${file.name}`);
-      return false;
+      return Promise.reject(error);
     } finally {
       setUploading(false);
+      console.log('  - Upload state reset (uploading = false)');
     }
   };
 
@@ -145,10 +254,16 @@ const FileUpload = ({
       }
       
       const newFileList = fileList.filter(item => item.uid !== file.uid);
+      isInternalUpdateRef.current = true;
+      prevValueRef.current = getFileArrayKey(newFileList);
       setFileList(newFileList);
       
-      if (onFileChange) {
-        onFileChange(newFileList);
+      // Only call onFileChange if this update is from user action, not from props
+      if (onFileChange && !isUpdatingFromPropsRef.current) {
+        // Use setTimeout to avoid blocking
+        setTimeout(() => {
+          onFileChange(newFileList);
+        }, 0);
       }
 
       if (onFileRemove) {
@@ -187,12 +302,57 @@ const FileUpload = ({
     });
   };
 
+  // Custom request handler to prevent default upload behavior
+  const customRequest = async ({ file, onSuccess, onError }) => {
+    console.log('🔷 [FileUpload] customRequest called');
+    console.log('  - File:', file?.name);
+    console.log('  - File size:', file?.size);
+    console.log('  - Has onSuccess:', !!onSuccess);
+    console.log('  - Has onError:', !!onError);
+    
+    try {
+      // Check if file already exists before processing
+      const fileExists = fileList.some(f => f.uid === file.uid || (f.name === file.name && f.size === file.size));
+      if (fileExists) {
+        console.log('⚠️ [FileUpload] File already in list, skipping:', file.name);
+        if (onSuccess) {
+          console.log('  - Calling onSuccess (file already exists)');
+          onSuccess({}, file);
+        }
+        return;
+      }
+
+      console.log('  - Calling handleUpload...');
+      // Call handleUpload which will process the file
+      await handleUpload(file);
+      console.log('  - handleUpload completed');
+      
+      // Always call onSuccess to prevent retries and mark as uploaded
+      if (onSuccess) {
+        console.log('  - Calling onSuccess callback');
+        onSuccess({}, file);
+        console.log('  - onSuccess callback completed');
+      }
+      console.log('✅ [FileUpload] customRequest completed successfully');
+    } catch (error) {
+      console.error('❌ [FileUpload] Custom request error:', error);
+      console.error('  - Error name:', error.name);
+      console.error('  - Error message:', error.message);
+      console.error('  - Error stack:', error.stack);
+      if (onError) {
+        console.log('  - Calling onError callback');
+        onError(error);
+      }
+    }
+  };
+
   const uploadProps = {
     name: 'file',
     multiple,
     accept,
     fileList: Array.isArray(fileList) ? fileList : [],
-    beforeUpload: handleUpload,
+    customRequest: customRequest,
+    beforeUpload: () => false, // Always prevent default upload
     onRemove: handleRemove,
     onPreview: showPreview ? handlePreview : undefined,
     disabled,

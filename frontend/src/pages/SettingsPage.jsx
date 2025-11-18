@@ -29,6 +29,7 @@ import userService from '../services/userService';
 import { getCustomerStatusColor } from '../utils/statusUtils';
 import { ROLE_INFO, PERMISSIONS } from '../utils/permissions';
 import { UI_PERMISSIONS } from '../utils/uiPermissions';
+import { fileService } from '../services/fileService';
 import RolePermissionManager from '../components/settings/RolePermissionManager';
 import IntegrationTest from '../components/IntegrationTest';
 import UserRoleAssignment from '../components/settings/UserRoleAssignment';
@@ -160,11 +161,46 @@ const SettingsPage = () => {
   const handleProfileUpdate = async (values) => {
     setProfileLoading(true);
     try {
-      await updateProfile(values);
+      // Prepare profile data
+      const profileData = {
+        firstName: values.firstName,
+        lastName: values.lastName,
+        email: values.email,
+        phone: values.phone
+      };
+
+      // Handle profile picture upload if any
+      if (profilePictureFileList.length > 0 && profilePictureFileList[0].originFileObj) {
+        try {
+          setUploadingPicture(true);
+          const file = profilePictureFileList[0].originFileObj;
+          const uploadResponse = await fileService.uploadFile(file, {
+            folder: 'profiles',
+            category: 'profile_picture'
+          });
+          
+          if (uploadResponse?.file?.url) {
+            profileData.profilePicture = uploadResponse.file.url;
+            message.success('Profile picture uploaded successfully');
+          }
+        } catch (uploadError) {
+          console.error('Profile picture upload error:', uploadError);
+          message.error('Failed to upload profile picture. Please try again.');
+          setProfileLoading(false);
+          setUploadingPicture(false);
+          return;
+        } finally {
+          setUploadingPicture(false);
+        }
+      }
+
+      await updateProfile(profileData);
       message.success('Profile updated successfully');
       setIsEditingProfile(false);
+      setProfilePictureFileList([]);
     } catch (error) {
-      message.error('Failed to update profile. Please try again.');
+      console.error('Profile update error:', error);
+      message.error(error.response?.data?.error || 'Failed to update profile. Please try again.');
     } finally {
       setProfileLoading(false);
     }
@@ -211,36 +247,101 @@ const SettingsPage = () => {
 
   // Load users from API
   const loadUsers = async () => {
+    console.log('\n🔷 [SettingsPage] loadUsers called');
+    console.log('  - Timestamp:', new Date().toISOString());
+    console.log('  - Current user:', currentUser?.email);
+    console.log('  - Current user role:', currentUser?.role);
+    console.log('  - usersLoading state:', usersLoading);
+    console.log('  - Current users count:', users.length);
+    
     // Prevent multiple simultaneous calls
     if (usersLoading) {
       console.log('⏭️ [SettingsPage] loadUsers already in progress, skipping...');
       return;
     }
     
-    console.log('🔷 [SettingsPage] loadUsers called');
     try {
       console.log('  - Setting usersLoading to true');
       setUsersLoading(true);
-      console.log('  - Calling userService.getUsers()');
+      
+      console.log('  - Checking userService availability...');
+      if (!userService) {
+        console.error('❌ [SettingsPage] userService is not available');
+        throw new Error('User service not initialized');
+      }
+      
+      console.log('  - Calling userService.getUsers()...');
+      const startTime = Date.now();
       const response = await userService.getUsers();
-      console.log('  - Response received:', response);
-      console.log('  - Setting users state with', response?.users?.length || 0, 'users');
-      setUsers(response.users || []);
+      const requestTime = Date.now() - startTime;
+      
+      console.log('  - Request completed in', requestTime, 'ms');
+      console.log('  - Response received:', {
+        type: typeof response,
+        hasUsers: !!response?.users,
+        usersIsArray: Array.isArray(response?.users),
+        usersCount: response?.users?.length || 0
+      });
+      
+      if (!response) {
+        console.error('❌ [SettingsPage] Response is null or undefined');
+        throw new Error('No response from server');
+      }
+      
+      if (!response.users) {
+        console.error('❌ [SettingsPage] Response missing users property');
+        console.error('  - Response structure:', Object.keys(response));
+        throw new Error('Response missing users property');
+      }
+      
+      if (!Array.isArray(response.users)) {
+        console.error('❌ [SettingsPage] Response.users is not an array');
+        console.error('  - Users type:', typeof response.users);
+        throw new Error('Users property is not an array');
+      }
+      
+      console.log('  - Setting users state with', response.users.length, 'users');
+      setUsers(response.users);
       console.log('✅ [SettingsPage] loadUsers completed successfully');
+      console.log('  - Users state updated, count:', response.users.length);
     } catch (error) {
-      console.error('❌ [SettingsPage] loadUsers error:', error);
-      message.error('Failed to load team members');
+      console.error('\n❌ [SettingsPage] loadUsers ERROR:');
+      console.error('  - Error name:', error.name);
+      console.error('  - Error message:', error.message);
+      console.error('  - Error status:', error.status);
+      console.error('  - Error response:', error.response?.data);
+      console.error('  - Current user:', currentUser?.email);
+      console.error('  - Current user role:', currentUser?.role);
+      console.error('  - Error stack:', error.stack);
+      
+      // Show user-friendly error message
+      const errorMessage = error.message || 'Failed to load team members';
+      message.error(`Failed to load team members: ${errorMessage}`);
     } finally {
       console.log('  - Setting usersLoading to false');
       setUsersLoading(false);
+      console.log('  - loadUsers cleanup completed\n');
     }
   };
 
   // Load users when component mounts (for all roles with team members access)
   useEffect(() => {
+    console.log('\n🔷 [SettingsPage] useEffect triggered for loadUsers');
+    console.log('  - currentUser:', currentUser ? {
+      email: currentUser.email,
+      role: currentUser.role,
+      id: currentUser.id
+    } : 'null/undefined');
+    console.log('  - currentUser?.role:', currentUser?.role);
+    
     // All users can view team members (but only admins can edit)
     if (currentUser?.role) {
+      console.log('  - User has role, calling loadUsers()');
       loadUsers();
+    } else {
+      console.warn('⚠️ [SettingsPage] currentUser or role is missing, skipping loadUsers');
+      console.warn('  - currentUser exists:', !!currentUser);
+      console.warn('  - currentUser.role exists:', !!currentUser?.role);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.role]); // Only depend on role, not entire user object
@@ -453,9 +554,39 @@ const SettingsPage = () => {
                     <Input placeholder="Enter phone number" />
                 </Form.Item>
                 <Form.Item label="Profile Picture">
-                  <Upload>
-                    <Button icon={<UploadOutlined />}>Upload Photo</Button>
+                  <Upload
+                    fileList={profilePictureFileList}
+                    onChange={({ fileList }) => setProfilePictureFileList(fileList)}
+                    beforeUpload={(file) => {
+                      const isImage = file.type.startsWith('image/');
+                      if (!isImage) {
+                        message.error('You can only upload image files!');
+                        return false;
+                      }
+                      const isLt2M = file.size / 1024 / 1024 < 2;
+                      if (!isLt2M) {
+                        message.error('Image must be smaller than 2MB!');
+                        return false;
+                      }
+                      return false; // Prevent auto upload
+                    }}
+                    listType="picture-card"
+                    maxCount={1}
+                    onRemove={() => {
+                      setProfilePictureFileList([]);
+                      return true;
+                    }}
+                  >
+                    {profilePictureFileList.length < 1 && (
+                      <div>
+                        <UploadOutlined />
+                        <div style={{ marginTop: 8 }}>Upload</div>
+                      </div>
+                    )}
                   </Upload>
+                  <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginTop: 8 }}>
+                    Supported formats: JPG, PNG (Max 2MB)
+                  </Text>
                 </Form.Item>
               </Form>
               )}
@@ -1060,7 +1191,7 @@ const SettingsPage = () => {
       }
       
       // For employee roles, only show Profile and Team Members tabs
-      const employeeRoles = ['STAFF', 'DRIVER', 'WAREHOUSE', 'ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'RELEASE_OFFICER', 'REVIEW_OFFICER', 'INVOICE_OFFICER', 'CLEARING_OFFICER'];
+      const employeeRoles = ['STAFF', 'DRIVER', 'WAREHOUSE', 'ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'RELEASE_OFFICER', 'PREINVOICE_OFFICER', 'REVIEW_OFFICER', 'VETTING_OFFICER', 'CLEARING_OFFICER'];
       if (employeeRoles.includes(currentUser?.role)) {
         return tab.key === 'profile' || tab.key === 'team-members';
       }
@@ -1280,8 +1411,9 @@ const SettingsPage = () => {
                       'ENTRY_OFFICER': 'Operations',
                       'TRANSPORT_COORDINATOR': 'Operations',
                       'RELEASE_OFFICER': 'Operations',
+                      'PREINVOICE_OFFICER': 'Quality Assurance',
                       'REVIEW_OFFICER': 'Quality Assurance',
-                      'INVOICE_OFFICER': 'Finance',
+                      'VETTING_OFFICER': 'Finance',
                       'CLEARING_OFFICER': 'Customs',
                       'IT_CONSULTANT': 'Information Technology',
                       'ACCOUNTANT': 'Finance'

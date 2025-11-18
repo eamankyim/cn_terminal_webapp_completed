@@ -2,6 +2,38 @@ const { prisma } = require('../config/database');
 
 class NotificationService {
   /**
+   * Helper method to create notifications for all active users
+   */
+  static async createNotificationForAllUsers(notificationData) {
+    try {
+      // Get all active users (including ADMIN)
+      const allUsers = await prisma.user.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, role: true }
+      });
+
+      console.log(`🔔 [NotificationService] Creating notifications for ${allUsers.length} users`);
+      console.log(`  - Users: ${allUsers.map(u => `${u.name} (${u.role})`).join(', ')}`);
+
+      // Create notifications for all users
+      const notifications = await Promise.all(
+        allUsers.map(user => {
+          console.log(`  📤 Creating notification for ${user.name} (${user.role}) - ID: ${user.id}`);
+          return this.createNotification({
+            ...notificationData,
+            userId: user.id
+          });
+        })
+      );
+
+      console.log(`✅ [NotificationService] Created ${notifications.length} notifications`);
+      return notifications;
+    } catch (error) {
+      console.error('❌ [NotificationService] Error creating notifications for all users:', error);
+      throw error;
+    }
+  }
+  /**
    * Create a new notification
    * @param {Object} notificationData - Notification data
    * @param {string} notificationData.title - Notification title
@@ -56,6 +88,49 @@ class NotificationService {
         }
       });
 
+      // Emit real-time notification to ALL users (broadcast)
+      if (global.io) {
+        try {
+          console.log(`🌐 [NotificationService] Broadcasting real-time notification to ALL users`);
+          console.log(`  - Notification ID: ${notification.id}`);
+          console.log(`  - Title: ${notification.title}`);
+          console.log(`  - User ID: ${notification.userId || 'N/A'}`);
+          
+          const notificationPayload = {
+            id: notification.id,
+            title: notification.title,
+            message: notification.message,
+            type: notification.type,
+            category: notification.category,
+            createdAt: notification.createdAt,
+            isRead: notification.isRead,
+            metadata: notification.metadata,
+            job: notification.job,
+            invoice: notification.invoice,
+            payment: notification.payment
+          };
+          
+          // Broadcast to all connected users (this includes Admin)
+          global.io.emit('new_notification', notificationPayload);
+          console.log(`✅ [NotificationService] Real-time notification broadcasted to all connected users`);
+          
+          // Also send to specific user room if userId is provided (for targeted delivery)
+          if (notification.userId) {
+            global.io.to(`user_${notification.userId}`).emit('new_notification', notificationPayload);
+            console.log(`✅ [NotificationService] Also sent to user room: user_${notification.userId}`);
+            
+            // Update unread count for the specific user
+            const { RealtimeNotificationService } = require('./realtimeNotificationService');
+            await RealtimeNotificationService.sendUnreadCountUpdate(notification.userId);
+          }
+        } catch (socketError) {
+          console.error('❌ [NotificationService] Error emitting real-time notification:', socketError);
+          // Don't fail the notification creation if socket emission fails
+        }
+      } else {
+        console.warn('⚠️ [NotificationService] Global.io not available - notification saved to database only');
+      }
+
       return notification;
     } catch (error) {
 
@@ -64,7 +139,7 @@ class NotificationService {
   }
 
   /**
-   * Create job assignment notification
+   * Create job assignment notification (notifies all users)
    */
   static async notifyJobAssignment(jobId, assignedToUserId, assignedByUserId) {
     const job = await prisma.job.findUnique({
@@ -77,16 +152,17 @@ class NotificationService {
 
     if (!job) return;
 
-    return this.createNotification({
+    // Create notifications for ALL users
+    return this.createNotificationForAllUsers({
       title: 'New Job Assignment',
-      message: `You have been assigned to job ${job.trackingId} for ${job.customer.name}`,
+      message: `Job ${job.trackingId} for ${job.customer.name} has been assigned to ${job.assignedTo?.name || 'a team member'}`,
       type: 'INFO',
       category: 'JOB_ASSIGNMENT',
-      userId: assignedToUserId,
       jobId: jobId,
       metadata: {
         jobTrackingId: job.trackingId,
         customerName: job.customer.name,
+        assignedTo: assignedToUserId,
         assignedBy: assignedByUserId
       }
     });
@@ -109,19 +185,19 @@ class NotificationService {
     const statusMessages = {
       'NEW': 'Job has been created',
       'PREINVOICED': 'Job is ready for invoicing',
-      'INVOICED': 'Invoice has been generated',
+      'VETTED': 'Job has been vetted and reviewed',
       'ENTRY': 'Job is being processed for entry',
       'RELEASED': 'Job has been released',
       'CLEARED': 'Job has been cleared',
       'DELIVERED': 'Job has been delivered'
     };
 
-    return this.createNotification({
+    // Create notifications for ALL users
+    return this.createNotificationForAllUsers({
       title: 'Job Status Updated',
-      message: `Job ${job.trackingId} status changed from ${oldStatus} to ${newStatus}`,
+      message: `Job ${job.trackingId} for ${job.customer.name} status changed from ${oldStatus} to ${newStatus}`,
       type: 'INFO',
       category: 'JOB_STATUS_CHANGE',
-      userId: job.assignedToId,
       jobId: jobId,
       metadata: {
         jobTrackingId: job.trackingId,
@@ -147,12 +223,12 @@ class NotificationService {
 
     if (!invoice) return;
 
-    return this.createNotification({
+    // Create notifications for ALL users
+    return this.createNotificationForAllUsers({
       title: 'New Invoice Created',
-      message: `Invoice ${invoice.invoiceNumber} has been created for job ${invoice.job.trackingId}`,
+      message: `Invoice ${invoice.invoiceNumber} has been created for job ${invoice.job.trackingId} (${invoice.customer.name})`,
       type: 'SUCCESS',
       category: 'INVOICE_CREATED',
-      userId: createdByUserId,
       invoiceId: invoiceId,
       metadata: {
         invoiceNumber: invoice.invoiceNumber,
@@ -184,12 +260,12 @@ class NotificationService {
       'CANCELLED': 'Invoice has been cancelled'
     };
 
-    return this.createNotification({
+    // Create notifications for ALL users
+    return this.createNotificationForAllUsers({
       title: 'Invoice Status Updated',
-      message: `Invoice ${invoice.invoiceNumber} status changed to ${newStatus}`,
+      message: `Invoice ${invoice.invoiceNumber} for ${invoice.customer.name} status changed to ${newStatus}`,
       type: newStatus === 'PAID' ? 'SUCCESS' : 'WARNING',
       category: 'INVOICE_STATUS_CHANGE',
-      userId: updatedByUserId,
       invoiceId: invoiceId,
       metadata: {
         invoiceNumber: invoice.invoiceNumber,
@@ -219,12 +295,12 @@ class NotificationService {
 
     if (!payment || !payment.invoice) return;
 
-    return this.createNotification({
+    // Create notifications for ALL users
+    return this.createNotificationForAllUsers({
       title: 'Payment Received',
-      message: `Payment of GHS ${payment.amount} received for invoice ${payment.invoice.invoiceNumber}`,
+      message: `Payment of GHS ${payment.amount} received for invoice ${payment.invoice.invoiceNumber} (${payment.invoice.customer.name})`,
       type: 'SUCCESS',
       category: 'PAYMENT_RECEIVED',
-      userId: createdByUserId,
       paymentId: paymentId,
       metadata: {
         amount: payment.amount,
@@ -277,7 +353,7 @@ class NotificationService {
         select: { id: true }
       });
 
-      // Create notifications for all users
+      // Create notifications for all users (each will emit real-time via createNotification)
       const notifications = await Promise.all(
         users.map(user => 
           this.createNotification({
@@ -290,6 +366,24 @@ class NotificationService {
           })
         )
       );
+
+      // Also emit system-wide notification to all connected users
+      if (global.io) {
+        try {
+          console.log('🌐 [NotificationService] Emitting system-wide notification to all connected users');
+          global.io.emit('system_notification', {
+            title,
+            message,
+            type,
+            category: 'SYSTEM_ALERT',
+            createdAt: new Date().toISOString(),
+            metadata
+          });
+          console.log('✅ [NotificationService] System-wide notification emitted');
+        } catch (socketError) {
+          console.error('❌ [NotificationService] Error emitting system notification:', socketError);
+        }
+      }
 
       return notifications;
     } catch (error) {

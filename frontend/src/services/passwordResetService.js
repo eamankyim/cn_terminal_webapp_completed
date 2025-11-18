@@ -45,7 +45,9 @@ class PasswordResetService {
   }
 }
 
-export default new PasswordResetService();
+const passwordResetService = new PasswordResetService();
+
+export default passwordResetService;
 
 
 

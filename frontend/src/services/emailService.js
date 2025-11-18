@@ -15,7 +15,7 @@ class EmailService {
   // Send user invitation email
   async sendInvitationEmail(inviteData) {
     try {
-      const { email, role, invitedBy, inviteLink } = inviteData;
+      const { email } = inviteData;
       
       const emailData = {
         personalizations: [
@@ -124,7 +124,7 @@ class EmailService {
   // Send welcome email
   async sendWelcomeEmail(userData) {
     try {
-      const { email, name, role } = userData;
+      const { email } = userData;
       
       const emailData = {
         personalizations: [

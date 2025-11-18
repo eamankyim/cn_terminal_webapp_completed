@@ -32,7 +32,7 @@ import {
 } from '@ant-design/icons';
 import configurationService from '../services/configurationService';
 import { useAuth } from '../contexts/AuthContext';
-import { calculateVAT, getVATExplanation } from '../utils/vatCalculator';
+import { getVATExplanation } from '../utils/vatCalculator';
 import { useNavigate } from 'react-router-dom';
 import useResponsive from '../hooks/useResponsive';
 
@@ -53,7 +53,6 @@ const ConfigurationPage = () => {
       navigate('/dashboard');
     }
   }, [currentUser, navigate]);
-  const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [configurations, setConfigurations] = useState({});
@@ -193,12 +192,6 @@ const ConfigurationPage = () => {
     }
   };
 
-  const handleAddConfig = () => {
-    setEditingConfig(null);
-    modalForm.resetFields();
-    setIsModalVisible(true);
-  };
-
   const handleEditConfig = (config) => {
     setEditingConfig(config);
     modalForm.setFieldsValue({
@@ -210,21 +203,6 @@ const ConfigurationPage = () => {
       isActive: config.isActive
     });
     setIsModalVisible(true);
-  };
-
-  const handleDeleteConfig = async (key) => {
-    try {
-      const response = await configurationService.deleteConfiguration(key);
-      if (response.success) {
-        message.success('Configuration deleted successfully');
-        loadConfigurations();
-      } else {
-        message.error('Failed to delete configuration');
-      }
-    } catch (error) {
-
-      message.error('Failed to delete configuration');
-    }
   };
 
   const handleModalSave = async (values) => {
