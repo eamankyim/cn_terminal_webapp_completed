@@ -63,7 +63,7 @@ import jobService from '../services/jobService';
 import { fileService } from '../services/fileService';
 import apiService from '../services/api';
 import { getJobStatusColor, getJobStatusIcon as getStatusIconUtil } from '../utils/statusUtils';
-import { useJobSocket } from '../hooks/useJobSocket';
+import { useJobSocket } from '../hooks/useJobSocket.js';
 
 // Status hierarchy system - jobs can only progress forward
 const STATUS_HIERARCHY = {

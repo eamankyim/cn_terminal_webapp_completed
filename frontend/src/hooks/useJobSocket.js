@@ -37,7 +37,7 @@ export const useJobSocket = ({
   }, [onJobCreated, onJobUpdated, onJobDeleted, onJobStatusUpdated, onJobCommentAdded]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('cn_terminal_token');
     if (!token) {
       return;
     }
