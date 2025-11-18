@@ -304,6 +304,7 @@ router.get('/recent-shipments', authenticateToken, requirePermission(UI_PERMISSI
 // Get jobs in progress (excludes NEW, CLEARED, DELIVERED)
 router.get('/recent-jobs', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOARD), async (req, res) => {
   try {
+    console.log('🔷 [Dashboard] GET /recent-jobs - User:', req.user?.email, 'Role:', req.user?.role);
     const { limit = 10 } = req.query;
 
     const jobs = await prisma.job.findMany({
@@ -331,9 +332,12 @@ router.get('/recent-jobs', authenticateToken, requirePermission(UI_PERMISSIONS.D
       }
     });
 
+    console.log(`✅ [Dashboard] /recent-jobs - Found ${jobs.length} jobs`);
     res.json({ jobs });
   } catch (error) {
-    console.error('[Dashboard] /recent-jobs error:', error);
+    console.error('❌ [Dashboard] /recent-jobs error:', error);
+    console.error('  - Error message:', error.message);
+    console.error('  - Error stack:', error.stack);
     res.status(500).json({ 
       error: 'Internal server error',
       message: error.message,
@@ -378,6 +382,7 @@ router.get('/recent-jobs', authenticateToken, requirePermission(UI_PERMISSIONS.D
 // Get jobs assigned to current user
 router.get('/assigned-jobs', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOARD), async (req, res) => {
   try {
+    console.log('🔷 [Dashboard] GET /assigned-jobs - User:', req.user?.email, 'Role:', req.user?.role, 'ID:', req.user?.id);
     const { limit = 10 } = req.query;
 
     const jobs = await prisma.job.findMany({
@@ -403,9 +408,12 @@ router.get('/assigned-jobs', authenticateToken, requirePermission(UI_PERMISSIONS
       }
     });
 
+    console.log(`✅ [Dashboard] /assigned-jobs - Found ${jobs.length} jobs for user ${req.user.id}`);
     res.json({ jobs });
   } catch (error) {
-    console.error('[Dashboard] /assigned-jobs error:', error);
+    console.error('❌ [Dashboard] /assigned-jobs error:', error);
+    console.error('  - Error message:', error.message);
+    console.error('  - Error stack:', error.stack);
     res.status(500).json({ 
       error: 'Internal server error',
       message: error.message,

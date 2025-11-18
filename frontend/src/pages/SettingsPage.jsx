@@ -75,6 +75,8 @@ const SettingsPage = () => {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [profilePictureFileList, setProfilePictureFileList] = useState([]);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
 
   // Handle URL parameter for tab selection
   useEffect(() => {

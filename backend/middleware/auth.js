@@ -18,18 +18,54 @@ async function checkUserPermission(userId, permissionName) {
       return user && ['ADMIN', 'IT_CONSULTANT'].includes(user.role);
     }
     
+    // Get user with role info
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, roleId: true }
+    });
+
+    if (!user) {
+      console.error(`❌ [Permission Check] User ${userId} not found`);
+      return false;
+    }
+
+    // ADMIN and IT_CONSULTANT have access to all UI permissions
+    if (['ADMIN', 'IT_CONSULTANT'].includes(user.role) && permissionName.startsWith('ui:')) {
+      console.log(`✅ [Permission Check] ${user.role} has access to UI permission: ${permissionName}`);
+      return true;
+    }
+    
     // First, get the permission ID
     const permission = await prisma.permission.findUnique({
       where: { name: permissionName }
     });
 
     if (!permission) {
-
+      console.warn(`⚠️ [Permission Check] Permission ${permissionName} not found in database`);
+      // If permission doesn't exist and user is ADMIN/IT_CONSULTANT, grant access
+      if (['ADMIN', 'IT_CONSULTANT'].includes(user.role)) {
+        return true;
+      }
       return false;
     }
 
-    // Check if user has permission through role
-    const rolePermission = await prisma.rolePermission.findFirst({
+    // Check if user has permission through role (via roleId)
+    if (user.roleId) {
+      const rolePermission = await prisma.rolePermission.findFirst({
+        where: {
+          permissionId: permission.id,
+          roleId: user.roleId
+        }
+      });
+
+      if (rolePermission) {
+        console.log(`✅ [Permission Check] User has permission through role: ${permissionName}`);
+        return true;
+      }
+    }
+
+    // Also check via role name (backward compatibility)
+    const rolePermissionByName = await prisma.rolePermission.findFirst({
       where: {
         permissionId: permission.id,
         role: {
@@ -40,7 +76,8 @@ async function checkUserPermission(userId, permissionName) {
       }
     });
 
-    if (rolePermission) {
+    if (rolePermissionByName) {
+      console.log(`✅ [Permission Check] User has permission through role name: ${permissionName}`);
       return true;
     }
 
@@ -52,9 +89,28 @@ async function checkUserPermission(userId, permissionName) {
       }
     });
 
-    return !!userPermission;
-  } catch (error) {
+    if (userPermission) {
+      console.log(`✅ [Permission Check] User has direct permission: ${permissionName}`);
+      return true;
+    }
 
+    console.warn(`❌ [Permission Check] User ${userId} (${user.role}) does not have permission: ${permissionName}`);
+    return false;
+  } catch (error) {
+    console.error(`❌ [Permission Check] Error checking permission ${permissionName} for user ${userId}:`, error);
+    // If error occurs and user is ADMIN/IT_CONSULTANT, grant access as fallback
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
+      });
+      if (user && ['ADMIN', 'IT_CONSULTANT'].includes(user.role)) {
+        console.log(`✅ [Permission Check] Fallback: ${user.role} granted access due to error`);
+        return true;
+      }
+    } catch (fallbackError) {
+      console.error('❌ [Permission Check] Fallback check also failed:', fallbackError);
+    }
     return false;
   }
 }
