@@ -154,7 +154,6 @@ const LoginPage = () => {
                   { required: true, message: 'Please enter your company email' },
                   { type: 'email', message: 'Please enter a valid email' }
                 ]}
-                initialValue="admin@cnterminal.com"
               >
                 <Input 
                   prefix={<MailOutlined />} 
