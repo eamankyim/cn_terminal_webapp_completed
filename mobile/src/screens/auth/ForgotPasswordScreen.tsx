@@ -3,11 +3,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
 import { api } from '../../api/http';
+import { useTheme } from '../../context/ThemeContext';
 
 interface Props {
   navigation: {
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
+  const { accent } = useTheme();
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -58,22 +60,21 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
 
         <View className="mb-4">
           <Text className="text-xs font-medium text-gray-600 mb-1">Email</Text>
-          <TextInput
+          <Input
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
             placeholder="you@example.com"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
         <TouchableOpacity
           disabled={submitting}
           onPress={onSubmit}
-          className="bg-black rounded-lg py-3 items-center mb-4"
-        >
-          <Text className="text-white font-semibold">
+          className="rounded-xl h-[52px] items-center justify-center mb-4"
+        style={{ backgroundColor: accent }}>
+          <Text className="text-white font-semibold text-[17px]">
             {submitting ? 'Sending...' : 'Send reset link'}
           </Text>
         </TouchableOpacity>

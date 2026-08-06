@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -9,6 +9,9 @@ import {
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/http';
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { SearchBar } from '../../components/SearchBar';
+import { StatusBadge } from '../../components/StatusBadge';
 import type { Enquiry, EnquiriesListResponse } from '../../types/api';
 
 interface Props {
@@ -19,19 +22,28 @@ interface Props {
 }
 
 export const EnquiriesListScreen: React.FC<Props> = ({ navigation }) => {
-  const [page] = useState(1);
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['enquiries', page],
-    queryFn: () =>
-      api.get<EnquiriesListResponse>(
-        `/enquiries?page=${page}&limit=20`
-      ),
+    queryKey: ['enquiries', { search }],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.append('page', '1');
+      params.append('limit', '50');
+      if (search) params.append('search', search);
+      return api.get<EnquiriesListResponse>(`/enquiries?${params.toString()}`);
+    },
   });
 
   const enquiries = data?.enquiries ?? [];
 
-  if (isLoading && !isRefetching) {
+  if (isLoading && !isRefetching && !data) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator size="large" color="#000" />
@@ -42,16 +54,15 @@ export const EnquiriesListScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View className="flex-1 bg-white">
-      <View className="px-4 pt-6 pb-2 flex-row items-center justify-between">
-        <TouchableOpacity onPress={() => navigation.goBack()} className="py-2">
-          <Text className="text-base text-black font-medium">← Back</Text>
-        </TouchableOpacity>
-        <Text className="text-xl font-semibold">Enquiries</Text>
-        <View style={{ width: 48 }} />
+      <ScreenHeader title="Enquiries" />
+
+      <View className="px-4 mb-3">
+        <SearchBar
+          value={searchInput}
+          onChangeText={setSearchInput}
+          placeholder="Search by customer or port"
+        />
       </View>
-      <Text className="px-4 text-gray-500 text-sm mb-2">
-        Customer enquiries and submissions.
-      </Text>
 
       <FlatList
         data={enquiries}
@@ -60,6 +71,11 @@ export const EnquiriesListScreen: React.FC<Props> = ({ navigation }) => {
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+        ListEmptyComponent={
+          <View className="items-center py-16">
+            <Text className="text-base text-gray-500">No enquiries found</Text>
+          </View>
+        }
         renderItem={({ item }) => (
           <TouchableOpacity
             onPress={() =>
@@ -71,9 +87,7 @@ export const EnquiriesListScreen: React.FC<Props> = ({ navigation }) => {
               <Text className="font-semibold text-base">
                 {item.customer?.name ?? 'Unknown'}
               </Text>
-              <Text className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
-                {item.status}
-              </Text>
+              <StatusBadge label={item.status} />
             </View>
             <Text className="text-xs text-gray-500">
               Port: {item.port} · {item.createdAt?.slice(0, 10)}

@@ -6,14 +6,16 @@ import {
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
+import { ScreenHeader } from '../../components/ScreenHeader';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
 import type { Consignment } from '../../types/api';
+import { useTheme } from '../../context/ThemeContext';
 
 interface CreateConsignmentResponse {
   consignment: Consignment;
@@ -21,6 +23,7 @@ interface CreateConsignmentResponse {
 }
 
 export const ConsignmentCreateScreen: React.FC = () => {
+  const { accent } = useTheme();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const customerId: string = route.params?.customerId;
@@ -98,61 +101,55 @@ export const ConsignmentCreateScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-white"
     >
+      <ScreenHeader title="New consignment" />
       <ScrollView
         className="flex-1"
-        contentContainerClassName="px-4 py-6"
+        contentContainerClassName="px-4 py-4"
         keyboardShouldPersistTaps="handled"
       >
-        <Text className="text-lg font-semibold mb-4">New consignment</Text>
-
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Consignee name *</Text>
-          <TextInput
+          <Input
             value={consigneeName}
             onChangeText={setConsigneeName}
             placeholder="Full name"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Consignee phone *</Text>
-          <TextInput
+          <Input
             value={consigneePhone}
             onChangeText={setConsigneePhone}
             placeholder="+233..."
             keyboardType="phone-pad"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Consignee address *</Text>
-          <TextInput
+          <Input
             value={consigneeAddress}
             onChangeText={setConsigneeAddress}
             placeholder="Full address"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Ghana Card (optional)</Text>
-          <TextInput
+          <Input
             value={ghanaCard}
             onChangeText={setGhanaCard}
             placeholder="Optional"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-6">
           <Text className="text-sm text-gray-600 mb-1">TIN (optional)</Text>
-          <TextInput
+          <Input
             value={tin}
             onChangeText={setTin}
             placeholder="Optional"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
@@ -160,12 +157,12 @@ export const ConsignmentCreateScreen: React.FC = () => {
         <TouchableOpacity
           onPress={handleSubmit}
           disabled={loading}
-          className="bg-black rounded-lg py-3 items-center"
-        >
+          className="rounded-xl h-[52px] items-center justify-center"
+        style={{ backgroundColor: accent }}>
           {loading ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text className="text-white font-semibold text-sm">Create consignment</Text>
+            <Text className="text-white font-semibold text-[17px]">Create consignment</Text>
           )}
         </TouchableOpacity>
       </ScrollView>

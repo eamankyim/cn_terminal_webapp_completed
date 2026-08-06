@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Image,
+  ActivityIndicator,
   ImageBackground,
   KeyboardAvoidingView,
   Platform,
@@ -14,7 +14,14 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
-import { Button } from '../../components/Button';
+import { inputControlStyle } from '../../components/Input';
+import { buttonControlStyle } from '../../components/Button';
+import { controlHeight } from '../../theme/inputs';
+import { ACCENT } from '../../theme/colors';
+
+/** Medium blue CTA — only solid color on the sign-in screen */
+const BUTTON_BG = ACCENT.blue;
+const BUTTON_TEXT = '#FFFFFF';
 
 interface Props {
   navigation: {
@@ -61,24 +68,18 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
               styles.scrollContent,
               {
                 paddingTop: insets.top + 24,
-                paddingBottom: Math.max(insets.bottom, 16) + 24,
+                paddingBottom: Math.max(insets.bottom, 16) + 48,
               },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.brand}>
-              <Image
-                source={require('../../../assets/cn_logo.png')}
-                style={styles.logo}
-                resizeMode="contain"
-                accessibilityLabel="CN Terminal"
-              />
-              <Text style={styles.title}>CN Terminal</Text>
+              <Text style={styles.title}>CN Mobile</Text>
               <Text style={styles.subtitle}>Sign in to continue</Text>
             </View>
 
-            <View style={styles.formPanel}>
+            <View style={styles.form}>
               {error ? (
                 <Text style={styles.error}>{error}</Text>
               ) : null}
@@ -92,7 +93,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
                   autoCorrect={false}
                   keyboardType="email-address"
                   placeholder="you@example.com"
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor="rgba(255, 255, 255, 0.45)"
                   style={styles.input}
                 />
               </View>
@@ -104,7 +105,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
                   onChangeText={setPassword}
                   secureTextEntry
                   placeholder="Enter your password"
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor="rgba(255, 255, 255, 0.45)"
                   style={styles.input}
                 />
               </View>
@@ -117,11 +118,19 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 <Text style={styles.forgot}>Forgot Password?</Text>
               </TouchableOpacity>
 
-              <Button
-                title={submitting ? 'Signing in...' : 'Sign In'}
-                loading={submitting}
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Sign In"
+                disabled={submitting}
                 onPress={onSubmit}
-              />
+                style={[styles.button, submitting && styles.buttonDisabled]}
+              >
+                {submitting ? (
+                  <ActivityIndicator color={BUTTON_TEXT} />
+                ) : (
+                  <Text style={styles.buttonText}>Sign In</Text>
+                )}
+              </TouchableOpacity>
 
               <Text style={styles.footer}>
                 Need an account?{' '}
@@ -150,80 +159,90 @@ const styles = StyleSheet.create({
   },
   scrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(2, 6, 23, 0.45)',
+    backgroundColor: 'rgba(2, 6, 23, 0.35)',
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
+    justifyContent: 'flex-end',
+    paddingHorizontal: 28,
   },
   brand: {
     alignItems: 'center',
-    marginBottom: 28,
-  },
-  logo: {
-    width: 120,
-    height: 120,
-    marginBottom: 8,
+    marginBottom: 40,
   },
   title: {
     color: '#FFFFFF',
-    fontSize: 28,
+    fontSize: 36,
     fontWeight: '700',
-    letterSpacing: 0.3,
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.55)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 8,
+    textShadowRadius: 10,
   },
   subtitle: {
-    color: 'rgba(255, 255, 255, 0.75)',
-    fontSize: 15,
-    marginTop: 6,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 18,
+    marginTop: 10,
   },
-  formPanel: {
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
-    borderRadius: 16,
-    padding: 20,
+  form: {
+    backgroundColor: 'transparent',
   },
   error: {
-    color: '#dc2626',
-    fontSize: 13,
+    color: '#fca5a5',
+    fontSize: 16,
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
+    textShadowColor: 'rgba(0, 0, 0, 0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   field: {
-    marginBottom: 14,
+    marginBottom: 20,
   },
   label: {
-    color: '#4b5563',
-    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 16,
     fontWeight: '600',
-    marginBottom: 6,
+    marginBottom: 10,
+    textShadowColor: 'rgba(0, 0, 0, 0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   input: {
+    ...inputControlStyle,
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#000000',
-    backgroundColor: '#FFFFFF',
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+    color: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
   forgot: {
-    color: '#4b5563',
-    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.75)',
+    fontSize: 16,
     textAlign: 'right',
-    marginBottom: 18,
+    marginBottom: 24,
+  },
+  button: {
+    ...buttonControlStyle,
+    height: controlHeight,
+    backgroundColor: BUTTON_BG,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonText: {
+    color: BUTTON_TEXT,
+    fontSize: 20,
+    fontWeight: '700',
   },
   footer: {
-    marginTop: 16,
+    marginTop: 24,
     textAlign: 'center',
-    fontSize: 12,
-    color: '#6b7280',
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.65)',
   },
   footerStrong: {
     fontWeight: '700',
-    color: '#000000',
+    color: '#FFFFFF',
   },
 });

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -8,8 +8,15 @@ import {
   View,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../api/http';
 import type { Customer, CustomersListResponse } from '../../types/api';
+import { DetailBottomSheet } from '../../components/DetailBottomSheet';
+import { SearchBar } from '../../components/SearchBar';
+import { CustomerDetailContent } from '../customers/CustomerDetailScreen';
+import { useAuth } from '../../context/AuthContext';
+import { PERMISSIONS } from '../../utils/permissions';
 
 interface Props {
   navigation: {
@@ -18,38 +25,71 @@ interface Props {
 }
 
 export const CustomersListScreen: React.FC<Props> = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const { hasPermission } = useAuth();
+  const canCreateCustomer = hasPermission(PERMISSIONS.CUSTOMER_CREATE);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
+    null,
+  );
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   const { data, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['customers'],
-    queryFn: () =>
-      api.get<CustomersListResponse>('/customers?page=1&limit=20'),
+    queryKey: ['customers', { search }],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.append('page', '1');
+      params.append('limit', '50');
+      if (search) params.append('search', search);
+      return api.get<CustomersListResponse>(`/customers?${params.toString()}`);
+    },
   });
 
   const customers = data?.customers ?? [];
+  const closeCustomerSheet = () => setSelectedCustomerId(null);
 
-  if (isLoading && !isRefetching) {
+  if (isLoading && !isRefetching && !data) {
     return (
-      <View className="flex-1 items-center justify-center bg-white">
+      <View
+        className="flex-1 items-center justify-center bg-white"
+        style={{ paddingTop: insets.top }}
+      >
         <ActivityIndicator size="large" color="#000" />
-        <Text className="text-gray-600 mt-3">Loading customers…</Text>
+        <Text className="text-gray-600 mt-3 text-base">Loading customers…</Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-white">
-      <View className="px-4 pt-6 pb-2 flex-row items-center justify-between">
-        <View>
-          <Text className="text-2xl font-semibold mb-2">Customers</Text>
-          <Text className="text-gray-500 text-sm">
-            Manage CN Terminal customers and their consignments.
+    <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
+      <View className="px-5 pt-3 pb-3 flex-row items-center justify-between">
+        <View className="flex-1 mr-3">
+          <Text className="text-3xl font-bold text-black mb-1">Clients</Text>
+          <Text className="text-base text-gray-500">
+            Manage clients and consignments.
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('CustomerCreate')}
-          className="rounded-lg border border-gray-300 px-3 py-2"
-        >
-          <Text className="text-sm font-medium text-gray-800">Add customer</Text>
-        </TouchableOpacity>
+        {canCreateCustomer ? (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('CustomerCreate')}
+            className="rounded-xl border border-gray-300 px-3.5 py-2.5"
+          >
+            <Text className="text-base font-medium text-black">Add</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      <View className="px-5 mb-3">
+        <SearchBar
+          value={searchInput}
+          onChangeText={setSearchInput}
+          placeholder="Search by name, email, or phone"
+        />
       </View>
 
       <FlatList
@@ -58,28 +98,52 @@ export const CustomersListScreen: React.FC<Props> = ({ navigation }) => {
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
+        ListEmptyComponent={
+          <View className="items-center py-16">
+            <Text className="text-base text-gray-500">No customers found</Text>
+          </View>
+        }
         renderItem={({ item }) => (
           <TouchableOpacity
-            onPress={() =>
-              navigation.navigate('CustomerDetail', { customerId: item.id })
-            }
-            className="mb-3 rounded-2xl border border-gray-200 px-4 py-3"
+            onPress={() => setSelectedCustomerId(item.id)}
+            activeOpacity={0.7}
+            className="flex-row items-center py-5 border-b border-gray-200"
           >
-            <Text className="font-semibold text-base mb-1">{item.name}</Text>
-            {item.email ? (
-              <Text className="text-xs text-gray-500">{item.email}</Text>
-            ) : null}
-            {item.phone ? (
-              <Text className="text-xs text-gray-500 mt-0.5">
-                {item.phone}
-              </Text>
-            ) : null}
+            <View className="flex-1 mr-2">
+              <Text className="text-xl font-bold text-black">{item.name}</Text>
+              {item.email ? (
+                <Text className="text-base text-gray-500 mt-1.5">
+                  {item.email}
+                </Text>
+              ) : null}
+              {item.phone ? (
+                <Text className="text-sm text-gray-500 mt-1">{item.phone}</Text>
+              ) : null}
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
         )}
       />
+
+      <DetailBottomSheet
+        visible={Boolean(selectedCustomerId)}
+        onClose={closeCustomerSheet}
+      >
+        {selectedCustomerId ? (
+          <CustomerDetailContent
+            customerId={selectedCustomerId}
+            presentation="sheet"
+            onClose={closeCustomerSheet}
+            onNavigate={(screen, params) => {
+              closeCustomerSheet();
+              requestAnimationFrame(() => {
+                navigation.navigate(screen, params);
+              });
+            }}
+          />
+        ) : null}
+      </DetailBottomSheet>
     </View>
   );
 };
-
-

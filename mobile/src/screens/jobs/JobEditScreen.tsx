@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -6,15 +6,18 @@ import {
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { SelectField } from '../../components/SelectField';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
 import type { Job } from '../../types/api';
 import type { User } from '../../types/api';
+import { useTheme } from '../../context/ThemeContext';
 
 interface JobDetailResponse {
   job: Job & {
@@ -29,6 +32,7 @@ interface UsersResponse {
 }
 
 export const JobEditScreen: React.FC = () => {
+  const { accent } = useTheme();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const jobId: string = route.params?.jobId;
@@ -49,6 +53,16 @@ export const JobEditScreen: React.FC = () => {
 
   const job = jobData?.job;
   const users = usersData?.users ?? [];
+
+  const assigneeOptions = useMemo(
+    () =>
+      users.map((u) => ({
+        value: u.id,
+        label: u.name,
+        subtitle: u.email,
+      })),
+    [users],
+  );
 
   useEffect(() => {
     if (job) {
@@ -75,7 +89,9 @@ export const JobEditScreen: React.FC = () => {
     onError: (err: any) => {
       Alert.alert(
         'Error',
-        (err?.details?.error as string) ?? err?.message ?? 'Failed to update job.',
+        (err?.details?.error as string) ??
+          err?.message ??
+          'Failed to update job.',
       );
     },
   });
@@ -86,13 +102,18 @@ export const JobEditScreen: React.FC = () => {
       .map((s) => s.trim())
       .filter(Boolean);
     if (types.length === 0) {
-      Alert.alert('Validation', 'Enter at least one goods type (comma-separated).');
+      Alert.alert(
+        'Validation',
+        'Enter at least one goods type (comma-separated).',
+      );
       return;
     }
     updateMutation.mutate({
       ...(assignedToId ? { assignedToId } : {}),
       goodsTypes: types,
-      ...(jobDescription.trim() ? { jobDescription: jobDescription.trim() } : {}),
+      ...(jobDescription.trim()
+        ? { jobDescription: jobDescription.trim() }
+        : {}),
     });
   };
 
@@ -112,9 +133,10 @@ export const JobEditScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-white"
     >
+      <ScreenHeader title="Edit job" />
       <ScrollView
         className="flex-1"
-        contentContainerClassName="px-4 py-6"
+        contentContainerClassName="px-4 py-4"
         keyboardShouldPersistTaps="handled"
       >
         <View className="mb-4">
@@ -125,46 +147,36 @@ export const JobEditScreen: React.FC = () => {
         </View>
 
         <View className="mb-4">
-          <Text className="text-sm text-gray-600 mb-1">Assigned to</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="py-2">
-            {users.map((u) => (
-              <TouchableOpacity
-                key={u.id}
-                onPress={() => setAssignedToId(u.id)}
-                className={`px-3 py-2 mx-1 rounded-lg ${
-                  assignedToId === u.id ? 'bg-black' : 'bg-gray-100'
-                }`}
-              >
-                <Text
-                  className={`text-sm font-medium ${
-                    assignedToId === u.id ? 'text-white' : 'text-gray-800'
-                  }`}
-                >
-                  {u.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <SelectField
+            label="Assigned to"
+            placeholder="Select assignee"
+            value={assignedToId}
+            options={assigneeOptions}
+            onChange={setAssignedToId}
+            emptyMessage="No assignable users"
+          />
         </View>
 
         <View className="mb-4">
-          <Text className="text-sm text-gray-600 mb-1">Goods types * (comma-separated)</Text>
-          <TextInput
+          <Text className="text-sm text-gray-600 mb-1">
+            Goods types * (comma-separated)
+          </Text>
+          <Input
             value={goodsTypesStr}
             onChangeText={setGoodsTypesStr}
             placeholder="e.g. General, Electronics"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-6">
-          <Text className="text-sm text-gray-600 mb-1">Description (optional)</Text>
-          <TextInput
+          <Text className="text-sm text-gray-600 mb-1">
+            Description (optional)
+          </Text>
+          <Input
             value={jobDescription}
             onChangeText={setJobDescription}
             placeholder="Job description"
             multiline
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
@@ -172,12 +184,15 @@ export const JobEditScreen: React.FC = () => {
         <TouchableOpacity
           onPress={handleSubmit}
           disabled={loading}
-          className="bg-black rounded-lg py-3 items-center"
+          className="rounded-xl h-[52px] items-center justify-center"
+          style={{ backgroundColor: accent }}
         >
           {loading ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text className="text-white font-semibold text-sm">Save changes</Text>
+            <Text className="text-white font-semibold text-[17px]">
+              Save changes
+            </Text>
           )}
         </TouchableOpacity>
       </ScrollView>

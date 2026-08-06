@@ -15,18 +15,43 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// Sanitize folder name from multipart body (available only AFTER the file part is fully parsed)
+const sanitizeFolder = (folder) => {
+  const cleaned = String(folder || 'general').replace(/[^a-zA-Z0-9_-]/g, '');
+  return cleaned || 'general';
+};
+
+/**
+ * Multipart fields that appear after the file part are not available in multer's
+ * destination callback. Always land in uploads root first, then move into the
+ * requested folder once req.body is populated.
+ */
+const moveUploadedFileToFolder = (file, folder) => {
+  const safeFolder = sanitizeFolder(folder);
+  const finalDir = path.join(uploadsDir, safeFolder);
+
+  if (!fs.existsSync(finalDir)) {
+    fs.mkdirSync(finalDir, { recursive: true });
+  }
+
+  const finalPath = path.join(finalDir, file.filename);
+  if (path.resolve(file.path) !== path.resolve(finalPath)) {
+    fs.renameSync(file.path, finalPath);
+    file.path = finalPath;
+    file.destination = finalDir;
+  }
+
+  return safeFolder;
+};
+
 // Configure multer storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     try {
-      const folder = req.body?.folder || 'general';
-      const uploadPath = path.join(uploadsDir, folder);
-      
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
       }
-      
-      cb(null, uploadPath);
+      cb(null, uploadsDir);
     } catch (error) {
       console.error('❌ [Multer] Destination error:', error.message);
       cb(error);
@@ -131,12 +156,14 @@ router.post('/upload', authenticateToken, (req, res, next) => {
     console.log('  - Fieldname:', req.file.fieldname);
     console.log('  - Destination:', req.file.destination);
     
-    const { folder = 'general', category, entityId, entityType } = req.body;
+    const { category, entityId, entityType } = req.body;
+    const folder = moveUploadedFileToFolder(req.file, req.body.folder);
     console.log('\n🔷 [Files API] Upload metadata:');
     console.log('  - Folder:', folder);
     console.log('  - Category:', category);
     console.log('  - Entity ID:', entityId);
     console.log('  - Entity Type:', entityType);
+    console.log('  - Final path:', req.file.path);
 
     // Create file record in database
     console.log('\n🔷 [Files API] Creating file record in database...');
@@ -259,10 +286,11 @@ router.post('/upload-multiple', authenticateToken, upload.array('files', 5), asy
       return res.status(400).json({ message: 'No files uploaded' });
     }
 
-    const { folder = 'general', category, entityId, entityType } = req.body;
+    const { category, entityId, entityType } = req.body;
     const uploadedFiles = [];
 
     for (const file of req.files) {
+      const folder = moveUploadedFileToFolder(file, req.body.folder);
       const fileRecord = await prisma.file.create({
         data: {
           originalName: file.originalname,
@@ -325,50 +353,7 @@ router.post('/upload-multiple', authenticateToken, upload.array('files', 5), asy
   }
 });
 
-// Get file by ID
-router.get('/:id', authenticateToken, async (req, res) => {
-  try {
-    const fileId = parseInt(req.params.id);
-    
-    const file = await prisma.file.findUnique({
-      where: { id: fileId }
-    });
-
-    if (!file) {
-      return res.status(404).json({ message: 'File not found' });
-    }
-
-    res.json({
-      success: true,
-      file: {
-        id: file.id,
-        originalName: file.originalName,
-        filename: file.filename,
-        url: file.url,
-        mimeType: file.mimeType,
-        size: file.size,
-        folder: file.folder,
-        category: file.category,
-        entityId: file.entityId,
-        entityType: file.entityType,
-        uploadedBy: file.uploadedBy,
-        uploadedAt: file.uploadedAt
-      }
-    });
-  } catch (error) {
-    console.error('❌ [Files API] Get file by ID error:', error);
-    console.error('  - Error message:', error.message);
-    console.error('  - Error stack:', error.stack);
-
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to get file',
-      error: error.message 
-    });
-  }
-});
-
-// Get files by entity
+// Get files by entity (must be registered before /:id)
 router.get('/entity/:entityType/:entityId', authenticateToken, async (req, res) => {
   try {
     const { entityType, entityId } = req.params;
@@ -437,10 +422,10 @@ router.get('/entity/:entityType/:entityId', authenticateToken, async (req, res) 
   }
 });
 
-// Download file
+// Download file (must be registered before /:id)
 router.get('/download/:id', authenticateToken, async (req, res) => {
   try {
-    const fileId = parseInt(req.params.id);
+    const fileId = req.params.id;
     
     const file = await prisma.file.findUnique({
       where: { id: fileId }
@@ -450,12 +435,27 @@ router.get('/download/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'File not found' });
     }
 
-    // Check if file exists on disk
-    if (!fs.existsSync(file.path)) {
+    // Check if file exists on disk (also try URL-derived path if DB path is stale)
+    let diskPath = file.path;
+    if (!fs.existsSync(diskPath) && file.url) {
+      const urlRelative = file.url.replace(/^\//, '');
+      const candidate = path.join(__dirname, '..', urlRelative);
+      if (fs.existsSync(candidate)) {
+        diskPath = candidate;
+      } else if (file.filename) {
+        // Legacy mismatch: file saved under general/ but URL pointed at folder/
+        const legacyGeneral = path.join(uploadsDir, 'general', file.filename);
+        if (fs.existsSync(legacyGeneral)) {
+          diskPath = legacyGeneral;
+        }
+      }
+    }
+
+    if (!fs.existsSync(diskPath)) {
       return res.status(404).json({ message: 'File not found on disk' });
     }
 
-    res.download(file.path, file.originalName);
+    res.download(diskPath, file.originalName);
   } catch (error) {
     console.error('❌ [Files API] Download error:', error);
     console.error('  - Error message:', error.message);
@@ -464,6 +464,49 @@ router.get('/download/:id', authenticateToken, async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: 'Failed to download file',
+      error: error.message 
+    });
+  }
+});
+
+// Get file by ID
+router.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    const fileId = req.params.id;
+    
+    const file = await prisma.file.findUnique({
+      where: { id: fileId }
+    });
+
+    if (!file) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+
+    res.json({
+      success: true,
+      file: {
+        id: file.id,
+        originalName: file.originalName,
+        filename: file.filename,
+        url: file.url,
+        mimeType: file.mimeType,
+        size: file.size,
+        folder: file.folder,
+        category: file.category,
+        entityId: file.entityId,
+        entityType: file.entityType,
+        uploadedBy: file.uploadedBy,
+        uploadedAt: file.uploadedAt
+      }
+    });
+  } catch (error) {
+    console.error('❌ [Files API] Get file by ID error:', error);
+    console.error('  - Error message:', error.message);
+    console.error('  - Error stack:', error.stack);
+
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to get file',
       error: error.message 
     });
   }

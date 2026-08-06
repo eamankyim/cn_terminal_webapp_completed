@@ -6,20 +6,23 @@ import {
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
+import { ScreenHeader } from '../../components/ScreenHeader';
 import { useNavigation } from '@react-navigation/native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
 import type { Customer } from '../../types/api';
+import { useTheme } from '../../context/ThemeContext';
 
 interface CreateCustomerResponse {
   customer: Customer;
 }
 
 export const CustomerCreateScreen: React.FC = () => {
+  const { accent } = useTheme();
   const navigation = useNavigation<any>();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
@@ -95,84 +98,76 @@ export const CustomerCreateScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-white"
     >
+      <ScreenHeader title="New customer" />
       <ScrollView
         className="flex-1"
-        contentContainerClassName="px-4 py-6"
+        contentContainerClassName="px-4 py-4"
         keyboardShouldPersistTaps="handled"
       >
-        <Text className="text-lg font-semibold mb-4">New customer</Text>
-
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Name *</Text>
-          <TextInput
+          <Input
             value={name}
             onChangeText={setName}
             placeholder="Company or full name"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             autoCapitalize="words"
             editable={!loading}
           />
         </View>
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Email *</Text>
-          <TextInput
+          <Input
             value={email}
             onChangeText={setEmail}
             placeholder="email@example.com"
             keyboardType="email-address"
             autoCapitalize="none"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Phone *</Text>
-          <TextInput
+          <Input
             value={phone}
             onChangeText={setPhone}
             placeholder="+233..."
             keyboardType="phone-pad"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Address *</Text>
-          <TextInput
+          <Input
             value={address}
             onChangeText={setAddress}
             placeholder="Full address"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Contact person</Text>
-          <TextInput
+          <Input
             value={contactPerson}
             onChangeText={setContactPerson}
             placeholder="Optional"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Ghana Card *</Text>
-          <TextInput
+          <Input
             value={ghanaCard}
             onChangeText={setGhanaCard}
             placeholder="Required if no TIN"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-6">
           <Text className="text-sm text-gray-600 mb-1">TIN *</Text>
-          <TextInput
+          <Input
             value={tin}
             onChangeText={setTin}
             placeholder="Required if no Ghana Card"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
@@ -180,12 +175,12 @@ export const CustomerCreateScreen: React.FC = () => {
         <TouchableOpacity
           onPress={handleSubmit}
           disabled={loading}
-          className="bg-black rounded-lg py-3 items-center"
-        >
+          className="rounded-xl h-[52px] items-center justify-center"
+        style={{ backgroundColor: accent }}>
           {loading ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text className="text-white font-semibold text-sm">Create customer</Text>
+            <Text className="text-white font-semibold text-[17px]">Create customer</Text>
           )}
         </TouchableOpacity>
       </ScrollView>

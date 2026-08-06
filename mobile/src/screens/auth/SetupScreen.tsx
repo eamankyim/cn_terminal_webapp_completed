@@ -4,13 +4,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
 import { api } from '../../api/http';
 import { API_BASE_URL } from '../../config/env';
 import type { InitCheckResponse } from '../../types/api';
+import { useTheme } from '../../context/ThemeContext';
 
 interface Props {
   navigation: {
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export const SetupScreen: React.FC<Props> = ({ navigation }) => {
+  const { accent } = useTheme();
   const [checking, setChecking] = useState(true);
   const [initialized, setInitialized] = useState<boolean | null>(null);
   const [name, setName] = useState('');
@@ -38,11 +40,13 @@ export const SetupScreen: React.FC<Props> = ({ navigation }) => {
       }
     } catch (e: any) {
       setInitialized(null);
-      const message =
-        e?.message === 'Network request failed'
-          ? `Cannot reach the server at ${API_BASE_URL}. Check EXPO_PUBLIC_API_URL and that your device can reach the backend.`
-          : (e?.message ?? 'Unable to check initialization state');
-      setError(message);
+      setError(
+        e?.isNetworkError
+          ? e.message
+          : e?.message === 'Network request failed'
+            ? `Cannot reach the server at ${API_BASE_URL}. Check EXPO_PUBLIC_API_URL and that your device can reach the backend.`
+            : (e?.message ?? 'Unable to check initialization state'),
+      );
     } finally {
       setChecking(false);
     }
@@ -88,15 +92,16 @@ export const SetupScreen: React.FC<Props> = ({ navigation }) => {
         <Text className="text-red-600 mb-6 text-sm text-center">{error}</Text>
         <TouchableOpacity
           onPress={() => void checkStatus()}
-          className="bg-black rounded-lg py-3 px-8 items-center mb-3 w-full"
+          className="rounded-xl h-[52px] px-8 items-center justify-center mb-3 w-full"
+          style={{ backgroundColor: accent }}
         >
-          <Text className="text-white font-semibold">Retry</Text>
+          <Text className="text-white font-semibold text-[17px]">Retry</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => navigation.navigate('Login')}
-          className="border border-gray-300 rounded-lg py-3 px-8 items-center w-full"
+          className="border border-gray-300 rounded-xl h-[52px] px-8 items-center justify-center w-full"
         >
-          <Text className="text-black font-semibold">Go to Login</Text>
+          <Text className="text-black font-semibold text-[17px]">Go to Login</Text>
         </TouchableOpacity>
       </View>
     );
@@ -125,23 +130,21 @@ export const SetupScreen: React.FC<Props> = ({ navigation }) => {
 
         <View className="mb-3">
           <Text className="text-xs font-medium text-gray-600 mb-1">Name</Text>
-          <TextInput
+          <Input
             value={name}
             onChangeText={setName}
             placeholder="Full name"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
         <View className="mb-3">
           <Text className="text-xs font-medium text-gray-600 mb-1">Email</Text>
-          <TextInput
+          <Input
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
             placeholder="you@example.com"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
@@ -149,21 +152,20 @@ export const SetupScreen: React.FC<Props> = ({ navigation }) => {
           <Text className="text-xs font-medium text-gray-600 mb-1">
             Password
           </Text>
-          <TextInput
+          <Input
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             placeholder="Create a strong password"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
         <TouchableOpacity
           disabled={submitting}
           onPress={onSubmit}
-          className="bg-black rounded-lg py-3 items-center mb-4"
-        >
-          <Text className="text-white font-semibold">
+          className="rounded-xl h-[52px] items-center justify-center mb-4"
+        style={{ backgroundColor: accent }}>
+          <Text className="text-white font-semibold text-[17px]">
             {submitting ? 'Creating account...' : 'Create super admin'}
           </Text>
         </TouchableOpacity>

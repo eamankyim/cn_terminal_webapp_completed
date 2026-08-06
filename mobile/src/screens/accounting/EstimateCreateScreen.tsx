@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -7,15 +7,18 @@ import {
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { SearchBar } from '../../components/SearchBar';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
 import type { Estimate } from '../../types/api';
 import type { Customer, CustomersListResponse } from '../../types/api';
+import { useTheme } from '../../context/ThemeContext';
 
 interface CreateEstimateResponse {
   estimate: Estimate;
@@ -28,6 +31,7 @@ function toDateString(d: Date): string {
 }
 
 export const EstimateCreateScreen: React.FC = () => {
+  const { accent } = useTheme();
   const navigation = useNavigation<any>();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<'customer' | 'form'>('customer');
@@ -40,6 +44,7 @@ export const EstimateCreateScreen: React.FC = () => {
     d.setDate(d.getDate() + 30);
     return toDateString(d);
   });
+  const [customerSearch, setCustomerSearch] = useState('');
 
   const { data: customersData } = useQuery({
     queryKey: ['customers'],
@@ -49,6 +54,15 @@ export const EstimateCreateScreen: React.FC = () => {
 
   const customers = customersData?.customers ?? [];
   const selectedCustomer = customers.find((c) => c.id === customerId);
+
+  const filteredCustomers = useMemo(() => {
+    const q = customerSearch.trim().toLowerCase();
+    if (!q) return customers;
+    return customers.filter((c) => {
+      const hay = `${c.name} ${c.email ?? ''} ${c.phone ?? ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [customers, customerSearch]);
 
   const createMutation = useMutation({
     mutationFn: (payload: {
@@ -100,13 +114,23 @@ export const EstimateCreateScreen: React.FC = () => {
   if (step === 'customer') {
     return (
       <View className="flex-1 bg-white">
-        <View className="px-4 pt-4 pb-2">
-          <Text className="text-lg font-semibold mb-2">Select customer</Text>
+        <ScreenHeader title="New estimate" />
+        <View className="px-4 mb-3">
+          <SearchBar
+            value={customerSearch}
+            onChangeText={setCustomerSearch}
+            placeholder="Search customers…"
+          />
         </View>
         <FlatList
-          data={customers}
+          data={filteredCustomers}
           keyExtractor={(item: Customer) => item.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+          ListEmptyComponent={
+            <View className="items-center py-16">
+              <Text className="text-base text-gray-500">No customers found</Text>
+            </View>
+          }
           renderItem={({ item }) => (
             <TouchableOpacity
               onPress={() => {
@@ -131,9 +155,10 @@ export const EstimateCreateScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-white"
     >
+      <ScreenHeader title="New estimate" />
       <ScrollView
         className="flex-1"
-        contentContainerClassName="px-4 py-6"
+        contentContainerClassName="px-4 py-4"
         keyboardShouldPersistTaps="handled"
       >
         <TouchableOpacity
@@ -148,43 +173,39 @@ export const EstimateCreateScreen: React.FC = () => {
 
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Amount (GHS) *</Text>
-          <TextInput
+          <Input
             value={amount}
             onChangeText={setAmount}
             placeholder="0.00"
             keyboardType="decimal-pad"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Description (optional)</Text>
-          <TextInput
+          <Input
             value={description}
             onChangeText={setDescription}
             placeholder="Description"
             multiline
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Issue date</Text>
-          <TextInput
+          <Input
             value={issueDate}
             onChangeText={setIssueDate}
             placeholder="YYYY-MM-DD"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-6">
           <Text className="text-sm text-gray-600 mb-1">Valid until</Text>
-          <TextInput
+          <Input
             value={validUntil}
             onChangeText={setValidUntil}
             placeholder="YYYY-MM-DD"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
@@ -192,12 +213,13 @@ export const EstimateCreateScreen: React.FC = () => {
         <TouchableOpacity
           onPress={handleSubmit}
           disabled={loading}
-          className="bg-black rounded-lg py-3 items-center"
+          className="rounded-xl h-[52px] items-center justify-center"
+          style={{ backgroundColor: accent }}
         >
           {loading ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text className="text-white font-semibold text-sm">Create estimate</Text>
+            <Text className="text-white font-semibold text-[17px]">Create estimate</Text>
           )}
         </TouchableOpacity>
       </ScrollView>

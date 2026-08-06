@@ -4,12 +4,15 @@ import {
   FlatList,
   RefreshControl,
   Text,
-  TextInput as RNTextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
+import { ScreenHeader } from '../../components/ScreenHeader';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
+import { StatusBadge } from '../../components/StatusBadge';
+import { useTheme } from '../../context/ThemeContext';
 
 interface Request {
   id: string;
@@ -38,18 +41,20 @@ export const MyRequestsScreen: React.FC = () => {
 
   return (
     <View className="flex-1 bg-white">
-      <View className="px-4 pt-6 pb-2 flex-row items-center justify-between">
-        <View>
-          <Text className="text-2xl font-semibold mb-1">My expense requests</Text>
-          <Text className="text-gray-500 text-sm">Submit and track your requests</Text>
-        </View>
-        <TouchableOpacity
-          onPress={() => setShowForm(true)}
-          className="bg-black rounded-lg px-4 py-2"
-        >
-          <Text className="text-white font-semibold text-sm">New request</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title="My expense requests"
+        right={
+          <TouchableOpacity
+            onPress={() => setShowForm(true)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text className="text-sm font-semibold text-black">New</Text>
+          </TouchableOpacity>
+        }
+      />
+      <Text className="text-gray-500 text-sm px-4 mb-2">
+        Submit and track your requests
+      </Text>
 
       {isLoading && !isRefetching ? (
         <View className="flex-1 items-center justify-center">
@@ -70,9 +75,7 @@ export const MyRequestsScreen: React.FC = () => {
             <View className="rounded-2xl border border-gray-200 px-4 py-3 mb-3">
               <View className="flex-row justify-between items-start mb-1">
                 <Text className="font-semibold text-sm">GHS {item.amount.toFixed(2)}</Text>
-                <Text className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
-                  {item.status}
-                </Text>
+                <StatusBadge label={item.status} />
               </View>
               <Text className="text-xs text-gray-500">{item.category}</Text>
               {item.description ? (
@@ -104,6 +107,7 @@ function NewRequestSheet({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const { accent } = useTheme();
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('MISCELLANEOUS');
   const [description, setDescription] = useState('');
@@ -158,38 +162,35 @@ function NewRequestSheet({
         {error ? <Text className="text-red-600 text-sm mb-2">{error}</Text> : null}
         <View className="mb-3">
           <Text className="text-xs font-medium text-gray-600 mb-1">Amount (GHS)</Text>
-          <RNTextInput
+          <Input
             value={amount}
             onChangeText={setAmount}
             keyboardType="decimal-pad"
             placeholder="0.00"
-            className="border border-gray-300 rounded-lg px-3 py-3"
           />
         </View>
         <View className="mb-3">
           <Text className="text-xs font-medium text-gray-600 mb-1">Category</Text>
-          <RNTextInput
+          <Input
             value={category}
             onChangeText={setCategory}
             placeholder="FUEL, MATERIALS, OPERATIONS, MISCELLANEOUS"
-            className="border border-gray-300 rounded-lg px-3 py-3"
           />
         </View>
         <View className="mb-4">
           <Text className="text-xs font-medium text-gray-600 mb-1">Description *</Text>
-          <RNTextInput
+          <Input
             value={description}
             onChangeText={setDescription}
             placeholder="Brief description"
-            className="border border-gray-300 rounded-lg px-3 py-3"
           />
         </View>
         <TouchableOpacity
           disabled={submitting}
           onPress={submit}
-          className="bg-black rounded-lg py-3 items-center"
-        >
-          <Text className="text-white font-semibold">{submitting ? 'Submitting…' : 'Submit'}</Text>
+          className="rounded-xl h-[52px] items-center justify-center"
+        style={{ backgroundColor: accent }}>
+          <Text className="text-white font-semibold text-[17px]">{submitting ? 'Submitting…' : 'Submit'}</Text>
         </TouchableOpacity>
       </View>
     </View>

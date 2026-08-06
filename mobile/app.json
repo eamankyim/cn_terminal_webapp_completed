@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "CN Terminal",
+    "name": "CN Mobile",
     "slug": "cn-terminal",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -13,7 +13,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.cnterminal.mobile"
+      "bundleIdentifier": "com.cnterminal.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -29,7 +32,14 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
-    ]
+      "expo-secure-store",
+      "expo-font",
+      "@react-native-community/datetimepicker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c03eb8e0-c442-4dd3-a221-60b6efe683de"
+      }
+    }
   }
 }

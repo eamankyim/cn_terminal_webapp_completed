@@ -5,10 +5,12 @@ import {
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { useTheme } from '../../context/ThemeContext';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
@@ -31,6 +33,7 @@ export const JobStatusUpdateScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const jobId = route.params?.jobId;
   const queryClient = useQueryClient();
+  const { accent } = useTheme();
   const [status, setStatus] = useState<StatusOption | ''>('');
   const [comment, setComment] = useState('');
   // VETTED
@@ -128,15 +131,21 @@ export const JobStatusUpdateScreen: React.FC = () => {
       className="flex-1 bg-white"
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <ScreenHeader title="Update status" />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
         <Text className="text-base font-semibold mb-2">New status</Text>
         {STATUS_OPTIONS.map((s) => (
           <TouchableOpacity
             key={s}
             onPress={() => setStatus(s)}
-            className={`rounded-lg px-4 py-3 mb-2 border ${
-              status === s ? 'border-black bg-black' : 'border-gray-200'
+            className={`rounded-full px-4 py-3 mb-2 border ${
+              status === s ? '' : 'border-gray-200'
             }`}
+            style={
+              status === s
+                ? { backgroundColor: accent, borderColor: accent }
+                : undefined
+            }
           >
             <Text className={status === s ? 'text-white font-semibold' : 'text-gray-800'}>
               {s}
@@ -148,18 +157,17 @@ export const JobStatusUpdateScreen: React.FC = () => {
           <View className="mt-4 mb-2">
             <Text className="text-sm font-semibold mb-2">Required for VETTED</Text>
             <Text className="text-xs text-gray-600 mb-1">Shipper name *</Text>
-            <TextInput
+            <Input
               value={shipperName}
               onChangeText={setShipperName}
               placeholder="Shipper name"
-              className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-3"
+              className="mb-3"
             />
             <Text className="text-xs text-gray-600 mb-1">Invoice number *</Text>
-            <TextInput
+            <Input
               value={invoiceNumber}
               onChangeText={setInvoiceNumber}
               placeholder="Invoice number"
-              className="border border-gray-300 rounded-lg px-3 py-3 text-base"
             />
           </View>
         )}
@@ -168,13 +176,12 @@ export const JobStatusUpdateScreen: React.FC = () => {
           <View className="mt-4 mb-2">
             <Text className="text-sm font-semibold mb-2">Required for ENTRY_COMPLETED</Text>
             <Text className="text-xs text-gray-600 mb-1">BoE number (11 digits) *</Text>
-            <TextInput
+            <Input
               value={boeNumber}
               onChangeText={setBoeNumber}
               placeholder="12345678901"
               keyboardType="number-pad"
               maxLength={11}
-              className="border border-gray-300 rounded-lg px-3 py-3 text-base"
             />
           </View>
         )}
@@ -183,53 +190,60 @@ export const JobStatusUpdateScreen: React.FC = () => {
           <View className="mt-4 mb-2">
             <Text className="text-sm font-semibold mb-2">Required for RELEASED</Text>
             <Text className="text-xs text-gray-600 mb-1">Terminal name *</Text>
-            <TextInput
+            <Input
               value={terminalName}
               onChangeText={setTerminalName}
               placeholder="Terminal"
-              className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-3"
+              className="mb-3"
             />
             <Text className="text-xs text-gray-600 mb-1">Schedule time *</Text>
-            <TextInput
+            <Input
               value={scheduleTime}
               onChangeText={setScheduleTime}
               placeholder="YYYY-MM-DDTHH:mm"
-              className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-3"
+              className="mb-3"
             />
             <Text className="text-xs text-gray-600 mb-1">Driver name *</Text>
-            <TextInput
+            <Input
               value={driverName}
               onChangeText={setDriverName}
               placeholder="Driver name"
-              className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-3"
+              className="mb-3"
             />
             <Text className="text-xs text-gray-600 mb-1">Driver contact *</Text>
-            <TextInput
+            <Input
               value={driverContact}
               onChangeText={setDriverContact}
               placeholder="+233..."
               keyboardType="phone-pad"
-              className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-3"
+              className="mb-3"
             />
             <Text className="text-xs text-gray-600 mb-1">Demurrage / free days *</Text>
-            <TextInput
+            <Input
               value={demurrageFreeDays}
               onChangeText={setDemurrageFreeDays}
               placeholder="0"
               keyboardType="number-pad"
-              className="border border-gray-300 rounded-lg px-3 py-3 text-base mb-3"
+              className="mb-3"
             />
             <Text className="text-xs text-gray-600 mb-2">Release money received *</Text>
             <View className="flex-row gap-2 mb-2">
               <TouchableOpacity
                 onPress={() => setReleaseMoneyReceived(true)}
-                className={`flex-1 rounded-lg py-3 items-center border ${
-                  releaseMoneyReceived === true ? 'bg-black border-black' : 'border-gray-300'
+                className={`flex-1 rounded-xl h-[52px] items-center justify-center border ${
+                  releaseMoneyReceived === true ? '' : 'border-gray-300'
                 }`}
+                style={
+                  releaseMoneyReceived === true
+                    ? { backgroundColor: accent, borderColor: accent }
+                    : undefined
+                }
               >
                 <Text
                   className={
-                    releaseMoneyReceived === true ? 'text-white font-semibold' : 'text-gray-800'
+                    releaseMoneyReceived === true
+                      ? 'text-white font-semibold text-[17px]'
+                      : 'text-gray-800 text-[17px]'
                   }
                 >
                   Yes
@@ -237,13 +251,20 @@ export const JobStatusUpdateScreen: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setReleaseMoneyReceived(false)}
-                className={`flex-1 rounded-lg py-3 items-center border ${
-                  releaseMoneyReceived === false ? 'bg-black border-black' : 'border-gray-300'
+                className={`flex-1 rounded-xl h-[52px] items-center justify-center border ${
+                  releaseMoneyReceived === false ? '' : 'border-gray-300'
                 }`}
+                style={
+                  releaseMoneyReceived === false
+                    ? { backgroundColor: accent, borderColor: accent }
+                    : undefined
+                }
               >
                 <Text
                   className={
-                    releaseMoneyReceived === false ? 'text-white font-semibold' : 'text-gray-800'
+                    releaseMoneyReceived === false
+                      ? 'text-white font-semibold text-[17px]'
+                      : 'text-gray-800 text-[17px]'
                   }
                 >
                   No
@@ -255,11 +276,10 @@ export const JobStatusUpdateScreen: React.FC = () => {
 
         <View className="mt-4 mb-4">
           <Text className="text-base font-semibold mb-2">Comment (optional)</Text>
-          <TextInput
+          <Input
             value={comment}
             onChangeText={setComment}
             placeholder="Add a note for this status change"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
             multiline
           />
         </View>
@@ -269,12 +289,13 @@ export const JobStatusUpdateScreen: React.FC = () => {
         <TouchableOpacity
           disabled={submitting}
           onPress={submit}
-          className="bg-black rounded-lg py-3 items-center"
+          className="rounded-xl h-[52px] items-center justify-center"
+          style={{ backgroundColor: accent }}
         >
           {submitting ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text className="text-white font-semibold">Update status</Text>
+            <Text className="text-white font-semibold text-[17px]">Update status</Text>
           )}
         </TouchableOpacity>
       </ScrollView>

@@ -3,13 +3,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
+import { ScreenHeader } from '../../components/ScreenHeader';
 import { api } from '../../api/http';
+import { useTheme } from '../../context/ThemeContext';
 
 export const ChangePasswordScreen: React.FC = () => {
+  const { accent } = useTheme();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -46,9 +49,8 @@ export const ChangePasswordScreen: React.FC = () => {
       className="flex-1 bg-white"
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View className="flex-1 px-4 pt-6">
-        <Text className="text-2xl font-semibold mb-4">Change password</Text>
-
+      <ScreenHeader title="Change password" />
+      <View className="flex-1 px-4">
         {message ? (
           <Text className="text-green-600 mb-3 text-sm">{message}</Text>
         ) : null}
@@ -60,12 +62,11 @@ export const ChangePasswordScreen: React.FC = () => {
           <Text className="text-xs font-medium text-gray-600 mb-1">
             Current password
           </Text>
-          <TextInput
+          <Input
             value={currentPassword}
             onChangeText={setCurrentPassword}
             secureTextEntry
             placeholder="Enter current password"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
@@ -73,12 +74,11 @@ export const ChangePasswordScreen: React.FC = () => {
           <Text className="text-xs font-medium text-gray-600 mb-1">
             New password
           </Text>
-          <TextInput
+          <Input
             value={newPassword}
             onChangeText={setNewPassword}
             secureTextEntry
             placeholder="Enter new strong password"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
@@ -86,21 +86,21 @@ export const ChangePasswordScreen: React.FC = () => {
           <Text className="text-xs font-medium text-gray-600 mb-1">
             Confirm new password
           </Text>
-          <TextInput
+          <Input
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
             placeholder="Re-enter new password"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
         <TouchableOpacity
           disabled={submitting}
           onPress={onSubmit}
-          className="bg-black rounded-lg py-3 items-center mt-auto mb-6"
+          className="rounded-xl h-[52px] items-center justify-center mt-auto mb-6"
+          style={{ backgroundColor: accent }}
         >
-          <Text className="text-white font-semibold text-sm">
+          <Text className="text-white font-semibold text-[17px]">
             {submitting ? 'Saving…' : 'Save password'}
           </Text>
         </TouchableOpacity>
@@ -108,4 +108,3 @@ export const ChangePasswordScreen: React.FC = () => {
     </KeyboardAvoidingView>
   );
 };
-

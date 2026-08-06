@@ -14,6 +14,9 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { radii } from '../../theme/radii';
+import { controlHeight } from '../../theme/inputs';
+import { buttonControlStyle } from '../../components/Button';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -116,8 +119,22 @@ export const OnboardingScreen: React.FC<Props> = ({ navigation }) => {
               </View>
 
               <View style={styles.headlineBlock}>
-                <Text style={styles.headline}>{slide.line1}</Text>
-                <Text style={styles.headline}>{slide.line2}</Text>
+                <Text
+                  style={styles.headline}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  {slide.line1}
+                </Text>
+                <Text
+                  style={styles.headline}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  {slide.line2}
+                </Text>
               </View>
             </View>
           </ImageBackground>
@@ -161,7 +178,7 @@ export const OnboardingScreen: React.FC<Props> = ({ navigation }) => {
   );
 };
 
-const HEADLINE_SIZE = Math.min(SCREEN_WIDTH * 0.155, 64);
+const HEADLINE_SIZE = Math.min(SCREEN_WIDTH * 0.155, 64) * 0.9;
 
 const styles = StyleSheet.create({
   root: {
@@ -189,15 +206,17 @@ const styles = StyleSheet.create({
   },
   headlineBlock: {
     alignItems: 'center',
+    alignSelf: 'stretch',
     paddingHorizontal: 4,
     marginTop: 4,
   },
   headline: {
+    width: '100%',
     color: '#FFFFFF',
+    fontFamily: 'BebasNeue_400Regular',
     fontSize: HEADLINE_SIZE,
-    lineHeight: HEADLINE_SIZE * 1.02,
-    fontWeight: '900',
-    letterSpacing: 1.2,
+    lineHeight: HEADLINE_SIZE * 1.05,
+    letterSpacing: 0.5,
     textAlign: 'center',
     textTransform: 'uppercase',
     textShadowColor: 'rgba(0, 0, 0, 0.6)',
@@ -214,16 +233,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
   },
   continueButton: {
+    ...buttonControlStyle,
+    alignSelf: 'stretch',
+    height: controlHeight,
     backgroundColor: '#FFFFFF',
-    paddingVertical: 14,
-    paddingHorizontal: 36,
-    borderRadius: 12,
-    minWidth: 180,
-    alignItems: 'center',
+    paddingHorizontal: 24,
   },
   continueLabel: {
     color: '#000000',
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
   },
   indicators: {
@@ -235,7 +253,7 @@ const styles = StyleSheet.create({
   dot: {
     width: 6,
     height: 6,
-    borderRadius: 3,
+    borderRadius: radii.pill,
     backgroundColor: 'rgba(255, 255, 255, 0.28)',
   },
   dotActive: {

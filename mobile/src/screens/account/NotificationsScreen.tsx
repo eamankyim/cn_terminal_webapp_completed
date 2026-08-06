@@ -9,14 +9,17 @@ import {
 } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
+import { ScreenHeader } from '../../components/ScreenHeader';
 import type {
   NotificationItem,
   NotificationsListResponse,
 } from '../../types/notifications';
 import { useNotificationSocket } from '../../realtime/useNotificationSocket';
+import { useTheme } from '../../context/ThemeContext';
 
 export const NotificationsScreen: React.FC = () => {
   const queryClient = useQueryClient();
+  const { accent } = useTheme();
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['notifications'],
@@ -70,17 +73,17 @@ export const NotificationsScreen: React.FC = () => {
 
   return (
     <View className="flex-1 bg-white">
-      <View className="px-4 pt-6 pb-2 flex-row items-center justify-between">
-        <View>
-          <Text className="text-2xl font-semibold mb-1">Notifications</Text>
-          <Text className="text-gray-500 text-sm">
-            Updates about jobs, invoices, and system events.
-          </Text>
-        </View>
-        <TouchableOpacity onPress={markAllRead}>
-          <Text className="text-xs font-semibold text-black">Mark all read</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title="Notifications"
+        right={
+          <TouchableOpacity onPress={markAllRead}>
+            <Text className="text-xs font-semibold text-black">Mark all</Text>
+          </TouchableOpacity>
+        }
+      />
+      <Text className="text-gray-500 text-sm px-4 mb-2">
+        Updates about jobs, invoices, and system events.
+      </Text>
 
       <FlatList
         data={notifications}
@@ -93,8 +96,13 @@ export const NotificationsScreen: React.FC = () => {
           <TouchableOpacity
             onPress={() => markAsRead(item.id)}
             className={`mb-3 rounded-2xl px-4 py-3 border ${
-              item.isRead ? 'border-gray-200 bg-white' : 'border-black bg-black'
+              item.isRead ? 'border-gray-200 bg-white' : 'border'
             }`}
+            style={
+              item.isRead
+                ? undefined
+                : { backgroundColor: accent, borderColor: accent }
+            }
           >
             <Text
               className={`font-semibold text-sm mb-1 ${
@@ -116,4 +124,3 @@ export const NotificationsScreen: React.FC = () => {
     </View>
   );
 };
-

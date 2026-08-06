@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -10,6 +10,10 @@ import {
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/http';
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { SearchBar } from '../../components/SearchBar';
+import { StatusBadge } from '../../components/StatusBadge';
+import { useTheme } from '../../context/ThemeContext';
 import type { Consignment } from '../../types/api';
 
 interface ConsignmentsResponse {
@@ -19,7 +23,15 @@ interface ConsignmentsResponse {
 export const ConsignmentsListScreen: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+  const { accent } = useTheme();
   const customerId: string = route.params?.customerId;
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim().toLowerCase()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['consignments', customerId],
@@ -27,9 +39,16 @@ export const ConsignmentsListScreen: React.FC = () => {
       api.get<ConsignmentsResponse>(`/consignments/customer/${customerId}`),
   });
 
-  const consignments = data?.consignments ?? [];
+  const consignments = useMemo(() => {
+    const all = data?.consignments ?? [];
+    if (!search) return all;
+    return all.filter((item) => {
+      const hay = `${item.trackingId} ${item.consigneeName ?? ''} ${item.status}`.toLowerCase();
+      return hay.includes(search);
+    });
+  }, [data?.consignments, search]);
 
-  if (isLoading && !isRefetching) {
+  if (isLoading && !isRefetching && !data) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator size="large" color="#000" />
@@ -40,18 +59,29 @@ export const ConsignmentsListScreen: React.FC = () => {
 
   return (
     <View className="flex-1 bg-white">
-      <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
-        <TouchableOpacity onPress={() => navigation.goBack()} className="py-2">
-          <Text className="text-base text-black font-medium">← Back</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('ConsignmentCreate', { customerId })}
-          className="rounded-lg bg-black px-3 py-2"
-        >
-          <Text className="text-white text-sm font-medium">Add consignment</Text>
-        </TouchableOpacity>
+      <ScreenHeader
+        title="Consignments"
+        right={
+          <TouchableOpacity
+            onPress={() =>
+              navigation.navigate('ConsignmentCreate', { customerId })
+            }
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text className="text-sm font-semibold" style={{ color: accent }}>
+              Add
+            </Text>
+          </TouchableOpacity>
+        }
+      />
+
+      <View className="px-4 mb-3">
+        <SearchBar
+          value={searchInput}
+          onChangeText={setSearchInput}
+          placeholder="Search by tracking ID or consignee"
+        />
       </View>
-      <Text className="px-4 text-lg font-semibold mb-2">Consignments</Text>
 
       <FlatList
         data={consignments}
@@ -63,16 +93,21 @@ export const ConsignmentsListScreen: React.FC = () => {
         renderItem={({ item }) => (
           <TouchableOpacity
             onPress={() =>
-              navigation.navigate('ConsignmentDetail', { consignmentId: item.id })
+              navigation.navigate('ConsignmentDetail', {
+                consignmentId: item.id,
+              })
             }
             className="mb-3 rounded-2xl border border-gray-200 px-4 py-3"
           >
             <Text className="font-semibold text-base">
               {item.consigneeName ?? 'Consignment'}
             </Text>
-            <Text className="text-xs text-gray-500">
-              Tracking: {item.trackingId} · {item.status}
-            </Text>
+            <View className="flex-row items-center mt-1" style={{ gap: 8 }}>
+              <Text className="text-xs text-gray-500">
+                Tracking: {item.trackingId}
+              </Text>
+              <StatusBadge label={item.status} />
+            </View>
           </TouchableOpacity>
         )}
         ListEmptyComponent={

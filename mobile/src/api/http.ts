@@ -8,11 +8,16 @@ import {
 const TOKEN_KEY = 'cn_terminal_token';
 const USER_KEY = 'cn_terminal_user';
 
+/** Default fetch timeout — avoids hanging forever when the LAN IP is unreachable. */
+const DEFAULT_TIMEOUT_MS = 20_000;
+
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export interface ApiError extends Error {
   status?: number;
   details?: unknown;
+  isNetworkError?: boolean;
+  isTimeout?: boolean;
 }
 
 async function getAuthToken() {
@@ -47,6 +52,18 @@ export async function getStoredToken(): Promise<string | null> {
   return getAuthToken();
 }
 
+function networkError(cause?: unknown, timedOut = false): ApiError {
+  const error: ApiError = new Error(
+    timedOut
+      ? `Request timed out reaching ${API_BASE_URL}. Check Wi‑Fi, that the backend is running, and EXPO_PUBLIC_API_URL (LAN IP may have changed).`
+      : `Cannot reach the server at ${API_BASE_URL}. Check Wi‑Fi, that the backend is running, and EXPO_PUBLIC_API_URL (LAN IP may have changed).`,
+  );
+  error.isNetworkError = true;
+  error.isTimeout = timedOut;
+  error.details = cause;
+  return error;
+}
+
 async function apiRequest<TResponse>(
   method: HttpMethod,
   path: string,
@@ -54,10 +71,12 @@ async function apiRequest<TResponse>(
   options?: RequestInit,
 ): Promise<TResponse> {
   const token = await getAuthToken();
+  const isFormData =
+    typeof FormData !== 'undefined' && body instanceof FormData;
 
   const headers: HeadersInit = {
     Accept: 'application/json',
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options?.headers ?? {}),
   };
 
@@ -65,14 +84,56 @@ async function apiRequest<TResponse>(
     (headers as Record<string, string>).Authorization = `Bearer ${token}`;
   }
 
-  const url = `${API_BASE_URL}${path}`;
+  // Let fetch set multipart boundary for FormData
+  if (isFormData) {
+    delete (headers as Record<string, string>)['Content-Type'];
+  }
 
-  const response = await fetch(url, {
-    method,
-    headers,
-    body: body != null ? JSON.stringify(body) : undefined,
-    ...options,
-  });
+  const url = `${API_BASE_URL}${path}`;
+  const timeoutMs = DEFAULT_TIMEOUT_MS;
+  const controller = new AbortController();
+  const externalSignal = options?.signal;
+  const onExternalAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      externalSignal.addEventListener('abort', onExternalAbort);
+    }
+  }
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    const { signal: _ignored, ...restOptions } = options ?? {};
+    response = await fetch(url, {
+      method,
+      headers,
+      body:
+        body == null
+          ? undefined
+          : isFormData
+            ? (body as FormData)
+            : JSON.stringify(body),
+      ...restOptions,
+      signal: controller.signal,
+    });
+  } catch (cause) {
+    const aborted =
+      (cause instanceof Error && cause.name === 'AbortError') ||
+      controller.signal.aborted;
+    // If the caller aborted, rethrow; otherwise treat as timeout / network failure.
+    if (aborted && externalSignal?.aborted) {
+      throw cause;
+    }
+    if (aborted) {
+      throw networkError(cause, true);
+    }
+    throw networkError(cause, false);
+  } finally {
+    clearTimeout(timeoutId);
+    externalSignal?.removeEventListener('abort', onExternalAbort);
+  }
 
   const isJson = response.headers
     .get('content-type')

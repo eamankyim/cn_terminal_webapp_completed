@@ -56,7 +56,31 @@ export interface Job {
 
 export interface JobsListResponse {
   jobs: Job[];
-  pagination: Paginated<Job>['pagination'];
+  pagination: {
+    currentPage?: number;
+    page?: number;
+    totalPages?: number;
+    pages?: number;
+    totalCount?: number;
+    total?: number;
+    limit?: number;
+  };
+}
+
+export interface JobComment {
+  id: string;
+  jobId: string;
+  comment: string;
+  createdAt: string;
+  createdBy?: {
+    id: string;
+    name: string;
+    email?: string;
+  };
+}
+
+export interface JobCommentsResponse {
+  comments: JobComment[];
 }
 
 export interface Customer {
@@ -64,6 +88,14 @@ export interface Customer {
   name: string;
   email?: string;
   phone?: string;
+  address?: string;
+  contactPerson?: string | null;
+  ghanaCard?: string | null;
+  tin?: string | null;
+  customerType?: string | null;
+  status?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CustomersListResponse {

@@ -3,11 +3,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
 import { api } from '../../api/http';
+import { useTheme } from '../../context/ThemeContext';
 
 interface Props {
   route: {
@@ -30,6 +31,7 @@ export const AcceptInvitationScreen: React.FC<Props> = ({
   route,
   navigation,
 }) => {
+  const { accent } = useTheme();
   const invitationId = route.params?.invitationId ?? '';
   const [invitation, setInvitation] = useState<InvitationDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -117,11 +119,10 @@ export const AcceptInvitationScreen: React.FC<Props> = ({
 
         <View className="mb-3">
           <Text className="text-xs font-medium text-gray-600 mb-1">Name</Text>
-          <TextInput
+          <Input
             value={name}
             onChangeText={setName}
             placeholder="Your full name"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
@@ -129,10 +130,10 @@ export const AcceptInvitationScreen: React.FC<Props> = ({
           <Text className="text-xs font-medium text-gray-600 mb-1">
             Email (read only)
           </Text>
-          <TextInput
+          <Input
             value={invitation.email}
             editable={false}
-            className="border border-gray-200 rounded-lg px-3 py-3 text-base bg-gray-50 text-gray-600"
+            className="border-gray-200 bg-gray-50 text-gray-600"
           />
         </View>
 
@@ -140,12 +141,11 @@ export const AcceptInvitationScreen: React.FC<Props> = ({
           <Text className="text-xs font-medium text-gray-600 mb-1">
             Password
           </Text>
-          <TextInput
+          <Input
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             placeholder="Create a strong password"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
@@ -153,21 +153,20 @@ export const AcceptInvitationScreen: React.FC<Props> = ({
           <Text className="text-xs font-medium text-gray-600 mb-1">
             Confirm password
           </Text>
-          <TextInput
+          <Input
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
             placeholder="Re-enter password"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
         <TouchableOpacity
           disabled={submitting}
           onPress={onSubmit}
-          className="bg-black rounded-lg py-3 items-center mb-4"
-        >
-          <Text className="text-white font-semibold">
+          className="rounded-xl h-[52px] items-center justify-center mb-4"
+        style={{ backgroundColor: accent }}>
+          <Text className="text-white font-semibold text-[17px]">
             {submitting ? 'Creating account...' : 'Create account'}
           </Text>
         </TouchableOpacity>

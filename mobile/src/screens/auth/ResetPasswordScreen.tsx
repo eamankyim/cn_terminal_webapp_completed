@@ -3,11 +3,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
 import { api } from '../../api/http';
+import { useTheme } from '../../context/ThemeContext';
 
 interface Props {
   route: {
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
+  const { accent } = useTheme();
   const initialToken = route.params?.token ?? '';
   const [token, setToken] = useState(initialToken);
   const [password, setPassword] = useState('');
@@ -72,12 +74,11 @@ export const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
 
         <View className="mb-4">
           <Text className="text-xs font-medium text-gray-600 mb-1">Token</Text>
-          <TextInput
+          <Input
             value={token}
             onChangeText={setToken}
             autoCapitalize="none"
             placeholder="Paste reset token"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
@@ -85,12 +86,11 @@ export const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
           <Text className="text-xs font-medium text-gray-600 mb-1">
             New password
           </Text>
-          <TextInput
+          <Input
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             placeholder="Enter new password"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
@@ -98,21 +98,20 @@ export const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
           <Text className="text-xs font-medium text-gray-600 mb-1">
             Confirm password
           </Text>
-          <TextInput
+          <Input
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
             placeholder="Re-enter password"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
         <TouchableOpacity
           disabled={submitting}
           onPress={onSubmit}
-          className="bg-black rounded-lg py-3 items-center mb-4"
-        >
-          <Text className="text-white font-semibold">
+          className="rounded-xl h-[52px] items-center justify-center mb-4"
+        style={{ backgroundColor: accent }}>
+          <Text className="text-white font-semibold text-[17px]">
             {submitting ? 'Resetting...' : 'Reset password'}
           </Text>
         </TouchableOpacity>

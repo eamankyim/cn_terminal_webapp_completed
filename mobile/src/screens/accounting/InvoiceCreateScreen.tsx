@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -7,15 +7,19 @@ import {
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { SearchBar } from '../../components/SearchBar';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
+import { StatusBadge } from '../../components/StatusBadge';
 import type { Job } from '../../types/api';
 import type { Invoice } from '../../types/api';
+import { useTheme } from '../../context/ThemeContext';
 
 interface CreateInvoiceResponse {
   invoice: Invoice;
@@ -26,6 +30,7 @@ function toDateString(d: Date): string {
 }
 
 export const InvoiceCreateScreen: React.FC = () => {
+  const { accent } = useTheme();
   const navigation = useNavigation<any>();
   const queryClient = useQueryClient();
   const [jobId, setJobId] = useState<string | null>(null);
@@ -37,6 +42,7 @@ export const InvoiceCreateScreen: React.FC = () => {
     return toDateString(d);
   });
   const [showJobPicker, setShowJobPicker] = useState(true);
+  const [jobSearch, setJobSearch] = useState('');
 
   const { data: jobsData } = useQuery({
     queryKey: ['invoice-jobs'],
@@ -46,6 +52,15 @@ export const InvoiceCreateScreen: React.FC = () => {
 
   const jobs = jobsData?.jobs ?? [];
   const selectedJob = jobs.find((j) => j.id === jobId);
+
+  const filteredJobs = useMemo(() => {
+    const q = jobSearch.trim().toLowerCase();
+    if (!q) return jobs;
+    return jobs.filter((j) => {
+      const hay = `${j.customer?.name ?? ''} ${j.trackingId} ${j.status}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [jobs, jobSearch]);
 
   const createMutation = useMutation({
     mutationFn: (payload: {
@@ -101,14 +116,19 @@ export const InvoiceCreateScreen: React.FC = () => {
   if (showJobPicker) {
     return (
       <View className="flex-1 bg-white">
-        <View className="px-4 pt-4 pb-2">
-          <Text className="text-lg font-semibold mb-2">Select job</Text>
+        <ScreenHeader title="Create invoice" />
+        <View className="px-4 mb-3">
           <Text className="text-gray-500 text-sm mb-2">
             Invoices are linked to a job. Choose the job for this invoice.
           </Text>
+          <SearchBar
+            value={jobSearch}
+            onChangeText={setJobSearch}
+            placeholder="Search jobs…"
+          />
         </View>
         <FlatList
-          data={jobs}
+          data={filteredJobs}
           keyExtractor={(item: Job) => item.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
           ListEmptyComponent={
@@ -128,9 +148,10 @@ export const InvoiceCreateScreen: React.FC = () => {
               <Text className="font-semibold text-base">
                 {item.customer?.name ?? 'Unknown'}
               </Text>
-              <Text className="text-xs text-gray-500">
-                {item.trackingId} · {item.status}
-              </Text>
+              <View className="flex-row items-center mt-1" style={{ gap: 8 }}>
+                <Text className="text-xs text-gray-500">{item.trackingId}</Text>
+                <StatusBadge label={item.status} />
+              </View>
             </TouchableOpacity>
           )}
         />
@@ -143,9 +164,10 @@ export const InvoiceCreateScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-white"
     >
+      <ScreenHeader title="Create invoice" />
       <ScrollView
         className="flex-1"
-        contentContainerClassName="px-4 py-6"
+        contentContainerClassName="px-4 py-4"
         keyboardShouldPersistTaps="handled"
       >
         <TouchableOpacity
@@ -160,32 +182,29 @@ export const InvoiceCreateScreen: React.FC = () => {
 
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Amount (GHS) *</Text>
-          <TextInput
+          <Input
             value={amount}
             onChangeText={setAmount}
             placeholder="0.00"
             keyboardType="decimal-pad"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Issue date *</Text>
-          <TextInput
+          <Input
             value={issueDate}
             onChangeText={setIssueDate}
             placeholder="YYYY-MM-DD"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-6">
           <Text className="text-sm text-gray-600 mb-1">Due date *</Text>
-          <TextInput
+          <Input
             value={dueDate}
             onChangeText={setDueDate}
             placeholder="YYYY-MM-DD"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
@@ -193,12 +212,13 @@ export const InvoiceCreateScreen: React.FC = () => {
         <TouchableOpacity
           onPress={handleSubmit}
           disabled={loading}
-          className="bg-black rounded-lg py-3 items-center"
+          className="rounded-xl h-[52px] items-center justify-center"
+          style={{ backgroundColor: accent }}
         >
           {loading ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text className="text-white font-semibold text-sm">Create invoice</Text>
+            <Text className="text-white font-semibold text-[17px]">Create invoice</Text>
           )}
         </TouchableOpacity>
       </ScrollView>

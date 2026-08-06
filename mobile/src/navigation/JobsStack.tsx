@@ -8,64 +8,25 @@ import { JobCreateScreen } from '../screens/jobs/JobCreateScreen';
 import { JobEditScreen } from '../screens/jobs/JobEditScreen';
 import { EnquiriesListScreen } from '../screens/enquiries/EnquiriesListScreen';
 import { EnquiryDetailScreen } from '../screens/enquiries/EnquiryDetailScreen';
+import type { JobsStackParamList } from './types';
 
-export type JobsStackParamList = {
-  JobsList: undefined;
-  JobDetail: { jobId: string };
-  JobComments: { jobId: string };
-  JobStatusUpdate: { jobId: string };
-  JobCreate: undefined;
-  JobEdit: { jobId: string };
-  EnquiriesList: undefined;
-  EnquiryDetail: { enquiryId: string };
-};
+export type { JobsStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<JobsStackParamList>();
 
+const noHeader = { headerShown: false as const };
+
 export const JobsStack: React.FC = () => {
   return (
-    <Stack.Navigator>
-      <Stack.Screen
-        name="JobsList"
-        component={JobsListScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="JobDetail"
-        component={JobDetailScreen}
-        options={{ title: 'Job detail' }}
-      />
-      <Stack.Screen
-        name="JobComments"
-        component={JobCommentsScreen}
-        options={{ title: 'Comments' }}
-      />
-      <Stack.Screen
-        name="JobStatusUpdate"
-        component={JobStatusUpdateScreen}
-        options={{ title: 'Update status' }}
-      />
-      <Stack.Screen
-        name="JobCreate"
-        component={JobCreateScreen}
-        options={{ title: 'New job' }}
-      />
-      <Stack.Screen
-        name="JobEdit"
-        component={JobEditScreen}
-        options={{ title: 'Edit job' }}
-      />
-      <Stack.Screen
-        name="EnquiriesList"
-        component={EnquiriesListScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="EnquiryDetail"
-        component={EnquiryDetailScreen}
-        options={{ title: 'Enquiry' }}
-      />
+    <Stack.Navigator screenOptions={noHeader}>
+      <Stack.Screen name="JobsList" component={JobsListScreen} />
+      <Stack.Screen name="JobDetail" component={JobDetailScreen} />
+      <Stack.Screen name="JobComments" component={JobCommentsScreen} />
+      <Stack.Screen name="JobStatusUpdate" component={JobStatusUpdateScreen} />
+      <Stack.Screen name="JobCreate" component={JobCreateScreen} />
+      <Stack.Screen name="JobEdit" component={JobEditScreen} />
+      <Stack.Screen name="EnquiriesList" component={EnquiriesListScreen} />
+      <Stack.Screen name="EnquiryDetail" component={EnquiryDetailScreen} />
     </Stack.Navigator>
   );
 };
-

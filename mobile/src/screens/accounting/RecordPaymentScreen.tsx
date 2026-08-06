@@ -3,10 +3,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { useTheme } from '../../context/ThemeContext';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
@@ -17,6 +19,7 @@ export const RecordPaymentScreen: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const queryClient = useQueryClient();
+  const { accent } = useTheme();
   const invoiceId: string = route.params?.invoiceId;
 
   const [amount, setAmount] = useState('');
@@ -61,8 +64,8 @@ export const RecordPaymentScreen: React.FC = () => {
       className="flex-1 bg-white"
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View className="flex-1 px-4 pt-6">
-        <Text className="text-2xl font-semibold mb-2">Record payment</Text>
+      <ScreenHeader title="Record payment" />
+      <View className="flex-1 px-4">
         <Text className="text-gray-500 mb-4 text-sm">
           Add a payment for this invoice. Amounts are in Ghana cedis (GHS).
         </Text>
@@ -75,12 +78,11 @@ export const RecordPaymentScreen: React.FC = () => {
           <Text className="text-xs font-medium text-gray-600 mb-1">
             Amount (GHS) *
           </Text>
-          <TextInput
+          <Input
             value={amount}
             onChangeText={setAmount}
             keyboardType="decimal-pad"
             placeholder="0.00"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
@@ -88,11 +90,10 @@ export const RecordPaymentScreen: React.FC = () => {
           <Text className="text-xs font-medium text-gray-600 mb-1">
             Payer *
           </Text>
-          <TextInput
+          <Input
             value={payer}
             onChangeText={setPayer}
             placeholder="Name of payer"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
@@ -105,9 +106,10 @@ export const RecordPaymentScreen: React.FC = () => {
               <TouchableOpacity
                 key={m}
                 onPress={() => setMethod(m)}
-                className={`rounded-lg px-3 py-2 ${
-                  method === m ? 'bg-black' : 'bg-gray-200'
+                className={`rounded-full px-3 py-2 ${
+                  method === m ? '' : 'bg-gray-200'
                 }`}
+                style={method === m ? { backgroundColor: accent } : undefined}
               >
                 <Text
                   className={`text-xs font-medium ${
@@ -124,9 +126,10 @@ export const RecordPaymentScreen: React.FC = () => {
         <TouchableOpacity
           disabled={submitting}
           onPress={onSubmit}
-          className="bg-black rounded-lg py-3 items-center mt-auto mb-6"
+          className="rounded-xl h-[52px] items-center justify-center mt-auto mb-6"
+          style={{ backgroundColor: accent }}
         >
-          <Text className="text-white font-semibold text-sm">
+          <Text className="text-white font-semibold text-[17px]">
             {submitting ? 'Saving…' : 'Save payment'}
           </Text>
         </TouchableOpacity>

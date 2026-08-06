@@ -24,48 +24,15 @@ const Stack = createNativeStackNavigator<CustomersStackParamList>();
 
 export const CustomersStack: React.FC = () => {
   return (
-    <Stack.Navigator>
-      <Stack.Screen
-        name="CustomersList"
-        component={CustomersListScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="CustomerDetail"
-        component={CustomerDetailScreen}
-        options={{ title: 'Customer' }}
-      />
-      <Stack.Screen
-        name="CustomerCreate"
-        component={CustomerCreateScreen}
-        options={{ title: 'New customer' }}
-      />
-      <Stack.Screen
-        name="CustomerEdit"
-        component={CustomerEditScreen}
-        options={{ title: 'Edit customer' }}
-      />
-      <Stack.Screen
-        name="ConsignmentsList"
-        component={ConsignmentsListScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="ConsignmentDetail"
-        component={ConsignmentDetailScreen}
-        options={{ title: 'Consignment' }}
-      />
-      <Stack.Screen
-        name="ConsignmentCreate"
-        component={ConsignmentCreateScreen}
-        options={{ title: 'New consignment' }}
-      />
-      <Stack.Screen
-        name="ConsignmentEdit"
-        component={ConsignmentEditScreen}
-        options={{ title: 'Edit consignment' }}
-      />
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="CustomersList" component={CustomersListScreen} />
+      <Stack.Screen name="CustomerDetail" component={CustomerDetailScreen} />
+      <Stack.Screen name="CustomerCreate" component={CustomerCreateScreen} />
+      <Stack.Screen name="CustomerEdit" component={CustomerEditScreen} />
+      <Stack.Screen name="ConsignmentsList" component={ConsignmentsListScreen} />
+      <Stack.Screen name="ConsignmentDetail" component={ConsignmentDetailScreen} />
+      <Stack.Screen name="ConsignmentCreate" component={ConsignmentCreateScreen} />
+      <Stack.Screen name="ConsignmentEdit" component={ConsignmentEditScreen} />
     </Stack.Navigator>
   );
 };
-

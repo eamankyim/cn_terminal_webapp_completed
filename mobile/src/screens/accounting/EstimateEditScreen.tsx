@@ -6,20 +6,23 @@ import {
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
+import { ScreenHeader } from '../../components/ScreenHeader';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
 import type { Estimate } from '../../types/api';
+import { useTheme } from '../../context/ThemeContext';
 
 interface EstimateDetailResponse {
   estimate: Estimate & { description?: string };
 }
 
 export const EstimateEditScreen: React.FC = () => {
+  const { accent } = useTheme();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const estimateId: string = route.params?.estimateId;
@@ -103,9 +106,10 @@ export const EstimateEditScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-white"
     >
+      <ScreenHeader title="Edit estimate" />
       <ScrollView
         className="flex-1"
-        contentContainerClassName="px-4 py-6"
+        contentContainerClassName="px-4 py-4"
         keyboardShouldPersistTaps="handled"
       >
         <View className="mb-4">
@@ -117,43 +121,39 @@ export const EstimateEditScreen: React.FC = () => {
 
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Amount (GHS) *</Text>
-          <TextInput
+          <Input
             value={amount}
             onChangeText={setAmount}
             placeholder="0.00"
             keyboardType="decimal-pad"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Description (optional)</Text>
-          <TextInput
+          <Input
             value={description}
             onChangeText={setDescription}
             placeholder="Description"
             multiline
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Issue date</Text>
-          <TextInput
+          <Input
             value={issueDate}
             onChangeText={setIssueDate}
             placeholder="YYYY-MM-DD"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
         <View className="mb-6">
           <Text className="text-sm text-gray-600 mb-1">Valid until</Text>
-          <TextInput
+          <Input
             value={validUntil}
             onChangeText={setValidUntil}
             placeholder="YYYY-MM-DD"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-base"
             editable={!loading}
           />
         </View>
@@ -161,12 +161,12 @@ export const EstimateEditScreen: React.FC = () => {
         <TouchableOpacity
           onPress={handleSubmit}
           disabled={loading}
-          className="bg-black rounded-lg py-3 items-center"
-        >
+          className="rounded-xl h-[52px] items-center justify-center"
+        style={{ backgroundColor: accent }}>
           {loading ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text className="text-white font-semibold text-sm">Save changes</Text>
+            <Text className="text-white font-semibold text-[17px]">Save changes</Text>
           )}
         </TouchableOpacity>
       </ScrollView>

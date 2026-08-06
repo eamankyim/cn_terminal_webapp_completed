@@ -9,13 +9,17 @@ import {
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/http';
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { StatusBadge } from '../../components/StatusBadge';
 import type { Consignment } from '../../types/api';
+import { useTheme } from '../../context/ThemeContext';
 
 interface ConsignmentDetailResponse {
   consignment: Consignment;
 }
 
 export const ConsignmentDetailScreen: React.FC = () => {
+  const { accent } = useTheme();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const consignmentId: string = route.params?.consignmentId;
@@ -38,47 +42,49 @@ export const ConsignmentDetailScreen: React.FC = () => {
   const c = data.consignment;
 
   return (
-    <ScrollView className="flex-1 bg-white" contentContainerClassName="px-4 py-6">
-      <View className="flex-row items-center justify-between mb-4">
-        <Text className="text-2xl font-semibold">
-          {c.consigneeName ?? 'Consignment'}
-        </Text>
-        <Text className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
-          {c.status}
-        </Text>
-      </View>
+    <View className="flex-1 bg-white">
+      <ScreenHeader title="Consignment" />
+      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-6">
+        <View className="flex-row items-center justify-between mb-4">
+          <Text className="text-base font-semibold">
+            {c.consigneeName ?? 'Consignment'}
+          </Text>
+          <StatusBadge label={c.status} />
+        </View>
 
-      <View className="mb-4">
-        <Text className="text-xs text-gray-500 mb-1">Tracking ID</Text>
-        <Text className="text-sm text-gray-800">{c.trackingId}</Text>
-      </View>
-      {c.consigneePhone ? (
         <View className="mb-4">
-          <Text className="text-xs text-gray-500 mb-1">Phone</Text>
-          <Text className="text-sm text-gray-800">{c.consigneePhone}</Text>
+          <Text className="text-xs text-gray-500 mb-1">Tracking ID</Text>
+          <Text className="text-sm text-gray-800">{c.trackingId}</Text>
         </View>
-      ) : null}
-      {c.consigneeAddress ? (
-        <View className="mb-4">
-          <Text className="text-xs text-gray-500 mb-1">Address</Text>
-          <Text className="text-sm text-gray-800">{c.consigneeAddress}</Text>
-        </View>
-      ) : null}
-      {c.customer ? (
-        <View className="mb-4">
-          <Text className="text-xs text-gray-500 mb-1">Customer</Text>
-          <Text className="text-sm text-gray-800">{c.customer.name}</Text>
-        </View>
-      ) : null}
+        {c.consigneePhone ? (
+          <View className="mb-4">
+            <Text className="text-xs text-gray-500 mb-1">Phone</Text>
+            <Text className="text-sm text-gray-800">{c.consigneePhone}</Text>
+          </View>
+        ) : null}
+        {c.consigneeAddress ? (
+          <View className="mb-4">
+            <Text className="text-xs text-gray-500 mb-1">Address</Text>
+            <Text className="text-sm text-gray-800">{c.consigneeAddress}</Text>
+          </View>
+        ) : null}
+        {c.customer ? (
+          <View className="mb-4">
+            <Text className="text-xs text-gray-500 mb-1">Customer</Text>
+            <Text className="text-sm text-gray-800">{c.customer.name}</Text>
+          </View>
+        ) : null}
 
-      <TouchableOpacity
-        onPress={() =>
-          navigation.navigate('ConsignmentEdit', { consignmentId: c.id })
-        }
-        className="mt-4 bg-black rounded-lg py-3 items-center"
-      >
-        <Text className="text-white font-semibold text-sm">Edit consignment</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <TouchableOpacity
+          onPress={() =>
+            navigation.navigate('ConsignmentEdit', { consignmentId: c.id })
+          }
+          className="mt-4 rounded-xl h-[52px] items-center justify-center"
+          style={{ backgroundColor: accent }}
+        >
+          <Text className="text-white font-semibold text-[17px]">Edit consignment</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
   );
 };

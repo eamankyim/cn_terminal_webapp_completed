@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -6,12 +6,16 @@ import {
   Modal,
   RefreshControl,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { SearchBar } from '../../components/SearchBar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
+import { StatusBadge } from '../../components/StatusBadge';
+import { useTheme } from '../../context/ThemeContext';
 import type { ExpenseRequest } from '../../types/api';
 
 interface ExpenseRequestsResponse {
@@ -20,14 +24,22 @@ interface ExpenseRequestsResponse {
 }
 
 export const ExpenseRequestsScreen: React.FC = () => {
+  const { accent } = useTheme();
   const queryClient = useQueryClient();
   const [page] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
   const [actionModal, setActionModal] = useState<{
     request: ExpenseRequest;
     action: 'approve' | 'reject';
   } | null>(null);
   const [comment, setComment] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim().toLowerCase()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['expense-requests', page, statusFilter],
@@ -72,7 +84,14 @@ export const ExpenseRequestsScreen: React.FC = () => {
     },
   });
 
-  const requests = data?.requests ?? [];
+  const requests = useMemo(() => {
+    const all = data?.requests ?? [];
+    if (!search) return all;
+    return all.filter((item) => {
+      const hay = `${item.category} ${item.description ?? ''} ${item.requestedBy?.name ?? ''} ${item.status}`.toLowerCase();
+      return hay.includes(search);
+    });
+  }, [data?.requests, search]);
 
   const handleApprove = () => {
     if (!actionModal) return;
@@ -101,39 +120,43 @@ export const ExpenseRequestsScreen: React.FC = () => {
 
   return (
     <View className="flex-1 bg-white">
-      <View className="px-4 pt-4 pb-2 flex-row flex-wrap gap-2">
-        <TouchableOpacity
-          onPress={() => setStatusFilter(undefined)}
-          className={`rounded-lg px-3 py-2 ${!statusFilter ? 'bg-black' : 'bg-gray-200'}`}
-        >
-          <Text className={`text-sm font-medium ${!statusFilter ? 'text-white' : 'text-gray-800'}`}>
-            All
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setStatusFilter('PENDING')}
-          className={`rounded-lg px-3 py-2 ${statusFilter === 'PENDING' ? 'bg-black' : 'bg-gray-200'}`}
-        >
-          <Text className={`text-sm font-medium ${statusFilter === 'PENDING' ? 'text-white' : 'text-gray-800'}`}>
-            Pending
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setStatusFilter('APPROVED')}
-          className={`rounded-lg px-3 py-2 ${statusFilter === 'APPROVED' ? 'bg-black' : 'bg-gray-200'}`}
-        >
-          <Text className={`text-sm font-medium ${statusFilter === 'APPROVED' ? 'text-white' : 'text-gray-800'}`}>
-            Approved
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setStatusFilter('REJECTED')}
-          className={`rounded-lg px-3 py-2 ${statusFilter === 'REJECTED' ? 'bg-black' : 'bg-gray-200'}`}
-        >
-          <Text className={`text-sm font-medium ${statusFilter === 'REJECTED' ? 'text-white' : 'text-gray-800'}`}>
-            Rejected
-          </Text>
-        </TouchableOpacity>
+      <ScreenHeader title="Expense requests" />
+
+      <View className="px-4 mb-3">
+        <SearchBar
+          value={searchInput}
+          onChangeText={setSearchInput}
+          placeholder="Search by category, person, or notes"
+        />
+      </View>
+
+      <View className="px-4 pb-2 flex-row flex-wrap gap-2">
+        {(
+          [
+            { key: undefined, label: 'All' },
+            { key: 'PENDING', label: 'Pending' },
+            { key: 'APPROVED', label: 'Approved' },
+            { key: 'REJECTED', label: 'Rejected' },
+          ] as const
+        ).map((chip) => {
+          const selected = statusFilter === chip.key;
+          return (
+            <TouchableOpacity
+              key={chip.label}
+              onPress={() => setStatusFilter(chip.key)}
+              className={`rounded-full px-3 py-2 ${selected ? '' : 'bg-gray-200'}`}
+              style={selected ? { backgroundColor: accent } : undefined}
+            >
+              <Text
+                className={`text-sm font-medium ${
+                  selected ? 'text-white' : 'text-gray-800'
+                }`}
+              >
+                {chip.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <FlatList
@@ -149,9 +172,7 @@ export const ExpenseRequestsScreen: React.FC = () => {
               <Text className="font-semibold text-base">
                 GHS {item.amount.toFixed(2)} · {item.category}
               </Text>
-              <Text className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
-                {item.status}
-              </Text>
+              <StatusBadge label={item.status} />
             </View>
             {item.requestedBy ? (
               <Text className="text-xs text-gray-500">
@@ -169,17 +190,17 @@ export const ExpenseRequestsScreen: React.FC = () => {
                   onPress={() =>
                     setActionModal({ request: item, action: 'approve' })
                   }
-                  className="flex-1 bg-green-600 rounded-lg py-2 items-center"
+                  className="flex-1 bg-green-600 rounded-xl h-[52px] items-center justify-center"
                 >
-                  <Text className="text-white text-sm font-medium">Approve</Text>
+                  <Text className="text-white text-[17px] font-semibold">Approve</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() =>
                     setActionModal({ request: item, action: 'reject' })
                   }
-                  className="flex-1 bg-red-600 rounded-lg py-2 items-center"
+                  className="flex-1 bg-red-600 rounded-xl h-[52px] items-center justify-center"
                 >
-                  <Text className="text-white text-sm font-medium">Reject</Text>
+                  <Text className="text-white text-[17px] font-semibold">Reject</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -209,7 +230,7 @@ export const ExpenseRequestsScreen: React.FC = () => {
                 {actionModal.request.category}
               </Text>
             )}
-            <TextInput
+            <Input
               value={comment}
               onChangeText={setComment}
               placeholder={
@@ -218,7 +239,7 @@ export const ExpenseRequestsScreen: React.FC = () => {
                   : 'Reason (optional)'
               }
               multiline
-              className="border border-gray-300 rounded-lg px-3 py-2 text-base mb-4"
+              className="mb-4"
             />
             <View className="flex-row gap-2">
               <TouchableOpacity
@@ -226,22 +247,22 @@ export const ExpenseRequestsScreen: React.FC = () => {
                   setActionModal(null);
                   setComment('');
                 }}
-                className="flex-1 border border-gray-300 rounded-lg py-2 items-center"
+                className="flex-1 border border-gray-300 rounded-xl h-[52px] items-center justify-center"
               >
-                <Text className="text-gray-800 font-medium">Cancel</Text>
+                <Text className="text-gray-800 font-semibold text-[17px]">Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={
                   actionModal?.action === 'approve' ? handleApprove : handleReject
                 }
                 disabled={approveMutation.isPending || rejectMutation.isPending}
-                className={`flex-1 rounded-lg py-2 items-center ${
+                className={`flex-1 rounded-xl h-[52px] items-center justify-center ${
                   actionModal?.action === 'approve'
                     ? 'bg-green-600'
                     : 'bg-red-600'
                 }`}
               >
-                <Text className="text-white font-medium">
+                <Text className="text-white font-semibold text-[17px]">
                   {actionModal?.action === 'approve' ? 'Approve' : 'Reject'}
                 </Text>
               </TouchableOpacity>

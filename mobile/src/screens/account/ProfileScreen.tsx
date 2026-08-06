@@ -3,16 +3,19 @@ import {
   KeyboardAvoidingView,
   Platform,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Input } from '../../components/Input';
+import { ScreenHeader } from '../../components/ScreenHeader';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { api } from '../../api/http';
 import type { User } from '../../types/api';
 
 export const ProfileScreen: React.FC = () => {
   const { user, refreshMe } = useAuth();
+  const { accent } = useTheme();
   const [name, setName] = useState(user?.name ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
   const [phone, setPhone] = useState('');
@@ -54,9 +57,8 @@ export const ProfileScreen: React.FC = () => {
       className="flex-1 bg-white"
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View className="flex-1 px-4 pt-6">
-        <Text className="text-2xl font-semibold mb-4">Profile</Text>
-
+      <ScreenHeader title="Profile" />
+      <View className="flex-1 px-4">
         {message ? (
           <Text className="text-green-600 mb-3 text-sm">{message}</Text>
         ) : null}
@@ -66,43 +68,41 @@ export const ProfileScreen: React.FC = () => {
 
         <View className="mb-3">
           <Text className="text-xs font-medium text-gray-600 mb-1">Name</Text>
-          <TextInput
+          <Input
             value={name}
             onChangeText={setName}
             placeholder="Full name"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
         <View className="mb-3">
           <Text className="text-xs font-medium text-gray-600 mb-1">Email</Text>
-          <TextInput
+          <Input
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
             placeholder="you@example.com"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
         <View className="mb-6">
           <Text className="text-xs font-medium text-gray-600 mb-1">Phone</Text>
-          <TextInput
+          <Input
             value={phone}
             onChangeText={setPhone}
             keyboardType="phone-pad"
             placeholder="Phone number"
-            className="border border-gray-300 rounded-lg px-3 py-3 text-base"
           />
         </View>
 
         <TouchableOpacity
           disabled={submitting}
           onPress={onSave}
-          className="bg-black rounded-lg py-3 items-center mt-auto mb-6"
+          className="rounded-xl h-[52px] items-center justify-center mt-auto mb-6"
+          style={{ backgroundColor: accent }}
         >
-          <Text className="text-white font-semibold text-sm">
+          <Text className="text-white font-semibold text-[17px]">
             {submitting ? 'Saving…' : 'Save changes'}
           </Text>
         </TouchableOpacity>
@@ -110,4 +110,3 @@ export const ProfileScreen: React.FC = () => {
     </KeyboardAvoidingView>
   );
 };
-

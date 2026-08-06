@@ -1,4 +1,11 @@
+require('dotenv').config();
+
 const { PrismaClient } = require('@prisma/client');
+
+if (!process.env.DATABASE_URL) {
+  console.error('❌ DATABASE_URL is not set. Add it to backend/.env before starting the server.');
+  process.exit(1);
+}
 
 const prisma = new PrismaClient({
   datasources: {
