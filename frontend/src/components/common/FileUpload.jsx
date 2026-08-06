@@ -27,6 +27,7 @@ const FileUpload = ({
   onFileRemove,
   onFileUpload,
   value = [],
+  onChange, // Ant Design Form.Item injects this; keep off <Upload> to avoid param shape clashes
   disabled = false,
   uploadText = 'Upload Files',
   ...props
@@ -162,16 +163,17 @@ const FileUpload = ({
           // Update ref to track this value (using stable key)
           prevValueRef.current = getFileArrayKey(newFileList);
           
-          // Only call onFileChange if this update is from user action, not from props
-          if (onFileChange && !isUpdatingFromPropsRef.current) {
-            console.log('    - Calling onFileChange callback...');
+          // Only notify parents if this update is from user action, not from props
+          if (!isUpdatingFromPropsRef.current) {
+            console.log('    - Calling change callbacks...');
             // Use setTimeout to avoid blocking
             setTimeout(() => {
-              onFileChange(newFileList);
-              console.log('    - onFileChange callback completed');
+              if (onFileChange) onFileChange(newFileList);
+              if (onChange) onChange(newFileList);
+              console.log('    - Change callbacks completed');
             }, 0);
-          } else if (isUpdatingFromPropsRef.current) {
-            console.log('    - Skipping onFileChange (update from props)');
+          } else {
+            console.log('    - Skipping change callbacks (update from props)');
           }
 
           return newFileList;
@@ -215,16 +217,17 @@ const FileUpload = ({
           // Update ref to track this value (using stable key)
           prevValueRef.current = getFileArrayKey(newFileList);
           
-          // Only call onFileChange if this update is from user action, not from props
-          if (onFileChange && !isUpdatingFromPropsRef.current) {
-            console.log('    - Calling onFileChange callback...');
+          // Only notify parents if this update is from user action, not from props
+          if (!isUpdatingFromPropsRef.current) {
+            console.log('    - Calling change callbacks...');
             // Use setTimeout to avoid blocking
             setTimeout(() => {
-              onFileChange(newFileList);
-              console.log('    - onFileChange callback completed');
+              if (onFileChange) onFileChange(newFileList);
+              if (onChange) onChange(newFileList);
+              console.log('    - Change callbacks completed');
             }, 0);
-          } else if (isUpdatingFromPropsRef.current) {
-            console.log('    - Skipping onFileChange (update from props)');
+          } else {
+            console.log('    - Skipping change callbacks (update from props)');
           }
 
           return newFileList;
@@ -258,11 +261,12 @@ const FileUpload = ({
       prevValueRef.current = getFileArrayKey(newFileList);
       setFileList(newFileList);
       
-      // Only call onFileChange if this update is from user action, not from props
-      if (onFileChange && !isUpdatingFromPropsRef.current) {
+      // Only notify parents if this update is from user action, not from props
+      if (!isUpdatingFromPropsRef.current) {
         // Use setTimeout to avoid blocking
         setTimeout(() => {
-          onFileChange(newFileList);
+          if (onFileChange) onFileChange(newFileList);
+          if (onChange) onChange(newFileList);
         }, 0);
       }
 
@@ -351,8 +355,9 @@ const FileUpload = ({
     multiple,
     accept,
     fileList: Array.isArray(fileList) ? fileList : [],
-    customRequest: customRequest,
-    beforeUpload: () => false, // Always prevent default upload
+    // customRequest replaces default XHR; do NOT return false from beforeUpload
+    // (that skips customRequest entirely in rc-upload).
+    customRequest,
     onRemove: handleRemove,
     onPreview: showPreview ? handlePreview : undefined,
     disabled,

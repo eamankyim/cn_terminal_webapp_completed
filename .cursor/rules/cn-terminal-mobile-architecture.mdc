@@ -1,0 +1,49 @@
+---
+description: Architecture and tech stack rules for the CN Terminal mobile app built with Expo and shadcn-ui, mirroring the existing web app and backend.
+alwaysApply: true
+---
+
+# CN Terminal Mobile – Architecture
+
+- **Platform & language**
+  - Build the mobile client as an **Expo-managed React Native app** targeting iOS and Android.
+  - Use **TypeScript** for all new mobile code (components, hooks, services, navigation).
+
+- **Navigation**
+  - Use **React Navigation** with:
+    - An **auth stack** (splash/bootstrap, setup, login, forgot/reset password, accept invitation).
+    - A **main bottom-tab navigator** with at least: `Dashboard`, `Jobs`, `Customers`, `Account`.
+    - Nested **stack navigators per tab** for detail screens (e.g. `JobDetail`, `InvoiceDetail`, `EstimateDetail`, `Reports`, `Accounting`, `Admin`).
+
+- **State management**
+  - Use **React Query** (`@tanstack/react-query`) for all server state (API calls, caching, pagination, refetching).
+  - Use simple **React Context** or a minimal store (e.g. `zustand`) for auth, theme, and small pieces of global UI state.
+
+- **Networking & storage**
+  - Configure a single API client with a base URL like `EXPO_PUBLIC_API_URL` (e.g. `https://app.cnterminalghana.com/api`).
+  - Automatically attach `Authorization: Bearer <token>` to all protected requests, mirroring `frontend/src/services/api.js`.
+  - Store auth **token** and **user** data in a secure store (`expo-secure-store`, with `AsyncStorage` as a fallback) instead of `localStorage`.
+
+- **Backend & real-time**
+  - Always reuse the existing **Express + Prisma backend** and do **not** introduce mobile-only APIs unless strictly necessary.
+  - Use **Socket.IO** to connect to the same real-time server as the web app:
+    - Connect with `auth: { token }`.
+    - On `connect`, emit `authenticate` with the current user’s ID so the server can join `user_<id>` rooms.
+  - Subscribe to the same events as the web (`job:*` and notification events) and keep mobile caches in sync.
+
+- **Role & permission awareness**
+  - Fetch `user` and `permissions` via `/api/auth/me` at bootstrap.
+  - Centralize helpers like `hasRole()` and `hasPermission()` and use them for:
+    - Initial route selection (role-based default tab).
+    - Showing/hiding tabs and screens (e.g. Accounting, Admin).
+    - Guarding sensitive actions (status changes, accounting operations, configuration edits).
+
+- **Project layout (suggested)**
+  - Keep a clear folder structure such as:
+    - `src/navigation/` – navigators and route definitions.
+    - `src/screens/` – screen components grouped by feature.
+    - `src/components/` – shared UI components (built on shadcn primitives).
+    - `src/api/` – API client, typed endpoints, and React Query hooks.
+    - `src/context/` – auth and other global contexts.
+    - `src/types/` – shared TypeScript types for API models and enums.
+

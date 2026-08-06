@@ -8,9 +8,9 @@ class FileService {
     
     try {
       const formData = new FormData();
-      formData.append('file', file);
-      
-      // Add additional options
+
+      // Append metadata BEFORE the file so multer can see fields if needed.
+      // (Backend also moves the file after parse; order is defense-in-depth.)
       if (options.folder) {
         formData.append('folder', options.folder);
         console.log('  - Added folder:', options.folder);
@@ -20,13 +20,15 @@ class FileService {
         console.log('  - Added category:', options.category);
       }
       if (options.entityId) {
-        formData.append('entityId', options.entityId);
+        formData.append('entityId', String(options.entityId));
         console.log('  - Added entityId:', options.entityId);
       }
       if (options.entityType) {
         formData.append('entityType', options.entityType);
         console.log('  - Added entityType:', options.entityType);
       }
+
+      formData.append('file', file);
 
       console.log('  - FormData contents:');
       for (let [key, value] of formData.entries()) {
@@ -85,9 +87,8 @@ class FileService {
 
   async deleteFile(fileUrl) {
     try {
-      const response = await api.delete('/files/delete', {
-        data: { fileUrl }
-      });
+      // api.delete(endpoint, data) JSON-stringifies the second arg as the body
+      const response = await api.delete('/files/delete', { fileUrl });
       return response;
     } catch (error) {
 

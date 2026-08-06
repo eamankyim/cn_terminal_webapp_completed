@@ -1,0 +1,38 @@
+---
+description: Design and UX rules for the CN Terminal mobile app so it visually aligns with the existing product while being optimized for phones.
+alwaysApply: true
+---
+
+# CN Terminal Mobile – Design & UX
+
+- **Overall style**
+  - Use a **clean black-and-white aesthetic** that matches the existing CN Terminal branding (black logo on white or black backgrounds, bold headings, minimal chrome).
+  - Prefer **large, readable typography** and generous spacing for touch targets.
+  - Keep the logo-led splash and login screens consistent with the existing mobile visuals (centered logo, black primary button, white background).
+
+- **Navigation patterns**
+  - Use a **bottom tab bar** with icons and labels for: `Dashboard`, `Jobs`, `Customers`, `Account` (at minimum).
+  - Inside tabs, use header actions and overflow menus instead of dense inline buttons.
+  - Make “Account” a hub for profile, settings, invoices, estimates, accounting, reports, and admin tools, mirroring the existing app.
+
+- **Replacing tables with mobile patterns**
+  - Where the web app uses wide Ant Design tables, show **scrollable lists of cards** on mobile:
+    - Each card should expose key fields (e.g. customer name, tracking ID, status, amount, main dates).
+    - Secondary information belongs in the detail screen, not on the list item.
+  - Use **filters in a sheet/bottom sheet** rather than table header controls, but keep filter semantics (status, search, date range, customer, etc.) identical.
+
+- **Forms & wizards**
+  - Break complex forms (jobs, invoices, estimates, accounting operations) into **multi-step flows** instead of single long pages.
+  - Use consistent form components (shadcn-style `Input`, `Select`, date/time pickers) with inline validation and clear error messages.
+  - Respect backend-required fields and surface errors at the field level whenever possible.
+
+- **Status and feedback**
+  - Represent all key statuses (jobs, invoices, estimates, expenses, payouts) with consistent **badge/tag colors** that match or echo the web app.
+  - Use **toasts** for transient success/error feedback and inline banners for blocking errors.
+  - For real-time updates (jobs, notifications), prefer subtle list updates and badges rather than disruptive modals.
+
+- **Accessibility & usability**
+  - Ensure adequate touch target sizes and contrast for all interactive elements.
+  - Avoid relying solely on color to convey meaning; pair status colors with labels (e.g. `CLEARED`, `PENDING`, `PAID`).
+  - Support pull-to-refresh on list screens and skeleton/loading states that match the overall design system.
+

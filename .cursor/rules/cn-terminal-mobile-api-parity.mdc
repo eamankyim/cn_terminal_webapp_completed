@@ -1,0 +1,50 @@
+---
+description: Ensure the CN Terminal mobile app uses the same REST and Socket.IO APIs, data models, and business rules as the existing web frontend.
+alwaysApply: true
+---
+
+# CN Terminal Mobile – API & Behavior Parity
+
+- **Single source of truth**
+  - The **Express backend in `backend/` is canonical** for business logic and data; the mobile app must **not** fork logic into the client.
+  - Reuse existing endpoints under `/api` — do not introduce separate “mobile” endpoints unless absolutely required and discussed explicitly.
+
+- **Authentication**
+  - Authenticate with `POST /api/auth/login` using `{ email, password }` and expect `{ user, token }` with a 24-hour JWT.
+  - Persist `token` and `user` on the device; include `Authorization: Bearer <token>` on all non-public requests.
+  - On app start, call `GET /api/auth/me` to refresh the user and permissions; log the user out on 401/expired token responses.
+
+- **Routing to backend endpoints**
+  - Map mobile screens to existing resources:
+    - **Dashboard & Reports** → `/api/dashboard/*`, `/api/reports/*`.
+    - **Jobs & Enquiries** → `/api/jobs*`, `/api/enquiries*`, `/api/jobs/:id/comments`, `/api/consignments*`.
+    - **Customers & Consignments** → `/api/customers*`, `/api/consignments*`.
+    - **Invoices & Payments** → `/api/invoices*`, `/api/invoices/jobs`, `/api/invoices/:id/payments`.
+    - **Estimates** → `/api/estimates*`.
+    - **Expenses, Payouts, Cashflow** → `/api/expenses*`, `/api/payouts*`, `/api/cashflow*`.
+    - **Notifications** → `/api/notifications*`.
+    - **Admin & Settings** → `/api/auth/users*`, `/api/roles*`, `/api/configurations*`, `/api/invitations*`.
+
+- **Request/response types**
+  - Maintain TypeScript interfaces that match backend responses for:
+    - `User`, `Customer`, `Consignment`, `Job`, `Enquiry`, `Shipment`, `Invoice`, `Estimate`, `Payment`, `Notification`, `ExpenseRequest`, `Expense`, `Payout`, `CashflowTransaction`, `Configuration`.
+  - Use a shared `PaginatedResponse<T>` type following the backend’s pagination (`page`, `limit`, `total`, `pages` / `totalPages`).
+
+- **Business rule parity**
+  - Enforce on mobile the same **validation and workflow rules** as the backend, including but not limited to:
+    - **Job status transitions** are strictly forward-only and must follow the server’s `JobStatus` hierarchy; do not allow arbitrary status changes.
+    - Additional fields required at specific statuses (e.g. BOE number for `ENTRY_COMPLETED`, logistics fields for `RELEASED`, etc.) must be collected before calling `PUT /api/jobs/:id/status`.
+    - Password strength rules (min length and required character classes) should be validated client-side before hitting password endpoints.
+  - When the backend returns validation errors, surface them clearly in the UI and **do not silently override** server decisions.
+
+- **Real-time events**
+  - Use Socket.IO to subscribe to:
+    - Job events: `job:created`, `job:updated`, `job:deleted`, `job:status-updated`, `job:comment-added`.
+    - Notification events: `new_notification`, `unread_count_update`, `notification_read_update`, `notification_deleted`, `system_notification`.
+  - Update local React Query caches in response to these events to keep lists and detail views in sync with the web app.
+  - Implement polling fallbacks for critical counts (especially unread notifications) when sockets are unavailable.
+
+- **Environment & configuration**
+  - Read the API base URL and any environment-specific flags from Expo config / env (e.g. `EXPO_PUBLIC_API_URL`) rather than hard-coding URLs.
+  - Keep dev/stage/prod environments aligned with the web app and backend configuration.
+
