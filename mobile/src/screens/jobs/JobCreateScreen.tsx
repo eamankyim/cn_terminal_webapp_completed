@@ -81,6 +81,7 @@ const DEFAULT_LINES = ['PIL', 'SAF', 'COSCO', 'CMA', 'OOCL', 'MSK', 'ONE'];
 const MEDIUM_OF_ENQUIRY = ['Email', 'Dispatch', 'VVIP', 'WhatsApp'];
 
 const DOCUMENTS_BROUGHT = [
+  'Parking list',
   'Parking list & Copy',
   'Container No',
   'Copy BL',
