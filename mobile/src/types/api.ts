@@ -105,7 +105,7 @@ export interface CustomersListResponse {
 
 export interface Consignment {
   id: string;
-  trackingId: string;
+  trackingId?: string | null;
   status: string;
   consigneeName?: string;
   consigneePhone?: string;

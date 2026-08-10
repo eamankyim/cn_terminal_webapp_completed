@@ -903,64 +903,55 @@ const JobsPage = () => {
   const handleSaveAsDraft = async () => {
     setDraftLoading(true);
     try {
-      // Validate form first
-      const formValues = await form.validateFields();
+      // Drafts should not require a fully filled form
+      const formValues = form.getFieldsValue(true);
       const { documents: documentsValue, ...jobData } = formValues;
-      
-      // Handle documents - could be array or object with fileList property
-      const documents = Array.isArray(documentsValue) 
-        ? documentsValue 
-        : documentsValue?.fileList || [];
-      
-      // Debug: Log the form values
 
-      // Set isDraft to true
-      const draftJobData = { ...jobData, isDraft: true };
-      
+      if (!jobData.customerId) {
+        message.warning('Select a client to save a draft');
+        return;
+      }
+
+      // Handle documents - could be array or object with fileList property
+      const documents = Array.isArray(documentsValue)
+        ? documentsValue
+        : documentsValue?.fileList || [];
+
+      const draftJobData = {
+        ...jobData,
+        isDraft: true,
+        goodsTypes: Array.isArray(jobData.goodsTypes) ? jobData.goodsTypes : [],
+        documentsBrought: Array.isArray(jobData.documentsBrought)
+          ? jobData.documentsBrought
+          : [],
+        consignmentId: jobData.consignmentId || null,
+      };
+
       let response;
       if (editingJob) {
-        // Update existing job
-
         response = await jobService.updateJob(editingJob.id, draftJobData);
         message.success('Job saved as draft');
       } else {
-        // Create new job
-
         response = await jobService.createJob(draftJobData);
-
         message.success('Job saved as draft');
       }
-      
+
       // Handle document uploads if we have documents and a job ID
       if (documents && documents.length > 0) {
         const jobId = response.job?.id || response.id;
         if (jobId) {
-
-          // Filter out files that are already uploaded (have URLs)
           const filesToUpload = documents.filter(file => !file.url && file.originFileObj);
-
           if (filesToUpload.length > 0) {
             await handleJobDocuments(jobId, filesToUpload, 'create');
-          } else {
-
           }
-        } else {
-
         }
-      } else {
-
       }
-      
-      loadJobs(); // Reload jobs
+
+      loadJobs();
       setIsModalVisible(false);
       form.resetFields();
     } catch (error) {
-      if (error.errorFields) {
-        message.error('Please fill in all required fields');
-      } else {
-
-        message.error(error.message || 'Failed to save job as draft');
-      }
+      message.error(error.message || 'Failed to save job as draft');
     } finally {
       setDraftLoading(false);
     }
@@ -1542,7 +1533,7 @@ const JobsPage = () => {
                   )}
                   <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <Input.Search
-                      placeholder="Search by Job ID (e.g., JOB-001)"
+                      placeholder="Search by Job ID (e.g., 2026-08-10-0001)"
                       allowClear
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
@@ -2818,7 +2809,12 @@ const JobsPage = () => {
                 </Title>
                 <div style={{ marginBottom: '16px', display: 'flex' }}>
                   <div style={{ width: '140px', fontWeight: 'bold' }}>Consignment:</div>
-                  <div>{selectedJob.consignment?.trackingId || 'No consignment linked'}</div>
+                  <div>
+                    {!selectedJob.consignment
+                      ? 'No consignment linked'
+                      : selectedJob.consignment.trackingId ||
+                        'Pending (assigned when job is created)'}
+                  </div>
                 </div>
                 <div style={{ marginBottom: '16px', display: 'flex' }}>
                   <div style={{ width: '140px', fontWeight: 'bold' }}>Consignee:</div>

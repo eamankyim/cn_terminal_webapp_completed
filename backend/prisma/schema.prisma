@@ -70,7 +70,7 @@ model Customer {
 
 model Consignment {
   id               String            @id @default(cuid())
-  trackingId       String            @unique
+  trackingId       String?           @unique
   customerId       String
   consigneeName    String
   consigneePhone   String

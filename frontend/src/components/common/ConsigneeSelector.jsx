@@ -172,9 +172,13 @@ const ConsigneeSelector = ({
                 <Option key={consignment.id} value={consignment.id}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>
-                      {consignment.trackingId} - {consignment.consigneeName}
+                      {consignment.trackingId
+                        ? `${consignment.trackingId} - ${consignment.consigneeName}`
+                        : consignment.consigneeName}
                     </span>
-                    <span style={{ fontSize: '12px', color: '#999' }}>{consignment.status}</span>
+                    <span style={{ fontSize: '12px', color: '#999' }}>
+                      {consignment.trackingId ? consignment.status : 'ID pending job'}
+                    </span>
                   </div>
                 </Option>
               ))}
