@@ -1870,6 +1870,7 @@ const JobsPage = () => {
                   <Option value="Container No">Container No</Option>
                   <Option value="Copy BL">Copy BL</Option>
                   <Option value="Original BL">Original BL</Option>
+                  <Option value="Draft BL">Draft BL</Option>
                 </Select>
               </Form.Item>
             </Col>
