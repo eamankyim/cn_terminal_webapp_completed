@@ -124,6 +124,7 @@ class NotificationService {
             if (RealtimeNotificationService?.sendUnreadCountUpdate) {
               await RealtimeNotificationService.sendUnreadCountUpdate(notification.userId);
             }
+          }
         } catch (socketError) {
           console.error('❌ [NotificationService] Error emitting real-time notification:', socketError);
           // Don't fail the notification creation if socket emission fails
