@@ -86,6 +86,7 @@ const DOCUMENTS_BROUGHT = [
   'Container No',
   'Copy BL',
   'Original BL',
+  'Draft BL',
 ];
 
 type CustomField = 'goodsTypes' | 'vesselName' | 'line';
