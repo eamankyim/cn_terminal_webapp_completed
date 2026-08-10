@@ -95,7 +95,7 @@ const WhatsAppCustomerIntegration = ({ visible, onClose }) => {
   // Filter customers based on search
   const filteredCustomers = customers.filter(customer =>
     customer.name.toLowerCase().includes(searchText.toLowerCase()) ||
-    customer.email.toLowerCase().includes(searchText.toLowerCase()) ||
+    customer.email?.toLowerCase().includes(searchText.toLowerCase()) ||
     customer.phone.includes(searchText)
   );
 

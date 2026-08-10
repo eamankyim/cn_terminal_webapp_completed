@@ -92,7 +92,7 @@ const CustomersPage = () => {
           <Avatar icon={<UserOutlined />} />
           <div>
             <div><Text strong>{record.name}</Text></div>
-            <div><Text type="secondary">{record.email}</Text></div>
+            <div><Text type="secondary">{record.email || '—'}</Text></div>
           </div>
         </Space>
       ),
@@ -305,11 +305,18 @@ const CustomersPage = () => {
                 name="email"
                 label="Email Address"
                 rules={[
-                  { required: true, message: 'Please enter email address!' },
-                  { type: 'email', message: 'Please enter a valid email!' }
+                  {
+                    validator: (_, value) => {
+                      if (!value || !String(value).trim()) return Promise.resolve();
+                      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim())) {
+                        return Promise.reject(new Error('Please enter a valid email!'));
+                      }
+                      return Promise.resolve();
+                    },
+                  },
                 ]}
               >
-                <Input placeholder="Enter email address" />
+                <Input placeholder="Enter email address (optional)" />
               </Form.Item>
             </Col>
           </Row>
@@ -440,7 +447,7 @@ const CustomersPage = () => {
               <Descriptions.Item label="Email">
                 <Space>
                   <MailOutlined />
-                  {selectedCustomer.email}
+                  {selectedCustomer.email || '—'}
                 </Space>
               </Descriptions.Item>
               <Descriptions.Item label="Phone">

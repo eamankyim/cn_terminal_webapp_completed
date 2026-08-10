@@ -51,7 +51,7 @@ const options = {
           properties: {
             id: { type: 'string', format: 'uuid' },
             name: { type: 'string' },
-            email: { type: 'string', format: 'email' },
+            email: { type: 'string', format: 'email', nullable: true },
             phone: { type: 'string' },
             address: { type: 'string' },
             type: { 

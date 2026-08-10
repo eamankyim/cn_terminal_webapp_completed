@@ -36,7 +36,7 @@ export const CustomerCreateScreen: React.FC = () => {
   const createMutation = useMutation({
     mutationFn: (payload: {
       name: string;
-      email: string;
+      email?: string | null;
       phone: string;
       address: string;
       contactPerson?: string;
@@ -69,8 +69,12 @@ export const CustomerCreateScreen: React.FC = () => {
     const trimmedEmail = email.trim();
     const trimmedPhone = phone.trim();
     const trimmedAddress = address.trim();
-    if (!trimmedName || !trimmedEmail || !trimmedPhone || !trimmedAddress) {
-      Alert.alert('Validation', 'Name, email, phone, and address are required.');
+    if (!trimmedName || !trimmedPhone || !trimmedAddress) {
+      Alert.alert('Validation', 'Name, phone, and address are required.');
+      return;
+    }
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      Alert.alert('Validation', 'Please enter a valid email address.');
       return;
     }
     if (!ghanaCard.trim() && !tin.trim()) {
@@ -82,7 +86,7 @@ export const CustomerCreateScreen: React.FC = () => {
     }
     createMutation.mutate({
       name: trimmedName,
-      email: trimmedEmail,
+      email: trimmedEmail || null,
       phone: trimmedPhone,
       address: trimmedAddress,
       ...(contactPerson.trim() ? { contactPerson: contactPerson.trim() } : {}),
@@ -115,11 +119,11 @@ export const CustomerCreateScreen: React.FC = () => {
           />
         </View>
         <View className="mb-4">
-          <Text className="text-sm text-gray-600 mb-1">Email *</Text>
+          <Text className="text-sm text-gray-600 mb-1">Email</Text>
           <Input
             value={email}
             onChangeText={setEmail}
-            placeholder="email@example.com"
+            placeholder="email@example.com (optional)"
             keyboardType="email-address"
             autoCapitalize="none"
             editable={!loading}
