@@ -1865,10 +1865,10 @@ const JobsPage = () => {
                   placeholder="Select documents brought by client"
                   style={{ width: '100%' }}
                 >
-                  <Option value="Parking list copy">Parking list copy</Option>
-                  <Option value="Parking list original">Parking list original</Option>
+                  <Option value="Parking list & Copy">Parking list & Copy</Option>
                   <Option value="Container No">Container No</Option>
                   <Option value="Copy BL">Copy BL</Option>
+                  <Option value="Original BL">Original BL</Option>
                 </Select>
               </Form.Item>
             </Col>
