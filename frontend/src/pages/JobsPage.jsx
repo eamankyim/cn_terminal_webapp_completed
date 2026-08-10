@@ -400,21 +400,33 @@ const JobsPage = () => {
     });
   };
 
+  const normalizeGoodsTypes = (types) => [
+    ...new Set((types || []).map((t) => String(t).trim()).filter(Boolean))
+  ];
+
+  const fetchLatestGoodsTypes = async () => {
+    const stored = await configurationService.getConfigValue(GOODS_TYPES_CONFIG_KEY, null);
+    if (Array.isArray(stored) && stored.length > 0) {
+      return normalizeGoodsTypes(stored);
+    }
+    return null;
+  };
+
   const loadGoodsTypes = async () => {
     try {
-      const stored = await configurationService.getConfigValue(GOODS_TYPES_CONFIG_KEY, null);
-      if (Array.isArray(stored) && stored.length > 0) {
-        const normalized = [...new Set(stored.map((t) => String(t).trim()).filter(Boolean))];
-        setGoodsTypes(normalized);
+      const latest = await fetchLatestGoodsTypes();
+      if (latest) {
+        setGoodsTypes(latest);
         return;
       }
 
-      // Seed defaults into configurations so future custom types persist
+      // Only seed when config is genuinely missing/empty — never after a failed fetch
       await persistGoodsTypes(DEFAULT_GOODS_TYPES);
       setGoodsTypes(DEFAULT_GOODS_TYPES);
     } catch (error) {
       console.error('Error loading goods types:', error);
-      setGoodsTypes(DEFAULT_GOODS_TYPES);
+      // Keep whatever is already in state if we have custom entries; else defaults (UI only)
+      setGoodsTypes((prev) => (prev && prev.length > 0 ? prev : DEFAULT_GOODS_TYPES));
     }
   };
 
@@ -1014,38 +1026,46 @@ const JobsPage = () => {
     const trimmedValue = customOptionValue.trim();
     
     if (customOptionField === 'goodsTypes') {
-      const existing = goodsTypes.find(
-        (type) => type.toLowerCase() === trimmedValue.toLowerCase()
-      );
-      const valueToSelect = existing || trimmedValue;
-      const currentValues = form.getFieldValue('goodsTypes') || [];
-      const filteredValues = currentValues.filter((val) => val !== 'Other');
-
-      if (existing) {
-        form.setFieldsValue({
-          goodsTypes: filteredValues.includes(existing)
-            ? filteredValues
-            : [...filteredValues, existing]
-        });
-        message.info(`"${existing}" is already in the list and has been selected.`);
-        setIsCustomOptionModalVisible(false);
-        setCustomOptionValue('');
-        return;
-      }
-
-      const updatedTypes = [...goodsTypes, trimmedValue];
+      const trimmedValue = customOptionValue.trim();
       setCustomOptionSaving(true);
       try {
-        await persistGoodsTypes(updatedTypes);
+        // Re-fetch before save to avoid overwriting types added by others / other tabs
+        const latest = (await fetchLatestGoodsTypes()) || [...goodsTypes];
+        const existing = latest.find(
+          (type) => type.toLowerCase() === trimmedValue.toLowerCase()
+        );
+        const valueToSelect = existing || trimmedValue;
+        const currentValues = form.getFieldValue('goodsTypes') || [];
+        const filteredValues = currentValues.filter((val) => val !== 'Other');
+
+        if (existing) {
+          setGoodsTypes(latest);
+          form.setFieldsValue({
+            goodsTypes: filteredValues.includes(existing)
+              ? filteredValues
+              : [...filteredValues, existing]
+          });
+          message.info(`"${existing}" is already in the list and has been selected.`);
+          setIsCustomOptionModalVisible(false);
+          setCustomOptionValue('');
+          return;
+        }
+
+        const updatedTypes = normalizeGoodsTypes([...latest, trimmedValue]);
+        // Optimistic UI so the dropdown updates immediately
         setGoodsTypes(updatedTypes);
         form.setFieldsValue({
           goodsTypes: [...filteredValues, valueToSelect]
         });
-        message.success('Goods type added successfully!');
         setIsCustomOptionModalVisible(false);
         setCustomOptionValue('');
+
+        await persistGoodsTypes(updatedTypes);
+        message.success('Goods type added successfully!');
       } catch (error) {
         message.error(error.message || 'Failed to save goods type');
+        // Reload authoritative list after a failed save
+        await loadGoodsTypes();
       } finally {
         setCustomOptionSaving(false);
       }
@@ -1827,7 +1847,7 @@ const JobsPage = () => {
                 name="eta"
                 label="ETA"
                 rules={[{ required: true, message: 'Please select ETA' }]}
-                help="Expected delivery time"
+                help="Expected arrival time (past dates allowed for jobs that arrived before creation)"
               >
                 <DatePicker 
                   showTime 

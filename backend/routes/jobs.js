@@ -864,13 +864,6 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
       }
     }
 
-    // Validate ETA is in the future if provided
-    if (eta && new Date(eta) <= new Date()) {
-      return res.status(400).json({ 
-        error: 'ETA must be in the future' 
-      });
-    }
-
     // Prepare update data
     const updateData = {
       consignmentId,
@@ -1122,13 +1115,6 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
           error: 'Release money received status is required when status is RELEASED' 
         });
       }
-    }
-
-    // Validate ETA is in the future if provided
-    if (eta && new Date(eta) <= new Date()) {
-      return res.status(400).json({ 
-        error: 'ETA must be in the future' 
-      });
     }
 
     // Check if job exists

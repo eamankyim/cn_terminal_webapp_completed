@@ -76,8 +76,12 @@ const configurationService = {
       }
       return defaultValue;
     } catch (error) {
-
-      return defaultValue;
+      // Missing key → default. Network/server errors must not look like "empty"
+      // or callers may overwrite stored config with defaults.
+      if (error?.status === 404) {
+        return defaultValue;
+      }
+      throw error;
     }
   },
 

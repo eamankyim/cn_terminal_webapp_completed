@@ -111,8 +111,12 @@ async function loadPersistedGoodsTypes(): Promise<string[]> {
         ),
       ];
     }
-  } catch {
-    // Missing config or network — fall back to defaults
+  } catch (error: any) {
+    // Only fall back on missing config; rethrow network errors so callers don't overwrite
+    if (error?.status === 404) {
+      return DEFAULT_GOODS_TYPES;
+    }
+    throw error;
   }
   return DEFAULT_GOODS_TYPES;
 }
@@ -195,8 +199,12 @@ export const JobCreateScreen: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const types = await loadPersistedGoodsTypes();
-      if (!cancelled) setGoodsTypeOptions(types);
+      try {
+        const types = await loadPersistedGoodsTypes();
+        if (!cancelled) setGoodsTypeOptions(types);
+      } catch {
+        if (!cancelled) setGoodsTypeOptions(DEFAULT_GOODS_TYPES);
+      }
     })();
     return () => {
       cancelled = true;
@@ -297,23 +305,31 @@ export const JobCreateScreen: React.FC = () => {
       return;
     }
     if (customField === 'goodsTypes') {
-      const existing = goodsTypeOptions.find(
-        (t) => t.toLowerCase() === trimmed.toLowerCase(),
-      );
-      if (existing) {
-        setGoodsTypes((prev) =>
-          prev.includes(existing) ? prev : [...prev, existing],
-        );
-        setCustomOpen(false);
-        setCustomField(null);
-        setCustomValue('');
-        Alert.alert('Already exists', `"${existing}" is already in the list.`);
-        return;
-      }
-      const updated = [...goodsTypeOptions, trimmed];
       setCustomSaving(true);
       try {
-        await persistGoodsTypes(updated);
+        let latest: string[];
+        try {
+          latest = await loadPersistedGoodsTypes();
+        } catch {
+          latest = [...goodsTypeOptions];
+        }
+        const existing = latest.find(
+          (t) => t.toLowerCase() === trimmed.toLowerCase(),
+        );
+        if (existing) {
+          setGoodsTypeOptions(latest);
+          setGoodsTypes((prev) =>
+            prev.includes(existing) ? prev : [...prev, existing],
+          );
+          setCustomOpen(false);
+          setCustomField(null);
+          setCustomValue('');
+          Alert.alert('Already exists', `"${existing}" is already in the list.`);
+          return;
+        }
+        const updated = [
+          ...new Set([...latest, trimmed].map((t) => t.trim()).filter(Boolean)),
+        ];
         setGoodsTypeOptions(updated);
         setGoodsTypes((prev) =>
           prev.includes(trimmed) ? prev : [...prev, trimmed],
@@ -321,11 +337,18 @@ export const JobCreateScreen: React.FC = () => {
         setCustomOpen(false);
         setCustomField(null);
         setCustomValue('');
+        await persistGoodsTypes(updated);
       } catch (err: any) {
         Alert.alert(
           'Error',
           err?.message ?? 'Failed to save goods type.',
         );
+        try {
+          const refreshed = await loadPersistedGoodsTypes();
+          setGoodsTypeOptions(refreshed);
+        } catch {
+          // keep current options
+        }
       } finally {
         setCustomSaving(false);
       }
@@ -724,7 +747,7 @@ export const JobCreateScreen: React.FC = () => {
             value={eta}
             onChange={setEta}
             placeholder="Select ETA date"
-            helpText="Expected delivery date"
+            helpText="Expected arrival date (past dates allowed)"
             disabled={isBusy}
           />
         </View>
