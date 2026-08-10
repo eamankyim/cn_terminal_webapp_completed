@@ -73,7 +73,38 @@ const DEFAULT_GOODS_TYPES = [
   'Sports & Recreation', 'Health & Beauty', 'Tools & Hardware'
 ];
 
+const DEFAULT_VESSEL_NAMES = [
+  'RHL Concordia', 'MAERSK TEMA', 'Seaspan Dalian', 'MAERSK KARUN',
+  'MAESK Cunene', 'Hammonia Toscan'
+];
+
+const DEFAULT_SHIPPING_LINES = ['PIL', 'SAF', 'COSCO', 'CMA', 'OOCL', 'MSK', 'ONE'];
+
+const DEFAULT_TERMINAL_NAMES = ['Golden Jubilee', 'MPS', 'TBT', 'Terminal 2'];
+
 const GOODS_TYPES_CONFIG_KEY = 'GOODS_TYPES';
+const VESSEL_NAMES_CONFIG_KEY = 'VESSEL_NAMES';
+const SHIPPING_LINES_CONFIG_KEY = 'SHIPPING_LINES';
+const TERMINAL_NAMES_CONFIG_KEY = 'TERMINAL_NAMES';
+
+const JOB_LIST_META = {
+  [GOODS_TYPES_CONFIG_KEY]: {
+    category: 'JOBS',
+    description: 'Available goods types for job forms'
+  },
+  [VESSEL_NAMES_CONFIG_KEY]: {
+    category: 'JOBS',
+    description: 'Available vessel names for job forms'
+  },
+  [SHIPPING_LINES_CONFIG_KEY]: {
+    category: 'JOBS',
+    description: 'Available shipping lines for job forms'
+  },
+  [TERMINAL_NAMES_CONFIG_KEY]: {
+    category: 'JOBS',
+    description: 'Available terminal names for RELEASED status'
+  }
+};
 
 // Status hierarchy system - jobs can only progress forward
 const STATUS_HIERARCHY = {
@@ -174,20 +205,12 @@ const JobsPage = () => {
   const [commentForm] = Form.useForm();
   const selectedCustomerId = Form.useWatch('customerId', form);
   
-  // Dynamic dropdown states
+  // Dynamic dropdown states (persisted via configurations)
   const [goodsTypes, setGoodsTypes] = useState(DEFAULT_GOODS_TYPES);
-  const [vesselNames, setVesselNames] = useState([
-    'RHL Concordia', 'MAERSK TEMA', 'Seaspan Dalian', 'MAERSK KARUN', 
-    'MAESK Cunene', 'Hammonia Toscan'
-  ]);
-  const [lineOptions, setLineOptions] = useState([
-    'PIL', 'SAF', 'COSCO', 'CMA', 'OOCL', 'MSK', 'ONE'
-  ]);
+  const [vesselNames, setVesselNames] = useState(DEFAULT_VESSEL_NAMES);
+  const [lineOptions, setLineOptions] = useState(DEFAULT_SHIPPING_LINES);
   const [terminalOptions, setTerminalOptions] = useState([
-    { value: 'Golden Jubilee', label: 'Golden Jubilee' },
-    { value: 'MPS', label: 'MPS' },
-    { value: 'TBT', label: 'TBT' },
-    { value: 'Terminal 2', label: 'Terminal 2' },
+    ...DEFAULT_TERMINAL_NAMES.map((t) => ({ value: t, label: t })),
     { value: 'Custom', label: 'Custom (Other)' }
   ]);
   const [showCustomTerminalInput, setShowCustomTerminalInput] = useState(false);
@@ -204,8 +227,7 @@ const JobsPage = () => {
   useEffect(() => {
     loadJobs();
     loadStaffMembers();
-    loadTerminalOptions();
-    loadGoodsTypes();
+    loadPersistedDropdownOptions();
   }, []);
 
   // Handle jobId parameter from URL
@@ -348,84 +370,130 @@ const JobsPage = () => {
     }
   };
 
+  const buildTerminalSelectOptions = (names) => [
+    ...configurationService.normalizeStringList(names).map((t) => ({
+      value: t,
+      label: t
+    })),
+    { value: 'Custom', label: 'Custom (Other)' }
+  ];
+
+  const loadPersistedDropdownOptions = async () => {
+    try {
+      const [goods, vessels, lines, terminals] = await Promise.all([
+        configurationService.loadStringList(
+          GOODS_TYPES_CONFIG_KEY,
+          DEFAULT_GOODS_TYPES,
+          JOB_LIST_META[GOODS_TYPES_CONFIG_KEY]
+        ),
+        configurationService.loadStringList(
+          VESSEL_NAMES_CONFIG_KEY,
+          DEFAULT_VESSEL_NAMES,
+          JOB_LIST_META[VESSEL_NAMES_CONFIG_KEY]
+        ),
+        configurationService.loadStringList(
+          SHIPPING_LINES_CONFIG_KEY,
+          DEFAULT_SHIPPING_LINES,
+          JOB_LIST_META[SHIPPING_LINES_CONFIG_KEY]
+        ),
+        configurationService.loadStringList(
+          TERMINAL_NAMES_CONFIG_KEY,
+          DEFAULT_TERMINAL_NAMES,
+          JOB_LIST_META[TERMINAL_NAMES_CONFIG_KEY]
+        )
+      ]);
+
+      setGoodsTypes(goods);
+      setVesselNames(vessels);
+      setLineOptions(lines);
+
+      // Migrate any legacy localStorage terminals into the shared config once
+      let mergedTerminals = terminals;
+      try {
+        const saved = JSON.parse(localStorage.getItem('terminalOptions') || '[]');
+        const fromLs = saved
+          .map((t) => (typeof t === 'string' ? t : t?.value))
+          .filter(Boolean);
+        if (fromLs.length > 0) {
+          const combined = configurationService.normalizeStringList([
+            ...terminals,
+            ...fromLs
+          ]);
+          if (combined.length > terminals.length) {
+            await configurationService.saveStringList(
+              TERMINAL_NAMES_CONFIG_KEY,
+              combined,
+              JOB_LIST_META[TERMINAL_NAMES_CONFIG_KEY]
+            );
+            mergedTerminals = combined;
+          }
+          localStorage.removeItem('terminalOptions');
+        }
+      } catch (_) {
+        // ignore migration errors
+      }
+
+      // Harvest custom terminals already saved on RELEASED jobs
+      try {
+        const response = await jobService.getJobs({ limit: 1000 });
+        const allJobs = response.jobs || [];
+        const fromJobs = allJobs
+          .filter((job) => job.status === 'RELEASED' && job.terminalName)
+          .map((job) => job.terminalName);
+        const withJobs = configurationService.normalizeStringList([
+          ...mergedTerminals,
+          ...fromJobs
+        ]);
+        if (withJobs.length > mergedTerminals.length) {
+          await configurationService.saveStringList(
+            TERMINAL_NAMES_CONFIG_KEY,
+            withJobs,
+            JOB_LIST_META[TERMINAL_NAMES_CONFIG_KEY]
+          );
+          mergedTerminals = withJobs;
+        }
+      } catch (_) {
+        // non-critical
+      }
+
+      setTerminalOptions(buildTerminalSelectOptions(mergedTerminals));
+    } catch (error) {
+      console.error('Error loading dropdown options:', error);
+      setGoodsTypes((prev) => (prev?.length ? prev : DEFAULT_GOODS_TYPES));
+      setVesselNames((prev) => (prev?.length ? prev : DEFAULT_VESSEL_NAMES));
+      setLineOptions((prev) => (prev?.length ? prev : DEFAULT_SHIPPING_LINES));
+      setTerminalOptions((prev) =>
+        prev?.length
+          ? prev
+          : buildTerminalSelectOptions(DEFAULT_TERMINAL_NAMES)
+      );
+    }
+  };
+
+  /** Keep terminal options in sync after jobs reload (no localStorage). */
   const loadTerminalOptions = async () => {
     try {
-      // Base terminal options (always available)
-      const baseTerminals = [
-        { value: 'Golden Jubilee', label: 'Golden Jubilee' },
-        { value: 'MPS', label: 'MPS' },
-        { value: 'TBT', label: 'TBT' },
-        { value: 'Terminal 2', label: 'Terminal 2' },
-        { value: 'Custom', label: 'Custom (Other)' }
-      ];
-
-      // Load terminals from database (existing jobs) for custom terminals
-      const response = await jobService.getJobs({ limit: 1000 });
-      const allJobs = response.jobs || [];
-      
-      // Extract unique custom terminal names (exclude predefined ones)
-      const predefinedTerminals = ['Golden Jubilee', 'MPS', 'TBT', 'Terminal 2'];
-      const dbTerminals = [...new Set(
-        allJobs
-          .filter(job => job.status === 'RELEASED' && job.terminalName && !predefinedTerminals.includes(job.terminalName))
-          .map(job => job.terminalName)
-      )];
-      
-      // Load terminals from localStorage (user-typed terminals)
-      const savedTerminals = JSON.parse(localStorage.getItem('terminalOptions') || '[]');
-      
-      // Combine custom terminals and deduplicate
-      const customTerminals = [...new Set([...dbTerminals, ...savedTerminals.map(t => typeof t === 'string' ? t : t.value)])]
-        .filter(t => t && !predefinedTerminals.includes(t))
-        .map(terminal => ({
-          value: terminal,
-          label: terminal
-        }));
-
-      // Set options: base terminals + custom terminals (if any)
-      setTerminalOptions([...baseTerminals, ...customTerminals]);
+      const terminals = await configurationService.loadStringList(
+        TERMINAL_NAMES_CONFIG_KEY,
+        DEFAULT_TERMINAL_NAMES,
+        JOB_LIST_META[TERMINAL_NAMES_CONFIG_KEY]
+      );
+      setTerminalOptions(buildTerminalSelectOptions(terminals));
     } catch (error) {
-      // Don't set error state as this is not critical
       console.error('Error loading terminal options:', error);
     }
   };
 
-  const persistGoodsTypes = async (types) => {
-    await configurationService.saveConfiguration({
-      key: GOODS_TYPES_CONFIG_KEY,
-      value: JSON.stringify(types),
-      type: 'JSON',
-      category: 'JOBS',
-      description: 'Available goods types for job forms'
-    });
-  };
-
-  const normalizeGoodsTypes = (types) => [
-    ...new Set((types || []).map((t) => String(t).trim()).filter(Boolean))
-  ];
-
-  const fetchLatestGoodsTypes = async () => {
-    const stored = await configurationService.getConfigValue(GOODS_TYPES_CONFIG_KEY, null);
-    if (Array.isArray(stored) && stored.length > 0) {
-      return normalizeGoodsTypes(stored);
-    }
-    return null;
-  };
-
   const loadGoodsTypes = async () => {
     try {
-      const latest = await fetchLatestGoodsTypes();
-      if (latest) {
-        setGoodsTypes(latest);
-        return;
-      }
-
-      // Only seed when config is genuinely missing/empty — never after a failed fetch
-      await persistGoodsTypes(DEFAULT_GOODS_TYPES);
-      setGoodsTypes(DEFAULT_GOODS_TYPES);
+      const latest = await configurationService.loadStringList(
+        GOODS_TYPES_CONFIG_KEY,
+        DEFAULT_GOODS_TYPES,
+        JOB_LIST_META[GOODS_TYPES_CONFIG_KEY]
+      );
+      setGoodsTypes(latest);
     } catch (error) {
       console.error('Error loading goods types:', error);
-      // Keep whatever is already in state if we have custom entries; else defaults (UI only)
       setGoodsTypes((prev) => (prev && prev.length > 0 ? prev : DEFAULT_GOODS_TYPES));
     }
   };
@@ -1024,67 +1092,73 @@ const JobsPage = () => {
     }
 
     const trimmedValue = customOptionValue.trim();
-    
-    if (customOptionField === 'goodsTypes') {
-      const trimmedValue = customOptionValue.trim();
-      setCustomOptionSaving(true);
-      try {
-        // Re-fetch before save to avoid overwriting types added by others / other tabs
-        const latest = (await fetchLatestGoodsTypes()) || [...goodsTypes];
-        const existing = latest.find(
-          (type) => type.toLowerCase() === trimmedValue.toLowerCase()
+    setCustomOptionSaving(true);
+
+    try {
+      if (customOptionField === 'goodsTypes') {
+        const { list, value, created } = await configurationService.addToStringList(
+          GOODS_TYPES_CONFIG_KEY,
+          trimmedValue,
+          DEFAULT_GOODS_TYPES,
+          JOB_LIST_META[GOODS_TYPES_CONFIG_KEY]
         );
-        const valueToSelect = existing || trimmedValue;
+        setGoodsTypes(list);
         const currentValues = form.getFieldValue('goodsTypes') || [];
         const filteredValues = currentValues.filter((val) => val !== 'Other');
-
-        if (existing) {
-          setGoodsTypes(latest);
-          form.setFieldsValue({
-            goodsTypes: filteredValues.includes(existing)
-              ? filteredValues
-              : [...filteredValues, existing]
-          });
-          message.info(`"${existing}" is already in the list and has been selected.`);
-          setIsCustomOptionModalVisible(false);
-          setCustomOptionValue('');
-          return;
-        }
-
-        const updatedTypes = normalizeGoodsTypes([...latest, trimmedValue]);
-        // Optimistic UI so the dropdown updates immediately
-        setGoodsTypes(updatedTypes);
         form.setFieldsValue({
-          goodsTypes: [...filteredValues, valueToSelect]
+          goodsTypes: filteredValues.includes(value)
+            ? filteredValues
+            : [...filteredValues, value]
         });
-        setIsCustomOptionModalVisible(false);
-        setCustomOptionValue('');
-
-        await persistGoodsTypes(updatedTypes);
-        message.success('Goods type added successfully!');
-      } catch (error) {
-        message.error(error.message || 'Failed to save goods type');
-        // Reload authoritative list after a failed save
-        await loadGoodsTypes();
-      } finally {
-        setCustomOptionSaving(false);
+        message[created ? 'success' : 'info'](
+          created
+            ? 'Goods type added successfully!'
+            : `"${value}" is already in the list and has been selected.`
+        );
+      } else if (customOptionField === 'vesselName') {
+        const { list, value, created } = await configurationService.addToStringList(
+          VESSEL_NAMES_CONFIG_KEY,
+          trimmedValue,
+          DEFAULT_VESSEL_NAMES,
+          JOB_LIST_META[VESSEL_NAMES_CONFIG_KEY]
+        );
+        setVesselNames(list);
+        form.setFieldsValue({ vesselName: value });
+        message[created ? 'success' : 'info'](
+          created
+            ? 'Vessel name added successfully!'
+            : `"${value}" is already in the list and has been selected.`
+        );
+      } else if (customOptionField === 'line') {
+        const { list, value, created } = await configurationService.addToStringList(
+          SHIPPING_LINES_CONFIG_KEY,
+          trimmedValue,
+          DEFAULT_SHIPPING_LINES,
+          JOB_LIST_META[SHIPPING_LINES_CONFIG_KEY]
+        );
+        setLineOptions(list);
+        form.setFieldsValue({ line: value });
+        message[created ? 'success' : 'info'](
+          created
+            ? 'Line added successfully!'
+            : `"${value}" is already in the list and has been selected.`
+        );
+      } else {
+        message.success(`${customOptionType} added successfully!`);
       }
-      return;
-    } else if (customOptionField === 'vesselName') {
-      setVesselNames(prev => [...prev, trimmedValue]);
-      form.setFieldsValue({
-        vesselName: trimmedValue
-      });
-    } else if (customOptionField === 'line') {
-      setLineOptions(prev => [...prev, trimmedValue]);
-      form.setFieldsValue({
-        line: trimmedValue
-      });
-    }
 
-    message.success(`${customOptionType} added successfully!`);
-    setIsCustomOptionModalVisible(false);
-    setCustomOptionValue('');
+      setIsCustomOptionModalVisible(false);
+      setCustomOptionValue('');
+    } catch (error) {
+      message.error(error.message || `Failed to save ${customOptionType.toLowerCase()}`);
+      if (customOptionField === 'goodsTypes') {
+        await loadGoodsTypes();
+      } else {
+        await loadPersistedDropdownOptions();
+      }
+    } finally {
+      setCustomOptionSaving(false);
+    }
   };
 
   const handleCustomOptionCancel = () => {
@@ -1132,6 +1206,21 @@ const JobsPage = () => {
       }
 
       const response = await jobService.updateJobStatus(jobId, updateData.status, updateData.comment, undefined, updateData.assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, demurrageType, boeNumber);
+
+      // Persist custom terminal names so other users don't retype them
+      if (updateData.status === 'RELEASED' && terminalName?.trim()) {
+        try {
+          const { list } = await configurationService.addToStringList(
+            TERMINAL_NAMES_CONFIG_KEY,
+            terminalName.trim(),
+            DEFAULT_TERMINAL_NAMES,
+            JOB_LIST_META[TERMINAL_NAMES_CONFIG_KEY]
+          );
+          setTerminalOptions(buildTerminalSelectOptions(list));
+        } catch (_) {
+          // non-blocking
+        }
+      }
       
       let documentsUploaded = false;
       
@@ -2162,19 +2251,24 @@ const JobsPage = () => {
                             const value = e.target.value;
                             setCustomTerminalValue(value);
                             form.setFieldsValue({ terminalName: value });
-                            
-                            // Save custom terminal to localStorage
-                            if (value) {
-                              const savedTerminals = JSON.parse(localStorage.getItem('terminalOptions') || '[]');
-                              if (!savedTerminals.includes(value)) {
-                                savedTerminals.push(value);
-                                localStorage.setItem('terminalOptions', JSON.stringify(savedTerminals));
-                              }
-                              
-                              // Add to options if not already there
-                              if (!terminalOptions.some(opt => opt.value === value)) {
-                                setTerminalOptions(prev => [...prev, { value, label: value }]);
-                              }
+                          }}
+                          onBlur={async () => {
+                            const value = customTerminalValue.trim();
+                            if (!value) return;
+                            try {
+                              const { list, value: saved } =
+                                await configurationService.addToStringList(
+                                  TERMINAL_NAMES_CONFIG_KEY,
+                                  value,
+                                  DEFAULT_TERMINAL_NAMES,
+                                  JOB_LIST_META[TERMINAL_NAMES_CONFIG_KEY]
+                                );
+                              setTerminalOptions(buildTerminalSelectOptions(list));
+                              form.setFieldsValue({ terminalName: saved });
+                              setCustomTerminalValue(saved);
+                              setShowCustomTerminalInput(false);
+                            } catch (err) {
+                              console.error('Failed to persist terminal name:', err);
                             }
                           }}
                         />
@@ -3114,9 +3208,7 @@ const JobsPage = () => {
              }}>
                <Text type="secondary" style={{ fontSize: '14px' }}>
                  <InfoCircleOutlined style={{ marginRight: '6px' }} />
-                 {customOptionField === 'goodsTypes'
-                   ? 'This goods type will be saved for everyone and available in future job forms.'
-                   : `This ${customOptionType.toLowerCase()} will be saved and available for future selections.`}
+                 {`This ${customOptionType.toLowerCase()} will be saved for everyone and available in future forms.`}
                </Text>
              </div>
            </Form>

@@ -279,7 +279,7 @@ router.post('/init', authenticateToken, async (req, res) => {
       { key: 'INVOICE_PREFIX', value: 'INV', type: 'STRING', category: 'INVOICE', description: 'Invoice number prefix' },
       { key: 'INVOICE_DUE_DAYS', value: '30', type: 'NUMBER', category: 'INVOICE', description: 'Default invoice due days' },
 
-      // Job form dropdown options
+      // Job form dropdown options (persisted so custom "Other" values survive across users/sessions)
       {
         key: 'GOODS_TYPES',
         value: JSON.stringify([
@@ -290,6 +290,30 @@ router.post('/init', authenticateToken, async (req, res) => {
         type: 'JSON',
         category: 'JOBS',
         description: 'Available goods types for job forms'
+      },
+      {
+        key: 'VESSEL_NAMES',
+        value: JSON.stringify([
+          'RHL Concordia', 'MAERSK TEMA', 'Seaspan Dalian', 'MAERSK KARUN',
+          'MAESK Cunene', 'Hammonia Toscan'
+        ]),
+        type: 'JSON',
+        category: 'JOBS',
+        description: 'Available vessel names for job forms'
+      },
+      {
+        key: 'SHIPPING_LINES',
+        value: JSON.stringify(['PIL', 'SAF', 'COSCO', 'CMA', 'OOCL', 'MSK', 'ONE']),
+        type: 'JSON',
+        category: 'JOBS',
+        description: 'Available shipping lines for job forms'
+      },
+      {
+        key: 'TERMINAL_NAMES',
+        value: JSON.stringify(['Golden Jubilee', 'MPS', 'TBT', 'Terminal 2']),
+        type: 'JSON',
+        category: 'JOBS',
+        description: 'Available terminal names for RELEASED status'
       }
     ];
 

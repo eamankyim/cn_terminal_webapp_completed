@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Card, 
   Row, 
@@ -39,10 +39,23 @@ import { useCustomers } from '../contexts/CustomerContext';
 import apiService from '../services/api';
 import { getEnquiryStatusColor } from '../utils/statusUtils';
 import ResponsiveTable from '../components/common/ResponsiveTable';
+import configurationService from '../services/configurationService';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
+
+const DEFAULT_GOODS_TYPES = [
+  'Electronics', 'Textiles', 'Machinery', 'Pharmaceuticals', 'Food & Beverages',
+  'Automotive', 'Furniture', 'Clothing & Accessories', 'Books & Media',
+  'Sports & Recreation', 'Health & Beauty', 'Tools & Hardware'
+];
+
+const GOODS_TYPES_CONFIG_KEY = 'GOODS_TYPES';
+const GOODS_META = {
+  category: 'JOBS',
+  description: 'Available goods types for job forms'
+};
 
 const EnquiriesPage = () => {
   const navigate = useNavigate();
@@ -50,9 +63,32 @@ const EnquiriesPage = () => {
   const [editingEnquiry, setEditingEnquiry] = useState(null);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [goodsTypes, setGoodsTypes] = useState(DEFAULT_GOODS_TYPES);
+  const [customGoodsModalVisible, setCustomGoodsModalVisible] = useState(false);
+  const [customGoodsValue, setCustomGoodsValue] = useState('');
+  const [customGoodsSaving, setCustomGoodsSaving] = useState(false);
 
   const { customers } = useCustomers();
   const [enquiries, setEnquiries] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await configurationService.loadStringList(
+          GOODS_TYPES_CONFIG_KEY,
+          DEFAULT_GOODS_TYPES,
+          GOODS_META
+        );
+        if (!cancelled) setGoodsTypes(list);
+      } catch {
+        if (!cancelled) setGoodsTypes(DEFAULT_GOODS_TYPES);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Using centralized status color utilities
 
@@ -256,6 +292,46 @@ const EnquiriesPage = () => {
     });
   };
 
+  const handleGoodsTypeChange = (value) => {
+    if (value === '__other__') {
+      setCustomGoodsValue('');
+      setCustomGoodsModalVisible(true);
+      form.setFieldsValue({ goodsType: undefined });
+      return;
+    }
+    form.setFieldsValue({ goodsType: value });
+  };
+
+  const handleCustomGoodsSubmit = async () => {
+    const trimmed = customGoodsValue.trim();
+    if (!trimmed) {
+      message.error('Please enter a goods type');
+      return;
+    }
+    setCustomGoodsSaving(true);
+    try {
+      const { list, value, created } = await configurationService.addToStringList(
+        GOODS_TYPES_CONFIG_KEY,
+        trimmed,
+        DEFAULT_GOODS_TYPES,
+        GOODS_META
+      );
+      setGoodsTypes(list);
+      form.setFieldsValue({ goodsType: value });
+      setCustomGoodsModalVisible(false);
+      setCustomGoodsValue('');
+      message[created ? 'success' : 'info'](
+        created
+          ? 'Goods type added successfully!'
+          : `"${value}" is already in the list and has been selected.`
+      );
+    } catch (error) {
+      message.error(error.message || 'Failed to save goods type');
+    } finally {
+      setCustomGoodsSaving(false);
+    }
+  };
+
   const handleFileChange = (fileList) => {
     form.setFieldsValue({ documents: fileList });
   };
@@ -392,14 +468,18 @@ const EnquiriesPage = () => {
                 label="Type of Goods"
                 rules={[{ required: true, message: 'Please select goods type' }]}
               >
-                <Select placeholder="Select goods type">
-                  <Option value="Electronics">Electronics</Option>
-                  <Option value="Textiles">Textiles</Option>
-                  <Option value="Machinery">Machinery</Option>
-                  <Option value="Pharmaceuticals">Pharmaceuticals</Option>
-                  <Option value="Food & Beverages">Food & Beverages</Option>
-                  <Option value="Automotive">Automotive</Option>
-                  <Option value="Other">Other</Option>
+                <Select
+                  placeholder="Select goods type"
+                  showSearch
+                  onChange={handleGoodsTypeChange}
+                  filterOption={(input, option) =>
+                    (option?.children ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                >
+                  {goodsTypes.map((type) => (
+                    <Option key={type} value={type}>{type}</Option>
+                  ))}
+                  <Option value="__other__">Other (Add Custom)</Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -463,6 +543,33 @@ const EnquiriesPage = () => {
               </Button>
             </Space>
           </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Add Custom Goods Type"
+        open={customGoodsModalVisible}
+        onOk={handleCustomGoodsSubmit}
+        confirmLoading={customGoodsSaving}
+        onCancel={() => {
+          setCustomGoodsModalVisible(false);
+          setCustomGoodsValue('');
+        }}
+        okText="Add"
+      >
+        <Form layout="vertical">
+          <Form.Item label="Enter custom goods type:" required>
+            <Input
+              placeholder="Enter goods type..."
+              value={customGoodsValue}
+              onChange={(e) => setCustomGoodsValue(e.target.value)}
+              onPressEnter={handleCustomGoodsSubmit}
+              autoFocus
+            />
+          </Form.Item>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            This goods type will be saved for everyone and available in jobs and enquiries.
+          </Text>
         </Form>
       </Modal>
     </div>
