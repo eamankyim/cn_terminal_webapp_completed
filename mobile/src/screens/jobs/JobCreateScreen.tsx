@@ -81,10 +81,10 @@ const DEFAULT_LINES = ['PIL', 'SAF', 'COSCO', 'CMA', 'OOCL', 'MSK', 'ONE'];
 const MEDIUM_OF_ENQUIRY = ['Email', 'Dispatch', 'VVIP', 'WhatsApp'];
 
 const DOCUMENTS_BROUGHT = [
-  'Parking list copy',
-  'Parking list original',
+  'Parking list & Copy',
   'Container No',
   'Copy BL',
+  'Original BL',
 ];
 
 type CustomField = 'goodsTypes' | 'vesselName' | 'line';
