@@ -238,8 +238,10 @@ export const JobCreateScreen: React.FC = () => {
       },
       ...consignments.map((c) => ({
         value: c.id as string | null,
-        label: `${c.trackingId} - ${c.consigneeName ?? 'Unnamed'}`,
-        subtitle: c.status,
+        label: c.trackingId
+          ? `${c.trackingId} - ${c.consigneeName ?? 'Unnamed'}`
+          : (c.consigneeName ?? 'Unnamed'),
+        subtitle: c.trackingId ? c.status : 'ID pending job',
       })),
     ],
     [consignments],
@@ -491,22 +493,29 @@ export const JobCreateScreen: React.FC = () => {
   };
 
   const buildPayload = (isDraft: boolean) => {
-    if (!customerId || !assignedToId) {
-      Alert.alert('Validation', 'Please select client and assignee.');
+    if (!customerId) {
+      Alert.alert('Validation', 'Please select a client.');
       return null;
     }
-    if (goodsTypes.length === 0) {
-      Alert.alert('Validation', 'Please select at least one goods type.');
-      return null;
-    }
-    if (!isDraft && !eta) {
-      Alert.alert('Validation', 'Please select an ETA date.');
-      return null;
+
+    if (!isDraft) {
+      if (!assignedToId) {
+        Alert.alert('Validation', 'Please select an assignee.');
+        return null;
+      }
+      if (goodsTypes.length === 0) {
+        Alert.alert('Validation', 'Please select at least one goods type.');
+        return null;
+      }
+      if (!eta) {
+        Alert.alert('Validation', 'Please select an ETA date.');
+        return null;
+      }
     }
 
     return {
       customerId,
-      assignedToId,
+      assignedToId: assignedToId || undefined,
       consignmentId: consignmentId || null,
       status: 'NEW',
       isDraft,

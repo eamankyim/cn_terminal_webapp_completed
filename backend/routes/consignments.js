@@ -110,19 +110,9 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Customer ID, Consignee Name, Phone, and Address are required' });
     }
 
-    // Generate unique tracking ID
-    const generateTrackingId = () => {
-      const prefix = 'CN';
-      const timestamp = Date.now().toString(36);
-      const random = Math.random().toString(36).substr(2, 5);
-      return `${prefix}${timestamp}${random}`.toUpperCase();
-    };
-
-    const trackingId = generateTrackingId();
-
+    // trackingId is assigned later when a job is created for this consignee
     const consignment = await prisma.consignment.create({
       data: {
-        trackingId,
         customerId,
         consigneeName,
         consigneePhone,

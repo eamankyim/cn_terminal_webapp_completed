@@ -459,42 +459,51 @@ router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
   }
 });
 
-// Generate system job ID with format: YYYYMMDDNNNN
+// Shared readable ID format: YYYY-MM-DD-NNNN (e.g. 2026-08-10-0001)
+const getReadableDatePrefix = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}-`;
+};
+
+const nextDailySequence = (lastTrackingId) => {
+  if (!lastTrackingId) return 1;
+  const lastNumber = parseInt(String(lastTrackingId).slice(-4), 10) || 0;
+  return lastNumber + 1;
+};
+
+// Generate system job ID with format: YYYY-MM-DD-NNNN
 const generateJobId = async () => {
   try {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const datePrefix = `${year}${month}${day}`;
+    const datePrefix = getReadableDatePrefix();
 
     console.log('🔷 [Jobs] Generating job ID for date:', datePrefix);
 
-    // Find the highest job number for today
-    const lastJob = await prisma.job.findFirst({
-      where: {
-        trackingId: {
-          startsWith: datePrefix
-        }
-      },
-      orderBy: {
-        trackingId: 'desc'
-      }
-    });
+    // Prefer new readable format; also consider legacy YYYYMMDDNNNN for same calendar day
+    const legacyPrefix = datePrefix.replace(/-/g, '');
+    const [lastReadableJob, lastLegacyJob] = await Promise.all([
+      prisma.job.findFirst({
+        where: { trackingId: { startsWith: datePrefix } },
+        orderBy: { trackingId: 'desc' }
+      }),
+      prisma.job.findFirst({
+        where: {
+          AND: [
+            { trackingId: { startsWith: legacyPrefix } },
+            { NOT: { trackingId: { contains: '-' } } }
+          ]
+        },
+        orderBy: { trackingId: 'desc' }
+      })
+    ]);
 
-    let nextNumber = 1;
-    if (lastJob) {
-      console.log('  - Last job today:', lastJob.trackingId);
-      // Extract the last 4 digits (the sequential number)
-      const lastNumber = parseInt(lastJob.trackingId.slice(-4)) || 0;
-      nextNumber = lastNumber + 1;
-      console.log('  - Next number:', nextNumber);
-    } else {
-      console.log('  - First job of the day');
-    }
+    const nextFromReadable = nextDailySequence(lastReadableJob?.trackingId);
+    const nextFromLegacy = nextDailySequence(lastLegacyJob?.trackingId);
+    const nextNumber = Math.max(nextFromReadable, nextFromLegacy);
 
-    // Format: YYYYMMDDNNNN (e.g., 202510210001)
-    const generatedId = `${datePrefix}${nextNumber.toString().padStart(4, '0')}`;
+    const generatedId = `${datePrefix}${String(nextNumber).padStart(4, '0')}`;
     console.log('✅ Generated job ID:', generatedId);
 
     return generatedId;
@@ -502,6 +511,45 @@ const generateJobId = async () => {
     console.error('❌ [Jobs] Error generating job ID:', error);
     throw error;
   }
+};
+
+// Consignee/consignment ID uses the SAME readable format as jobs (own daily sequence)
+const generateConsignmentTrackingId = async () => {
+  const datePrefix = getReadableDatePrefix();
+
+  const lastConsignment = await prisma.consignment.findFirst({
+    where: {
+      trackingId: {
+        startsWith: datePrefix
+      }
+    },
+    orderBy: {
+      trackingId: 'desc'
+    }
+  });
+
+  const nextNumber = nextDailySequence(lastConsignment?.trackingId);
+  return `${datePrefix}${String(nextNumber).padStart(4, '0')}`;
+};
+
+const ensureConsignmentTrackingId = async (consignmentId) => {
+  if (!consignmentId) return null;
+
+  const consignment = await prisma.consignment.findUnique({
+    where: { id: consignmentId }
+  });
+
+  if (!consignment) return null;
+
+  if (consignment.trackingId) {
+    return consignment;
+  }
+
+  const trackingId = await generateConsignmentTrackingId();
+  return prisma.consignment.update({
+    where: { id: consignmentId },
+    data: { trackingId }
+  });
 };
 
 // Create new job
@@ -525,20 +573,27 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
       jobDescription
     } = req.body;
 
-    // Validate required fields
-    if (!customerId || !assignedToId) {
+    if (isDraft) {
+      // Drafts only need a client so the row can be owned/listed.
+      if (!customerId) {
+        return res.status(400).json({
+          error: 'Select a client to save a draft'
+        });
+      }
+    } else {
+      // Validate required fields for submitted jobs
+      if (!customerId || !assignedToId) {
+        return res.status(400).json({
+          error: 'Customer and assigned to are required'
+        });
+      }
 
-      return res.status(400).json({ 
-        error: 'Customer and assigned to are required' 
-      });
-    }
-
-    // Validate goods types
-    if (!goodsTypes || goodsTypes.length === 0) {
-
-      return res.status(400).json({ 
-        error: 'At least one goods type is required' 
-      });
+      // Validate goods types
+      if (!goodsTypes || goodsTypes.length === 0) {
+        return res.status(400).json({
+          error: 'At least one goods type is required'
+        });
+      }
     }
 
     // Check if customer exists
@@ -570,15 +625,16 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
 
     }
 
-    // Validate that at least one of Ghana Card or TIN is provided
-    // Check customer first, then consignment if available
-    const hasGhanaCard = customer.ghanaCard || (consignment && consignment.ghanaCard);
-    const hasTin = customer.tin || (consignment && consignment.tin);
-    
-    if (!hasGhanaCard && !hasTin) {
-      return res.status(400).json({ 
-        error: 'At least one of Ghana Card or TIN must be provided for the customer/consignee' 
-      });
+    // Ghana Card / TIN required only when submitting (not for drafts)
+    if (!isDraft) {
+      const hasGhanaCard = customer.ghanaCard || (consignment && consignment.ghanaCard);
+      const hasTin = customer.tin || (consignment && consignment.tin);
+
+      if (!hasGhanaCard && !hasTin) {
+        return res.status(400).json({
+          error: 'At least one of Ghana Card or TIN must be provided for the customer/consignee'
+        });
+      }
     }
 
     // Validate BL number is unique (if provided)
@@ -596,6 +652,11 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
       }
     }
 
+    // Assign readable consignee ID only when creating a job for that consignee
+    if (consignmentId) {
+      consignment = await ensureConsignmentTrackingId(consignmentId);
+    }
+
     // Generate system job ID
 
     const trackingId = await generateJobId();
@@ -604,20 +665,20 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
 
     const jobData = {
       customerId,
-      consignmentId,
+      consignmentId: consignmentId || null,
       trackingId,
-      assignedToId,
+      assignedToId: assignedToId || req.user.id,
       status: status || 'NEW',
       isDraft,
-      goodsTypes,
+      goodsTypes: Array.isArray(goodsTypes) ? goodsTypes : [],
       eta: eta ? new Date(eta) : null,
-      mediumOfEnquiry,
-      documentsBrought,
-      containerNumber,
+      mediumOfEnquiry: mediumOfEnquiry || null,
+      documentsBrought: Array.isArray(documentsBrought) ? documentsBrought : [],
+      containerNumber: containerNumber || null,
       blNumber: blNumber && blNumber.trim() !== '' ? blNumber.trim() : null, // Trim and store BL number
-      vesselName,
-      line,
-      jobDescription,
+      vesselName: vesselName || null,
+      line: line || null,
+      jobDescription: jobDescription || null,
       createdById: req.user.id,
       submittedDate: isDraft ? null : new Date() // Only set submittedDate if not a draft
     };
@@ -741,6 +802,9 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
     }
 
     // Check if consignment exists and belongs to job's customer (if provided)
+    const nextConsignmentId =
+      consignmentId !== undefined ? consignmentId : existingJob.consignmentId;
+
     if (consignmentId && consignmentId !== existingJob.consignmentId) {
       const consignment = await prisma.consignment.findFirst({
         where: {
@@ -752,6 +816,40 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
       if (!consignment) {
         return res.status(400).json({ error: 'Consignment not found or does not belong to this job\'s customer' });
       }
+    }
+
+    // When submitting a draft, enforce the same required fields as create
+    const submittingDraft = isDraft === false && existingJob.isDraft;
+    if (submittingDraft) {
+      const effectiveAssignedToId = assignedToId || existingJob.assignedToId;
+      const effectiveGoodsTypes =
+        goodsTypes && goodsTypes.length > 0 ? goodsTypes : existingJob.goodsTypes;
+
+      if (!effectiveAssignedToId) {
+        return res.status(400).json({ error: 'Assigned to is required to submit a job' });
+      }
+      if (!effectiveGoodsTypes || effectiveGoodsTypes.length === 0) {
+        return res.status(400).json({ error: 'At least one goods type is required to submit a job' });
+      }
+
+      const customer = await prisma.customer.findUnique({
+        where: { id: existingJob.customerId }
+      });
+      const consignment = nextConsignmentId
+        ? await prisma.consignment.findUnique({ where: { id: nextConsignmentId } })
+        : null;
+      const hasGhanaCard = customer?.ghanaCard || consignment?.ghanaCard;
+      const hasTin = customer?.tin || consignment?.tin;
+      if (!hasGhanaCard && !hasTin) {
+        return res.status(400).json({
+          error: 'At least one of Ghana Card or TIN must be provided for the customer/consignee'
+        });
+      }
+    }
+
+    // Assign readable consignee ID when a job is linked to a consignee
+    if (nextConsignmentId) {
+      await ensureConsignmentTrackingId(nextConsignmentId);
     }
 
     // Validate demurrage/free days and release money are required for RELEASED status
