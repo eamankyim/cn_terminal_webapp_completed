@@ -73,9 +73,11 @@ jobs:
           
           # Build and start containers
           echo "🚀 Building and starting containers..."
-          docker-compose -f docker-compose.prod.yml down || true
+          docker-compose -f docker-compose.prod.yml down --remove-orphans || true
+          # Force-remove lingering containers that block recreate after a failed down
+          docker rm -f cn_terminal_backend cn_terminal_frontend cn_terminal_postgres cn_terminal-nginx 2>/dev/null || true
           docker-compose -f docker-compose.prod.yml build --no-cache
-          docker-compose -f docker-compose.prod.yml up -d
+          docker-compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
           
           # Wait for containers to be fully up
           echo "⏳ Waiting for containers to be ready..."
