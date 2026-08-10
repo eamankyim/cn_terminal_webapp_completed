@@ -44,8 +44,14 @@ export const CustomerProvider = ({ children }) => {
   // Add new customer
   const addCustomer = async (customerData) => {
     try {
-
-      const response = await apiService.createCustomer(customerData);
+      const payload = {
+        ...customerData,
+        email:
+          typeof customerData.email === 'string' && customerData.email.trim()
+            ? customerData.email.trim()
+            : null,
+      };
+      const response = await apiService.createCustomer(payload);
 
       const newCustomer = response.customer;
 
@@ -61,7 +67,18 @@ export const CustomerProvider = ({ children }) => {
   // Update existing customer
   const updateCustomer = async (id, customerData) => {
     try {
-      const response = await apiService.updateCustomer(id, customerData);
+      const payload = {
+        ...customerData,
+        ...(customerData.email !== undefined
+          ? {
+              email:
+                typeof customerData.email === 'string' && customerData.email.trim()
+                  ? customerData.email.trim()
+                  : null,
+            }
+          : {}),
+      };
+      const response = await apiService.updateCustomer(id, payload);
       const updatedCustomer = response.customer;
       setCustomers(prev => 
         prev.map(customer => 
@@ -95,9 +112,9 @@ export const CustomerProvider = ({ children }) => {
   const searchCustomers = (searchTerm) => {
     const term = searchTerm.toLowerCase();
     return customers.filter(customer =>
-      customer.name.toLowerCase().includes(term) ||
-      customer.email.toLowerCase().includes(term) ||
-      customer.phone.includes(term)
+      customer.name?.toLowerCase().includes(term) ||
+      customer.email?.toLowerCase().includes(term) ||
+      customer.phone?.includes(term)
     );
   };
 

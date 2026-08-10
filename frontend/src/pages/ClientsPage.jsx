@@ -260,7 +260,7 @@ const ClientsPage = () => {
           <Avatar size="large" icon={<UserOutlined />} style={{ backgroundColor: '#2FA2EE' }} />
           <div>
             <div style={{ fontWeight: 'bold' }}>{record.name}</div>
-            <div style={{ fontSize: '12px', color: '#666' }}>{record.email}</div>
+            <div style={{ fontSize: '12px', color: '#666' }}>{record.email || '—'}</div>
           </div>
         </Space>
       ),
@@ -270,7 +270,7 @@ const ClientsPage = () => {
       key: 'contact',
       render: (_, record) => (
         <div>
-          <div><MailOutlined /> {record.email}</div>
+          <div><MailOutlined /> {record.email || '—'}</div>
           <div><PhoneOutlined /> {record.phone}</div>
         </div>
       ),
@@ -526,7 +526,7 @@ const ClientsPage = () => {
                          </div>
                          <div style={{ marginBottom: '16px', display: 'flex' }}>
                            <div style={{ width: '140px', fontWeight: 'bold' }}>Email:</div>
-                           <div>{selectedClient.email}</div>
+                           <div>{selectedClient.email || '—'}</div>
                          </div>
                          <div style={{ marginBottom: '16px', display: 'flex' }}>
                            <div style={{ width: '140px', fontWeight: 'bold' }}>Phone:</div>
@@ -740,11 +740,18 @@ const ClientsPage = () => {
                 name="email"
                 label="Email"
                 rules={[
-                  { required: true, message: 'Please enter email' },
-                  { type: 'email', message: 'Please enter valid email' }
+                  {
+                    validator: (_, value) => {
+                      if (!value || !String(value).trim()) return Promise.resolve();
+                      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim())) {
+                        return Promise.reject(new Error('Please enter valid email'));
+                      }
+                      return Promise.resolve();
+                    },
+                  },
                 ]}
               >
-                <Input placeholder="Enter email address" />
+                <Input placeholder="Enter email address (optional)" />
               </Form.Item>
             </Col>
             <Col span={12}>

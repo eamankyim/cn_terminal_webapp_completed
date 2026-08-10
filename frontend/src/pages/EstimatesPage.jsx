@@ -480,7 +480,7 @@ const EstimatesPage = () => {
               filterOption={(input, option) =>
                 (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
-              options={customers.map(c => ({ value: c.id, label: `${c.name} (${c.email})` }))}
+              options={customers.map(c => ({ value: c.id, label: c.email ? `${c.name} (${c.email})` : c.name }))}
             />
           </Form.Item>
 

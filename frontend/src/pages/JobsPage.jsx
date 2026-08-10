@@ -52,6 +52,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import CustomerSelector from '../components/common/CustomerSelector';
+import ConsigneeSelector from '../components/common/ConsigneeSelector';
 import FileUpload from '../components/common/FileUpload';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 import DocumentPreviewModal from '../components/common/DocumentPreviewModal';
@@ -62,8 +63,17 @@ import userService from '../services/userService';
 import jobService from '../services/jobService';
 import { fileService } from '../services/fileService';
 import apiService from '../services/api';
+import configurationService from '../services/configurationService';
 import { getJobStatusColor, getJobStatusIcon as getStatusIconUtil } from '../utils/statusUtils';
 import { useJobSocket } from '../hooks/useJobSocket.js';
+
+const DEFAULT_GOODS_TYPES = [
+  'Electronics', 'Textiles', 'Machinery', 'Pharmaceuticals', 'Food & Beverages',
+  'Automotive', 'Furniture', 'Clothing & Accessories', 'Books & Media',
+  'Sports & Recreation', 'Health & Beauty', 'Tools & Hardware'
+];
+
+const GOODS_TYPES_CONFIG_KEY = 'GOODS_TYPES';
 
 // Status hierarchy system - jobs can only progress forward
 const STATUS_HIERARCHY = {
@@ -152,9 +162,6 @@ const JobsPage = () => {
   const [isStatusUpdateModalVisible, setIsStatusUpdateModalVisible] = useState(false);
   const [statusUpdateForm] = Form.useForm();
   const [currentJobForStatusUpdate, setCurrentJobForStatusUpdate] = useState(null);
-  const [selectedCustomerConsignments, setSelectedCustomerConsignments] = useState([]);
-  const [consignmentsLoading, setConsignmentsLoading] = useState(false);
-  const [hasSelectedClient, setHasSelectedClient] = useState(false);
   const [jobs, setJobs] = useState([]);
   const [draftJobs, setDraftJobs] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
@@ -165,13 +172,10 @@ const JobsPage = () => {
   const [jobComments, setJobComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentForm] = Form.useForm();
+  const selectedCustomerId = Form.useWatch('customerId', form);
   
   // Dynamic dropdown states
-  const [goodsTypes, setGoodsTypes] = useState([
-    'Electronics', 'Textiles', 'Machinery', 'Pharmaceuticals', 'Food & Beverages',
-    'Automotive', 'Furniture', 'Clothing & Accessories', 'Books & Media',
-    'Sports & Recreation', 'Health & Beauty', 'Tools & Hardware'
-  ]);
+  const [goodsTypes, setGoodsTypes] = useState(DEFAULT_GOODS_TYPES);
   const [vesselNames, setVesselNames] = useState([
     'RHL Concordia', 'MAERSK TEMA', 'Seaspan Dalian', 'MAERSK KARUN', 
     'MAESK Cunene', 'Hammonia Toscan'
@@ -195,11 +199,13 @@ const JobsPage = () => {
   const [customOptionType, setCustomOptionType] = useState('');
   const [customOptionValue, setCustomOptionValue] = useState('');
   const [customOptionField, setCustomOptionField] = useState('');
+  const [customOptionSaving, setCustomOptionSaving] = useState(false);
 
   useEffect(() => {
     loadJobs();
     loadStaffMembers();
     loadTerminalOptions();
+    loadGoodsTypes();
   }, []);
 
   // Handle jobId parameter from URL
@@ -381,6 +387,34 @@ const JobsPage = () => {
     } catch (error) {
       // Don't set error state as this is not critical
       console.error('Error loading terminal options:', error);
+    }
+  };
+
+  const persistGoodsTypes = async (types) => {
+    await configurationService.saveConfiguration({
+      key: GOODS_TYPES_CONFIG_KEY,
+      value: JSON.stringify(types),
+      type: 'JSON',
+      category: 'JOBS',
+      description: 'Available goods types for job forms'
+    });
+  };
+
+  const loadGoodsTypes = async () => {
+    try {
+      const stored = await configurationService.getConfigValue(GOODS_TYPES_CONFIG_KEY, null);
+      if (Array.isArray(stored) && stored.length > 0) {
+        const normalized = [...new Set(stored.map((t) => String(t).trim()).filter(Boolean))];
+        setGoodsTypes(normalized);
+        return;
+      }
+
+      // Seed defaults into configurations so future custom types persist
+      await persistGoodsTypes(DEFAULT_GOODS_TYPES);
+      setGoodsTypes(DEFAULT_GOODS_TYPES);
+    } catch (error) {
+      console.error('Error loading goods types:', error);
+      setGoodsTypes(DEFAULT_GOODS_TYPES);
     }
   };
 
@@ -932,62 +966,33 @@ const JobsPage = () => {
     }
   };
 
-  const handleCustomerSelect = async (customerId, customer) => {
-
-    // Auto-fill client details when customer is selected
+  const handleCustomerSelect = async (customerId) => {
     form.setFieldsValue({
-      customerId: customerId
+      customerId,
+      consignmentId: undefined
     });
-    
-    // Clear previously selected consignment
-    form.setFieldsValue({ consignmentId: undefined });
-    
-    // Update client selection state
-    setHasSelectedClient(!!customerId);
-    
-    // If no customer selected, clear consignments and stop loading
-    if (!customerId) {
-      setConsignmentsLoading(false);
-      setSelectedCustomerConsignments([]);
-      return;
-    }
-    
-    // Set loading state and clear previous consignments
-    setConsignmentsLoading(true);
-    setSelectedCustomerConsignments([]);
-    
-    // Get consignments for the selected customer
-    try {
-
-      const consignments = await jobService.getCustomerConsignments(customerId);
-
-      setSelectedCustomerConsignments(consignments || []);
-    } catch (error) {
-
-      setSelectedCustomerConsignments([]);
-    } finally {
-      setConsignmentsLoading(false);
-    }
   };
 
   const handleConsignmentSelect = (consignmentId) => {
-    const selectedConsignment = selectedCustomerConsignments.find(c => c.id === consignmentId);
-    if (selectedConsignment) {
-      // Auto-fill consignment details
-      form.setFieldsValue({
-        consignmentId: consignmentId
-      });
-    }
+    form.setFieldsValue({
+      consignmentId
+    });
+  };
+
+  const openCustomGoodsTypeModal = () => {
+    setCustomOptionType('Goods Type');
+    setCustomOptionField('goodsTypes');
+    setCustomOptionValue('');
+    setIsCustomOptionModalVisible(true);
   };
 
   // Helper functions for dynamic dropdowns
   const handleCustomGoodsType = (value) => {
     // For multi-select, value is an array
     if (Array.isArray(value) && value.includes('Other')) {
-      setCustomOptionType('Goods Type');
-      setCustomOptionField('goodsTypes');
-      setCustomOptionValue('');
-      setIsCustomOptionModalVisible(true);
+      const filteredValues = value.filter((val) => val !== 'Other');
+      form.setFieldsValue({ goodsTypes: filteredValues });
+      openCustomGoodsTypeModal();
     }
   };
 
@@ -1009,7 +1014,7 @@ const JobsPage = () => {
     }
   };
 
-  const handleCustomOptionSubmit = () => {
+  const handleCustomOptionSubmit = async () => {
     if (!customOptionValue.trim()) {
       message.error('Please enter a value');
       return;
@@ -1018,13 +1023,42 @@ const JobsPage = () => {
     const trimmedValue = customOptionValue.trim();
     
     if (customOptionField === 'goodsTypes') {
-      setGoodsTypes(prev => [...prev, trimmedValue]);
-      // For multi-select, remove 'Other' and add the new value
+      const existing = goodsTypes.find(
+        (type) => type.toLowerCase() === trimmedValue.toLowerCase()
+      );
+      const valueToSelect = existing || trimmedValue;
       const currentValues = form.getFieldValue('goodsTypes') || [];
-      const filteredValues = currentValues.filter(val => val !== 'Other');
-      form.setFieldsValue({
-        goodsTypes: [...filteredValues, trimmedValue]
-      });
+      const filteredValues = currentValues.filter((val) => val !== 'Other');
+
+      if (existing) {
+        form.setFieldsValue({
+          goodsTypes: filteredValues.includes(existing)
+            ? filteredValues
+            : [...filteredValues, existing]
+        });
+        message.info(`"${existing}" is already in the list and has been selected.`);
+        setIsCustomOptionModalVisible(false);
+        setCustomOptionValue('');
+        return;
+      }
+
+      const updatedTypes = [...goodsTypes, trimmedValue];
+      setCustomOptionSaving(true);
+      try {
+        await persistGoodsTypes(updatedTypes);
+        setGoodsTypes(updatedTypes);
+        form.setFieldsValue({
+          goodsTypes: [...filteredValues, valueToSelect]
+        });
+        message.success('Goods type added successfully!');
+        setIsCustomOptionModalVisible(false);
+        setCustomOptionValue('');
+      } catch (error) {
+        message.error(error.message || 'Failed to save goods type');
+      } finally {
+        setCustomOptionSaving(false);
+      }
+      return;
     } else if (customOptionField === 'vesselName') {
       setVesselNames(prev => [...prev, trimmedValue]);
       form.setFieldsValue({
@@ -1258,17 +1292,6 @@ const JobsPage = () => {
     if (document?.url) {
       setPreviewFile(document);
       setPreviewVisible(true);
-    }
-  };
-
-  // Function to get consignments for a customer
-  const getConsignmentsForCustomer = async (customerId) => {
-    try {
-      const response = await apiService.get(`/consignments/customer/${customerId}`);
-      return response.data || [];
-    } catch (error) {
-
-      return [];
     }
   };
 
@@ -1716,38 +1739,11 @@ const JobsPage = () => {
                 rules={[{ required: false }]}
                 help="Select 'N/A' if consignee is not available yet. You can add it later by editing the job."
               >
-                <Select 
-                  placeholder="Select a consignee or N/A"
+                <ConsigneeSelector
+                  customerId={selectedCustomerId}
                   onChange={handleConsignmentSelect}
-                  loading={consignmentsLoading}
-                  allowClear
-                >
-                  <Option key="na" value={null}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontWeight: 'bold', color: '#999' }}>N/A</span>
-                      <span style={{ fontSize: '12px', color: '#999' }}>- Not Available (Add Later)</span>
-                    </div>
-                  </Option>
-                  {hasSelectedClient && selectedCustomerConsignments.length > 0 && (
-                    <>
-                      <Option disabled key="divider" style={{ borderBottom: '1px solid #f0f0f0' }}>
-                        <span style={{ fontSize: '11px', color: '#999', fontWeight: 'bold' }}>
-                          CONSIGNEES FOR SELECTED CLIENT
-                        </span>
-                      </Option>
-                      {selectedCustomerConsignments.map(consignment => (
-                        <Option key={consignment.id} value={consignment.id}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>{consignment.trackingId} - {consignment.consigneeName}</span>
-                            <span style={{ fontSize: '12px', color: '#999' }}>
-                              {consignment.status}
-                            </span>
-                          </div>
-                        </Option>
-                      ))}
-                    </>
-                  )}
-                </Select>
+                  placeholder="Select a consignee or N/A"
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -1765,6 +1761,22 @@ const JobsPage = () => {
                   style={{ width: '100%' }}
                   maxTagCount="responsive"
                   onChange={handleCustomGoodsType}
+                  dropdownRender={(menu) => (
+                    <>
+                      {menu}
+                      <Divider style={{ margin: '8px 0' }} />
+                      <div style={{ padding: '0 8px 8px' }}>
+                        <Button
+                          type="link"
+                          icon={<PlusOutlined />}
+                          onClick={openCustomGoodsTypeModal}
+                          style={{ padding: 0, width: '100%', textAlign: 'left' }}
+                        >
+                          Add type of good…
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 >
                   {goodsTypes.map(type => (
                     <Option key={type} value={type}>{type}</Option>
@@ -3048,6 +3060,7 @@ const JobsPage = () => {
          }
          open={isCustomOptionModalVisible}
          onOk={handleCustomOptionSubmit}
+         confirmLoading={customOptionSaving}
          maskClosable={false}
          onCancel={handleCustomOptionCancel}
          okText="Add"
@@ -3083,7 +3096,9 @@ const JobsPage = () => {
              }}>
                <Text type="secondary" style={{ fontSize: '14px' }}>
                  <InfoCircleOutlined style={{ marginRight: '6px' }} />
-                 This {customOptionType.toLowerCase()} will be saved and available for future selections.
+                 {customOptionField === 'goodsTypes'
+                   ? 'This goods type will be saved for everyone and available in future job forms.'
+                   : `This ${customOptionType.toLowerCase()} will be saved and available for future selections.`}
                </Text>
              </div>
            </Form>

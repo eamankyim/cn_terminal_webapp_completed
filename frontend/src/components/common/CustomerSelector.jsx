@@ -1,10 +1,25 @@
 import React, { useState } from 'react';
-import { Select, Button, Modal, Form, Row, Col, message, Checkbox, Input } from 'antd';
+import { Select, Button, Modal, Form, Row, Col, message, Checkbox, Input, Space, Divider } from 'antd';
 import { PlusOutlined, UserOutlined, PhoneOutlined, MailOutlined, SearchOutlined } from '@ant-design/icons';
 import { useCustomers } from '../../contexts/CustomerContext';
 
 const { Option } = Select;
 const { TextArea } = Input;
+
+const optionalEmailRules = [
+  {
+    validator: (_, value) => {
+      if (!value || !String(value).trim()) {
+        return Promise.resolve();
+      }
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(String(value).trim())) {
+        return Promise.reject(new Error('Please enter a valid email!'));
+      }
+      return Promise.resolve();
+    },
+  },
+];
 
 const CustomerSelector = ({ 
   value, 
@@ -33,7 +48,7 @@ const CustomerSelector = ({
     );
   });
 
-  const handleCustomerSelect = (customerId) => {
+  const handleCustomerSelect = (customerId, customerOverride) => {
     if (multiple) {
       // For multiselect, handle array of selected values
       const currentValues = Array.isArray(value) ? value : [];
@@ -49,16 +64,22 @@ const CustomerSelector = ({
       }
       
       if (onChange) {
-        const selectedCustomers = newValues.map(id => customers.find(c => c.id === id)).filter(Boolean);
+        const selectedCustomers = newValues
+          .map(id => (id === customerId && customerOverride) ? customerOverride : customers.find(c => c.id === id))
+          .filter(Boolean);
         onChange(newValues, selectedCustomers);
       }
     } else {
       // Single select behavior
-      const selectedCustomer = customers.find(c => c.id === customerId);
+      const selectedCustomer = customerOverride || customers.find(c => c.id === customerId);
       if (selectedCustomer && onChange) {
         onChange(customerId, selectedCustomer);
       }
     }
+  };
+
+  const openCreateModal = () => {
+    setIsCreateModalVisible(true);
   };
 
   const handleCreateCustomer = async () => {
@@ -68,15 +89,16 @@ const CustomerSelector = ({
       // Add customer to centralized context
       const newCustomer = await addCustomer({
         ...values,
-        customerType: values.customerType || 'Regular'
+        email: values.email?.trim() || null,
+        customerType: values.customerType || 'COMPANY'
       });
       
       message.success('Customer created successfully!');
       setIsCreateModalVisible(false);
       createForm.resetFields();
       
-      // Auto-select the newly created customer
-      handleCustomerSelect(newCustomer.id);
+      // Auto-select the newly created customer (pass object so we don't rely on stale list)
+      handleCustomerSelect(newCustomer.id, newCustomer);
       
     } catch (error) {
 
@@ -95,150 +117,132 @@ const CustomerSelector = ({
 
   const selectedCustomers = getSelectedCustomers();
 
+  const renderCustomerOption = (customer) => {
+    const isSelected = multiple ? 
+      (Array.isArray(value) ? value.includes(customer.id) : false) : 
+      (value === customer.id);
+    
+    return (
+      <Option key={customer.id} value={customer.id} label={customer.name}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+          {multiple && (
+            <Checkbox 
+              checked={isSelected}
+              onChange={() => handleCustomerSelect(customer.id)}
+              style={{ marginTop: '2px' }}
+            />
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: '500' }}>{customer.name}</span>
+              <span style={{ fontSize: '11px', color: '#999' }}>
+                {customer.customerType || 'Regular'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', color: '#666' }}>{customer.email || '—'}</span>
+              <span style={{ fontSize: '11px', color: '#999' }}>{customer.phone}</span>
+            </div>
+            {customer.companyName && (
+              <div style={{ fontSize: '11px', color: '#999', fontStyle: 'italic' }}>
+                {customer.companyName}
+              </div>
+            )}
+          </div>
+        </div>
+      </Option>
+    );
+  };
+
   return (
     <>
-      <Select
-        value={value}
-        onChange={handleCustomerSelect}
-        placeholder={multiple ? "Search and select multiple customers..." : "Search and select customer..."}
-        style={{ width: '100%', ...style }}
-        showSearch
-        filterOption={false}
-        onSearch={setSearchText}
-        searchValue={searchText}
-        allowClear
-        loading={loading}
-        popupMatchSelectWidth={false}
-        mode={multiple ? "multiple" : undefined}
-        maxTagCount={multiple ? "responsive" : undefined}
-        suffixIcon={<SearchOutlined />}
-        labelInValue={false}
-        optionLabelProp="label"
-        notFoundContent={
-          loading ? (
-            <div style={{ padding: '8px', textAlign: 'center' }}>
-              <span>Loading customers...</span>
-            </div>
-          ) : filteredCustomers.length === 0 && customers.length > 0 ? (
-            <div style={{ padding: '8px', textAlign: 'center' }}>
-              <div style={{ marginBottom: '8px' }}>
-                <span>No customers found matching "{searchText}"</span>
+      <Space.Compact style={{ width: '100%', ...style }}>
+        <Select
+          value={value}
+          onChange={handleCustomerSelect}
+          placeholder={placeholder || (multiple ? "Search and select multiple customers..." : "Search and select customer...")}
+          style={{ flex: 1, width: '100%' }}
+          showSearch
+          filterOption={false}
+          onSearch={setSearchText}
+          searchValue={searchText}
+          allowClear
+          loading={loading}
+          popupMatchSelectWidth={false}
+          mode={multiple ? "multiple" : undefined}
+          maxTagCount={multiple ? "responsive" : undefined}
+          suffixIcon={<SearchOutlined />}
+          labelInValue={false}
+          optionLabelProp="label"
+          dropdownRender={(menu) => (
+            <>
+              {menu}
+              {allowCreate && (
+                <>
+                  <Divider style={{ margin: '8px 0' }} />
+                  <div style={{ padding: '0 8px 8px' }}>
+                    <Button
+                      type="link"
+                      icon={<PlusOutlined />}
+                      onClick={openCreateModal}
+                      style={{ padding: 0, width: '100%', textAlign: 'left' }}
+                    >
+                      Create customer
+                    </Button>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+          notFoundContent={
+            loading ? (
+              <div style={{ padding: '8px', textAlign: 'center' }}>
+                <span>Loading customers...</span>
               </div>
-              {searchText && (
-                <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px' }}>
-                  {filteredCustomers.length} of {customers.length} customers match
+            ) : (
+              <div style={{ padding: '8px', textAlign: 'center' }}>
+                <div style={{ marginBottom: '8px' }}>
+                  <span>
+                    {searchText
+                      ? `No customers found matching "${searchText}"`
+                      : 'No customers available'}
+                  </span>
                 </div>
+                {allowCreate && (
+                  <Button 
+                    type="dashed" 
+                    icon={<PlusOutlined />}
+                    onClick={openCreateModal}
+                    style={{ width: '100%' }}
+                  >
+                    {customers.length === 0 ? 'Create First Customer' : 'Create New Customer'}
+                  </Button>
+                )}
+              </div>
+            )
+          }
+        >
+          {filteredCustomers.length > 0
+            ? filteredCustomers.map(renderCustomerOption)
+            : customers.length > 0
+              ? customers.map(renderCustomerOption)
+              : (
+                <Option disabled value="no-customers">
+                  No customers available
+                </Option>
               )}
-              {allowCreate && (
-                <Button 
-                  type="dashed" 
-                  icon={<PlusOutlined />}
-                  onClick={() => setIsCreateModalVisible(true)}
-                  style={{ width: '100%' }}
-                >
-                  Create New Customer
-                </Button>
-              )}
-            </div>
-          ) : customers.length === 0 ? (
-            <div style={{ padding: '8px', textAlign: 'center' }}>
-              <span>No customers available</span>
-              {allowCreate && (
-                <Button 
-                  type="dashed" 
-                  icon={<PlusOutlined />}
-                  onClick={() => setIsCreateModalVisible(true)}
-                  style={{ width: '100%', marginTop: '8px' }}
-                >
-                  Create First Customer
-                </Button>
-              )}
-            </div>
-          ) : (
-            <span>No customers found</span>
-          )
-        }
-      >
-        {filteredCustomers.length > 0 ? (
-          filteredCustomers.map(customer => {
-            const isSelected = multiple ? 
-              (Array.isArray(value) ? value.includes(customer.id) : false) : 
-              (value === customer.id);
-            
-            return (
-              <Option key={customer.id} value={customer.id} label={customer.name}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                  {multiple && (
-                    <Checkbox 
-                      checked={isSelected}
-                      onChange={() => handleCustomerSelect(customer.id)}
-                      style={{ marginTop: '2px' }}
-                    />
-                  )}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: '500' }}>{customer.name}</span>
-                      <span style={{ fontSize: '11px', color: '#999' }}>
-                        {customer.customerType || 'Regular'}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12px', color: '#666' }}>{customer.email}</span>
-                      <span style={{ fontSize: '11px', color: '#999' }}>{customer.phone}</span>
-                    </div>
-                    {customer.companyName && (
-                      <div style={{ fontSize: '11px', color: '#999', fontStyle: 'italic' }}>
-                        {customer.companyName}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Option>
-            );
-          })
-        ) : customers.length > 0 ? (
-          customers.map(customer => {
-            const isSelected = multiple ? 
-              (Array.isArray(value) ? value.includes(customer.id) : false) : 
-              (value === customer.id);
-            
-            return (
-              <Option key={customer.id} value={customer.id} label={customer.name}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                  {multiple && (
-                    <Checkbox 
-                      checked={isSelected}
-                      onChange={() => handleCustomerSelect(customer.id)}
-                      style={{ marginTop: '2px' }}
-                    />
-                  )}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: '500' }}>{customer.name}</span>
-                      <span style={{ fontSize: '11px', color: '#999' }}>
-                        {customer.customerType || 'Regular'}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12px', color: '#666' }}>{customer.email}</span>
-                      <span style={{ fontSize: '11px', color: '#999' }}>{customer.phone}</span>
-                    </div>
-                    {customer.companyName && (
-                      <div style={{ fontSize: '11px', color: '#999', fontStyle: 'italic' }}>
-                        {customer.companyName}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Option>
-            );
-          })
-        ) : (
-          <Option disabled value="no-customers">
-            No customers available
-          </Option>
+        </Select>
+        {allowCreate && (
+          <Button
+            type="default"
+            icon={<PlusOutlined />}
+            onClick={openCreateModal}
+            title="Create customer"
+          >
+            Create
+          </Button>
         )}
-      </Select>
+      </Space.Compact>
 
       {/* Customer details preview */}
       {selectedCustomers.length > 0 && (
@@ -261,7 +265,7 @@ const CustomerSelector = ({
                       <small><UserOutlined /> {customer.name}</small>
                     </Col>
                     <Col span={8}>
-                      <small><MailOutlined /> {customer.email}</small>
+                      <small><MailOutlined /> {customer.email || '—'}</small>
                     </Col>
                     <Col span={8}>
                       <small><PhoneOutlined /> {customer.phone}</small>
@@ -276,7 +280,7 @@ const CustomerSelector = ({
                 <small><UserOutlined /> {selectedCustomers[0]?.name}</small>
               </Col>
               <Col span={8}>
-                <small><MailOutlined /> {selectedCustomers[0]?.email}</small>
+                <small><MailOutlined /> {selectedCustomers[0]?.email || '—'}</small>
               </Col>
               <Col span={8}>
                 <small><PhoneOutlined /> {selectedCustomers[0]?.phone}</small>
@@ -303,7 +307,7 @@ const CustomerSelector = ({
           form={createForm}
           layout="vertical"
           initialValues={{
-            customerType: 'Regular',
+            customerType: 'COMPANY',
             country: 'Ghana',
           }}
         >
@@ -321,12 +325,9 @@ const CustomerSelector = ({
               <Form.Item
                 name="email"
                 label="Email Address"
-                rules={[
-                  { required: true, message: 'Please enter email address!' },
-                  { type: 'email', message: 'Please enter a valid email!' }
-                ]}
+                rules={optionalEmailRules}
               >
-                <Input placeholder="Enter email address" />
+                <Input placeholder="Enter email address (optional)" />
               </Form.Item>
             </Col>
           </Row>
@@ -348,9 +349,8 @@ const CustomerSelector = ({
                 rules={[{ required: true, message: 'Please select customer type!' }]}
               >
                 <Select>
-                  <Option value="Regular">Regular</Option>
-                  <Option value="Premium">Premium</Option>
-                  <Option value="VIP">VIP</Option>
+                  <Option value="COMPANY">Company</Option>
+                  <Option value="INDIVIDUAL">Individual</Option>
                 </Select>
               </Form.Item>
             </Col>

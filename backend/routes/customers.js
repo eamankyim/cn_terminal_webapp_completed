@@ -84,7 +84,6 @@ const router = express.Router();
  *             type: object
  *             required:
  *               - name
- *               - email
  *               - phone
  *             properties:
  *               name:
@@ -94,7 +93,8 @@ const router = express.Router();
  *               email:
  *                 type: string
  *                 format: email
- *                 description: Customer's email address
+ *                 nullable: true
+ *                 description: Customer's email address (optional)
  *                 example: john.doe@example.com
  *               phone:
  *                 type: string
@@ -293,46 +293,44 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), a
       address,
       city,
       country = 'Ghana',
-      businessType,
-      registrationNumber,
       tin,
       ghanaCard,
-      customerType = 'REGULAR'
+      customerType = 'COMPANY'
     } = req.body;
 
-    // Validate required fields
-    if (!name || !email || !phone || !address) {
+    // Normalize empty/whitespace email to null so unique constraint is not hit by ""
+    const normalizedEmail =
+      typeof email === 'string' && email.trim() ? email.trim() : null;
 
-      return res.status(400).json({ error: 'Company name, email, phone, and address are required' });
+    // Validate required fields (email is optional)
+    if (!name || !phone || !address) {
+      return res.status(400).json({ error: 'Company name, phone, and address are required' });
     }
 
-    // Check if customer with email already exists
+    // Check if customer with email already exists (only when email provided)
+    if (normalizedEmail) {
+      const existingCustomer = await prisma.customer.findUnique({
+        where: { email: normalizedEmail }
+      });
 
-    const existingCustomer = await prisma.customer.findUnique({
-      where: { email }
-    });
-
-    if (existingCustomer) {
-
-      return res.status(400).json({ error: 'Customer with this email already exists' });
+      if (existingCustomer) {
+        return res.status(400).json({ error: 'Customer with this email already exists' });
+      }
     }
 
     // Create customer
-
     const customer = await prisma.customer.create({
       data: {
         name,
         contactPerson,
-        email,
+        email: normalizedEmail,
         phone,
         address,
         city,
         country,
-        businessType,
-        registrationNumber,
         tin,
         ghanaCard,
-        customerType: customerType.toUpperCase()
+        customerType: String(customerType).toUpperCase()
       },
       include: {
         _count: {
@@ -409,7 +407,8 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), a
  *               email:
  *                 type: string
  *                 format: email
- *                 description: Customer's email address
+ *                 nullable: true
+ *                 description: Customer's email address (optional; omit or null to clear)
  *                 example: john.doe@example.com
  *               phone:
  *                 type: string
@@ -481,8 +480,6 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS),
       address,
       city,
       country,
-      businessType,
-      registrationNumber,
       tin,
       ghanaCard,
       customerType,
@@ -498,10 +495,18 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS),
       return res.status(404).json({ error: 'Customer not found' });
     }
 
+    // Normalize empty/whitespace email to null so unique constraint is not hit by ""
+    const normalizedEmail =
+      email === undefined
+        ? undefined
+        : typeof email === 'string' && email.trim()
+          ? email.trim()
+          : null;
+
     // Check if email is already taken by another customer
-    if (email && email !== existingCustomer.email) {
+    if (normalizedEmail && normalizedEmail !== existingCustomer.email) {
       const emailExists = await prisma.customer.findUnique({
-        where: { email }
+        where: { email: normalizedEmail }
       });
 
       if (emailExists) {
@@ -515,16 +520,14 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS),
       data: {
         name,
         contactPerson,
-        email,
+        ...(normalizedEmail !== undefined ? { email: normalizedEmail } : {}),
         phone,
         address,
         city,
         country,
-        businessType,
-        registrationNumber,
         tin,
         ghanaCard,
-        customerType,
+        ...(customerType ? { customerType: String(customerType).toUpperCase() } : {}),
         status
       },
       include: {

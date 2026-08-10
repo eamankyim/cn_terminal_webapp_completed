@@ -277,7 +277,20 @@ router.post('/init', authenticateToken, async (req, res) => {
       
       // Invoice Settings (Essential for invoice generation)
       { key: 'INVOICE_PREFIX', value: 'INV', type: 'STRING', category: 'INVOICE', description: 'Invoice number prefix' },
-      { key: 'INVOICE_DUE_DAYS', value: '30', type: 'NUMBER', category: 'INVOICE', description: 'Default invoice due days' }
+      { key: 'INVOICE_DUE_DAYS', value: '30', type: 'NUMBER', category: 'INVOICE', description: 'Default invoice due days' },
+
+      // Job form dropdown options
+      {
+        key: 'GOODS_TYPES',
+        value: JSON.stringify([
+          'Electronics', 'Textiles', 'Machinery', 'Pharmaceuticals', 'Food & Beverages',
+          'Automotive', 'Furniture', 'Clothing & Accessories', 'Books & Media',
+          'Sports & Recreation', 'Health & Beauty', 'Tools & Hardware'
+        ]),
+        type: 'JSON',
+        category: 'JOBS',
+        description: 'Available goods types for job forms'
+      }
     ];
 
     const results = [];

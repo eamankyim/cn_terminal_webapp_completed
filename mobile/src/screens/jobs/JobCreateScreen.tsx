@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -65,6 +65,8 @@ const DEFAULT_GOODS_TYPES = [
   'Tools & Hardware',
 ];
 
+const GOODS_TYPES_CONFIG_KEY = 'GOODS_TYPES';
+
 const DEFAULT_VESSELS = [
   'RHL Concordia',
   'MAERSK TEMA',
@@ -86,6 +88,42 @@ const DOCUMENTS_BROUGHT = [
 ];
 
 type CustomField = 'goodsTypes' | 'vesselName' | 'line';
+
+interface ConfigResponse {
+  success?: boolean;
+  data?: { key: string; value: string; type: string };
+}
+
+async function loadPersistedGoodsTypes(): Promise<string[]> {
+  try {
+    const res = await api.get<ConfigResponse>(
+      `/configurations/${GOODS_TYPES_CONFIG_KEY}`,
+    );
+    const raw = res?.data?.value;
+    if (!raw) return DEFAULT_GOODS_TYPES;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return [
+        ...new Set(
+          parsed.map((t) => String(t).trim()).filter(Boolean),
+        ),
+      ];
+    }
+  } catch {
+    // Missing config or network — fall back to defaults
+  }
+  return DEFAULT_GOODS_TYPES;
+}
+
+async function persistGoodsTypes(types: string[]): Promise<void> {
+  await api.post('/configurations', {
+    key: GOODS_TYPES_CONFIG_KEY,
+    value: JSON.stringify(types),
+    type: 'JSON',
+    category: 'JOBS',
+    description: 'Available goods types for job forms',
+  });
+}
 
 export const JobCreateScreen: React.FC = () => {
   const { accent } = useTheme();
@@ -120,6 +158,15 @@ export const JobCreateScreen: React.FC = () => {
   const [customOpen, setCustomOpen] = useState(false);
   const [customField, setCustomField] = useState<CustomField | null>(null);
   const [customValue, setCustomValue] = useState('');
+  const [customSaving, setCustomSaving] = useState(false);
+
+  const [consigneeModalOpen, setConsigneeModalOpen] = useState(false);
+  const [consigneeSaving, setConsigneeSaving] = useState(false);
+  const [newConsigneeName, setNewConsigneeName] = useState('');
+  const [newConsigneePhone, setNewConsigneePhone] = useState('');
+  const [newConsigneeAddress, setNewConsigneeAddress] = useState('');
+  const [newGhanaCard, setNewGhanaCard] = useState('');
+  const [newTin, setNewTin] = useState('');
 
   const { data: customersData } = useQuery({
     queryKey: ['customers'],
@@ -133,6 +180,7 @@ export const JobCreateScreen: React.FC = () => {
   const {
     data: consignmentsData,
     isLoading: consignmentsLoading,
+    refetch: refetchConsignments,
   } = useQuery({
     queryKey: ['customer-consignments', customerId],
     queryFn: () =>
@@ -141,6 +189,17 @@ export const JobCreateScreen: React.FC = () => {
       ),
     enabled: Boolean(customerId),
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const types = await loadPersistedGoodsTypes();
+      if (!cancelled) setGoodsTypeOptions(types);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const customers = customersData?.customers ?? [];
   const filteredCustomers = useMemo(() => {
@@ -227,19 +286,46 @@ export const JobCreateScreen: React.FC = () => {
     setCustomOpen(true);
   };
 
-  const applyCustomValue = () => {
+  const applyCustomValue = async () => {
     const trimmed = customValue.trim();
     if (!trimmed || !customField) {
       setCustomOpen(false);
       return;
     }
     if (customField === 'goodsTypes') {
-      setGoodsTypeOptions((prev) =>
-        prev.includes(trimmed) ? prev : [...prev, trimmed],
+      const existing = goodsTypeOptions.find(
+        (t) => t.toLowerCase() === trimmed.toLowerCase(),
       );
-      setGoodsTypes((prev) =>
-        prev.includes(trimmed) ? prev : [...prev, trimmed],
-      );
+      if (existing) {
+        setGoodsTypes((prev) =>
+          prev.includes(existing) ? prev : [...prev, existing],
+        );
+        setCustomOpen(false);
+        setCustomField(null);
+        setCustomValue('');
+        Alert.alert('Already exists', `"${existing}" is already in the list.`);
+        return;
+      }
+      const updated = [...goodsTypeOptions, trimmed];
+      setCustomSaving(true);
+      try {
+        await persistGoodsTypes(updated);
+        setGoodsTypeOptions(updated);
+        setGoodsTypes((prev) =>
+          prev.includes(trimmed) ? prev : [...prev, trimmed],
+        );
+        setCustomOpen(false);
+        setCustomField(null);
+        setCustomValue('');
+      } catch (err: any) {
+        Alert.alert(
+          'Error',
+          err?.message ?? 'Failed to save goods type.',
+        );
+      } finally {
+        setCustomSaving(false);
+      }
+      return;
     } else if (customField === 'vesselName') {
       setVesselOptions((prev) =>
         prev.includes(trimmed) ? prev : [...prev, trimmed],
@@ -254,6 +340,63 @@ export const JobCreateScreen: React.FC = () => {
     setCustomOpen(false);
     setCustomField(null);
     setCustomValue('');
+  };
+
+  const openConsigneeModal = () => {
+    if (!customerId) {
+      Alert.alert('Select client', 'Please select a client first before adding a consignee.');
+      return;
+    }
+    setNewConsigneeName('');
+    setNewConsigneePhone('');
+    setNewConsigneeAddress('');
+    setNewGhanaCard('');
+    setNewTin('');
+    setConsigneeModalOpen(true);
+  };
+
+  const createConsignee = async () => {
+    const name = newConsigneeName.trim();
+    const phone = newConsigneePhone.trim();
+    const address = newConsigneeAddress.trim();
+    if (!name || !phone || !address) {
+      Alert.alert(
+        'Validation',
+        'Consignee name, phone, and address are required.',
+      );
+      return;
+    }
+    if (!customerId) {
+      Alert.alert('Select client', 'Please select a client first.');
+      return;
+    }
+    setConsigneeSaving(true);
+    try {
+      const data = await api.post<{ consignment: Consignment }>(
+        '/consignments',
+        {
+          customerId,
+          consigneeName: name,
+          consigneePhone: phone,
+          consigneeAddress: address,
+          ...(newGhanaCard.trim() ? { ghanaCard: newGhanaCard.trim() } : {}),
+          ...(newTin.trim() ? { tin: newTin.trim() } : {}),
+        },
+      );
+      await refetchConsignments();
+      setConsignmentId(data.consignment.id);
+      setConsigneeModalOpen(false);
+      Alert.alert('Success', 'Consignee created successfully.');
+    } catch (err: any) {
+      Alert.alert(
+        'Error',
+        (err?.details as any)?.error ??
+          err?.message ??
+          'Failed to create consignee.',
+      );
+    } finally {
+      setConsigneeSaving(false);
+    }
   };
 
   const onGoodsTypesChange = (values: string[]) => {
@@ -509,6 +652,17 @@ export const JobCreateScreen: React.FC = () => {
             emptyMessage="No consignees for this client"
             helpText="Select 'N/A' if consignee is not available yet. You can add it later by editing the job."
           />
+          <TouchableOpacity
+            onPress={openConsigneeModal}
+            disabled={!customerId || isBusy}
+            className="mt-2 flex-row items-center"
+            style={!customerId ? { opacity: 0.5 } : undefined}
+          >
+            <Ionicons name="add-circle-outline" size={18} color={accent} />
+            <Text className="ml-1 text-sm font-medium" style={{ color: accent }}>
+              Add consignee
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View className="mb-4">
@@ -520,6 +674,16 @@ export const JobCreateScreen: React.FC = () => {
             options={goodsTypeSelectOptions}
             onChange={onGoodsTypesChange}
           />
+          <TouchableOpacity
+            onPress={() => openCustomModal('goodsTypes')}
+            disabled={isBusy}
+            className="mt-2 flex-row items-center"
+          >
+            <Ionicons name="add-circle-outline" size={18} color={accent} />
+            <Text className="ml-1 text-sm font-medium" style={{ color: accent }}>
+              Add type of good…
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View className="mb-4">
@@ -701,7 +865,7 @@ export const JobCreateScreen: React.FC = () => {
       >
         <Pressable
           className="flex-1 bg-black/40 justify-center px-6"
-          onPress={() => setCustomOpen(false)}
+          onPress={() => !customSaving && setCustomOpen(false)}
         >
           <Pressable
             className="bg-white rounded-2xl p-5"
@@ -720,22 +884,122 @@ export const JobCreateScreen: React.FC = () => {
               onChangeText={setCustomValue}
               placeholder="Enter value"
               autoFocus
+              editable={!customSaving}
               className="border border-gray-300 rounded-xl px-4 text-base text-black"
               style={{ height: controlHeight }}
             />
             <View className="flex-row mt-4" style={{ gap: 10 }}>
               <TouchableOpacity
                 onPress={() => setCustomOpen(false)}
+                disabled={customSaving}
                 className="flex-1 h-[52px] rounded-xl border border-gray-300 items-center justify-center"
               >
                 <Text className="font-semibold text-[17px]">Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={applyCustomValue}
+                onPress={() => void applyCustomValue()}
+                disabled={customSaving}
                 className="flex-1 h-[52px] rounded-xl items-center justify-center"
                 style={{ backgroundColor: accent }}
               >
-                <Text className="text-white font-semibold text-[17px]">Add</Text>
+                {customSaving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text className="text-white font-semibold text-[17px]">Add</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={consigneeModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConsigneeModalOpen(false)}
+      >
+        <Pressable
+          className="flex-1 bg-black/40 justify-center px-6"
+          onPress={() => !consigneeSaving && setConsigneeModalOpen(false)}
+        >
+          <Pressable
+            className="bg-white rounded-2xl p-5 max-h-[90%]"
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text className="text-lg font-bold text-black mb-3">
+              Create consignee
+            </Text>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text className="text-sm text-gray-600 mb-1">Name *</Text>
+              <TextInput
+                value={newConsigneeName}
+                onChangeText={setNewConsigneeName}
+                placeholder="Consignee name"
+                editable={!consigneeSaving}
+                className="border border-gray-300 rounded-xl px-4 text-base text-black mb-3"
+                style={{ height: controlHeight }}
+              />
+              <Text className="text-sm text-gray-600 mb-1">Phone *</Text>
+              <TextInput
+                value={newConsigneePhone}
+                onChangeText={setNewConsigneePhone}
+                placeholder="Phone number"
+                keyboardType="phone-pad"
+                editable={!consigneeSaving}
+                className="border border-gray-300 rounded-xl px-4 text-base text-black mb-3"
+                style={{ height: controlHeight }}
+              />
+              <Text className="text-sm text-gray-600 mb-1">Address *</Text>
+              <TextInput
+                value={newConsigneeAddress}
+                onChangeText={setNewConsigneeAddress}
+                placeholder="Address"
+                multiline
+                editable={!consigneeSaving}
+                className="border border-gray-300 rounded-xl px-4 py-3 text-base text-black mb-3"
+                style={{ minHeight: 80 }}
+              />
+              <Text className="text-sm text-gray-600 mb-1">Ghana Card</Text>
+              <TextInput
+                value={newGhanaCard}
+                onChangeText={setNewGhanaCard}
+                placeholder="Optional"
+                editable={!consigneeSaving}
+                className="border border-gray-300 rounded-xl px-4 text-base text-black mb-3"
+                style={{ height: controlHeight }}
+              />
+              <Text className="text-sm text-gray-600 mb-1">TIN</Text>
+              <TextInput
+                value={newTin}
+                onChangeText={setNewTin}
+                placeholder="Optional"
+                editable={!consigneeSaving}
+                className="border border-gray-300 rounded-xl px-4 text-base text-black mb-3"
+                style={{ height: controlHeight }}
+              />
+            </ScrollView>
+            <View className="flex-row mt-2" style={{ gap: 10 }}>
+              <TouchableOpacity
+                onPress={() => setConsigneeModalOpen(false)}
+                disabled={consigneeSaving}
+                className="flex-1 h-[52px] rounded-xl border border-gray-300 items-center justify-center"
+              >
+                <Text className="font-semibold text-[17px]">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => void createConsignee()}
+                disabled={consigneeSaving}
+                className="flex-1 h-[52px] rounded-xl items-center justify-center"
+                style={{ backgroundColor: accent }}
+              >
+                {consigneeSaving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text className="text-white font-semibold text-[17px]">
+                    Create
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
           </Pressable>
