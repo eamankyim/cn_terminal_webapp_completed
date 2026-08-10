@@ -17,7 +17,7 @@ jobs:
         host: ${{ secrets.PROD_SERVER_IP }}
         username: ${{ secrets.PROD_SERVER_USER }}
         key: ${{ secrets.PROD_SERVER_SSH_KEY }}
-        # Full no-cache frontend builds often exceed the default 10m SSH timeout
+        # Full frontend builds often exceed the default 10m SSH timeout
         command_timeout: 40m
         script_stop: true
         script: |
@@ -39,8 +39,8 @@ jobs:
 
           echo "📝 Creating/updating .env.production file from GitHub secrets..."
 
-          DATABASE_URL_SECRET="${{ secrets.DATABASE_URL }}"
-          DB_PASSWORD_SECRET="${{ secrets.DB_PASSWORD }}"
+          DATABASE_URL_SECRET='${{ secrets.DATABASE_URL }}'
+          DB_PASSWORD_SECRET='${{ secrets.DB_PASSWORD }}'
 
           if [ -n "$DATABASE_URL_SECRET" ]; then
             DB_URL="$DATABASE_URL_SECRET"
@@ -48,45 +48,51 @@ jobs:
             DB_URL="postgresql://cn_terminal_user:${DB_PASSWORD_SECRET}@postgres:5432/cn_terminal_db?schema=public"
           fi
 
-          echo "NODE_ENV=production" > .env.production
-          echo "DATABASE_URL=${DB_URL}" >> .env.production
-          echo "PORT=5000" >> .env.production
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env.production
-          echo "FRONTEND_URL=${{ secrets.FRONTEND_URL }}" >> .env.production
-          echo "PRODUCTION_URL=${{ secrets.PRODUCTION_URL }}" >> .env.production
-          echo "APP_BASE_URL=${{ secrets.APP_BASE_URL }}" >> .env.production
-          echo "CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}" >> .env.production
-          echo "REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}" >> .env.production
-          echo "REACT_APP_SENDGRID_API_KEY=${{ secrets.REACT_APP_SENDGRID_API_KEY }}" >> .env.production
-          echo "REACT_APP_FROM_EMAIL=${{ secrets.REACT_APP_FROM_EMAIL }}" >> .env.production
-          echo "REACT_APP_FROM_NAME=${{ secrets.REACT_APP_FROM_NAME }}" >> .env.production
-          echo "REACT_APP_EMAIL_DEV_MODE=false" >> .env.production
-          echo "DB_PASSWORD=${DB_PASSWORD_SECRET}" >> .env.production
+          # Quote every value so spaces in secrets (e.g. "CN Terminal") are safe.
+          # Do NOT source this file into bash — use compose --env-file instead.
+          {
+            printf 'NODE_ENV=%s\n' 'production'
+            printf 'DATABASE_URL=%s\n' "$DB_URL"
+            printf 'PORT=%s\n' '5000'
+            printf 'JWT_SECRET=%s\n' '${{ secrets.JWT_SECRET }}'
+            printf 'FRONTEND_URL=%s\n' '${{ secrets.FRONTEND_URL }}'
+            printf 'PRODUCTION_URL=%s\n' '${{ secrets.PRODUCTION_URL }}'
+            printf 'APP_BASE_URL=%s\n' '${{ secrets.APP_BASE_URL }}'
+            printf 'CORS_ORIGIN=%s\n' '${{ secrets.CORS_ORIGIN }}'
+            printf 'REACT_APP_API_URL=%s\n' '${{ secrets.REACT_APP_API_URL }}'
+            printf 'REACT_APP_SENDGRID_API_KEY=%s\n' '${{ secrets.REACT_APP_SENDGRID_API_KEY }}'
+            printf 'REACT_APP_FROM_EMAIL=%s\n' '${{ secrets.REACT_APP_FROM_EMAIL }}'
+            printf 'REACT_APP_FROM_NAME=%s\n' '${{ secrets.REACT_APP_FROM_NAME }}'
+            printf 'REACT_APP_EMAIL_DEV_MODE=%s\n' 'false'
+            printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD_SECRET"
+          } > .env.production
+
+          # Compose reads ".env" by default; keep a copy so ${VAR} interpolation works
+          cp .env.production .env
 
           echo "✅ .env.production file created from GitHub secrets"
 
           chmod +x deploy.sh auto-deploy.sh deploy-production.sh 2>/dev/null || true
-          set -a
-          # shellcheck disable=SC1091
-          source .env.production
-          set +a
+
+          compose() {
+            docker-compose --env-file .env.production -f docker-compose.prod.yml "$@"
+          }
 
           echo "🛑 Stopping old containers..."
-          docker-compose -f docker-compose.prod.yml down --remove-orphans || true
+          compose down --remove-orphans || true
           # Compose sometimes leaves named containers behind (esp. nginx on external network)
           docker rm -f cn_terminal_backend cn_terminal_frontend cn_terminal_postgres cn_terminal-nginx 2>/dev/null || true
 
           echo "🚀 Building and starting containers..."
-          # Prefer cached layers for reliability/speed; use --no-cache only when needed
-          docker-compose -f docker-compose.prod.yml build
-          docker-compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
+          compose build
+          compose up -d --force-recreate --remove-orphans
 
           # If anything still blocked by name conflicts, force-remove and retry once
           if ! docker ps --format '{{.Names}}' | grep -qx 'cn_terminal_backend'; then
             echo "⚠️ Backend missing after up — forcing cleanup and retry..."
-            docker-compose -f docker-compose.prod.yml down --remove-orphans || true
+            compose down --remove-orphans || true
             docker rm -f cn_terminal_backend cn_terminal_frontend cn_terminal_postgres cn_terminal-nginx 2>/dev/null || true
-            docker-compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
+            compose up -d --force-recreate --remove-orphans
           fi
 
           echo "⏳ Waiting for backend to become healthy..."
@@ -97,8 +103,8 @@ jobs:
             fi
             if [ "$i" -eq 60 ]; then
               echo "❌ Backend did not become ready in time"
-              docker-compose -f docker-compose.prod.yml ps || true
-              docker-compose -f docker-compose.prod.yml logs --tail=80 backend || true
+              compose ps || true
+              compose logs --tail=80 backend || true
               exit 1
             fi
             sleep 5
@@ -114,5 +120,5 @@ jobs:
           echo "✅ Deployment complete!"
           echo ""
           echo "📊 Container Status:"
-          docker-compose -f docker-compose.prod.yml ps
+          compose ps
           docker ps --filter name=cn_terminal --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
