@@ -1,0 +1,13 @@
+CN TERMINAL - INVITATION LINKS LOG
+Created: 2026-07-28T23:41:37.906Z
+================================================================================
+
+🎉 NEW INVITATION CREATED - 2026-07-28T23:41:37.906Z
+============================================================
+🔗 INVITATION LINK: http://localhost:3000/accept-invitation/cms5av54b000qz44x5hw1ljsd
+📧 Email: enquiry@cnterminal.com
+👤 Role: ENQUIRY_OFFICER
+⏰ Expires: Tue Aug 04 2026 23:41:35 GMT+0000 (Greenwich Mean Time)
+🆔 ID: cms5av54b000qz44x5hw1ljsd
+============================================================
+

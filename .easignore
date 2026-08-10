@@ -1,0 +1,45 @@
+# EAS Build uploads from the git root. Exclude everything that is not needed for the Expo app.
+# https://docs.expo.dev/build-reference/easignore/
+
+# Other packages / tooling at repo root
+/backend/
+/frontend/
+/nginx/
+/.git/
+/.github/
+/.cursor/
+/Xcodes.app/
+/Xcodes.zip
+/node_modules/
+
+# Root docs, deploy scripts, docker, images (root-only via leading /)
+/*.md
+/*.sh
+/*.conf
+/*.txt
+/*.png
+/*.yml
+/*.yaml
+/env.example
+/env.production.template
+/production-files.txt
+
+# Mobile local artifacts (EAS installs deps in the cloud)
+/mobile/node_modules/
+/mobile/.expo/
+/mobile/dist/
+/mobile/web-build/
+/mobile/ios/
+/mobile/android/
+/mobile/.env
+/mobile/.env.local
+/mobile/*.log
+
+# Secrets / signing material
+**/*.jks
+**/*.p8
+**/*.p12
+**/*.key
+**/*.mobileprovision
+**/.DS_Store
+.git/
