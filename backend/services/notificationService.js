@@ -120,9 +120,10 @@ class NotificationService {
             console.log(`✅ [NotificationService] Also sent to user room: user_${notification.userId}`);
             
             // Update unread count for the specific user
-            const { RealtimeNotificationService } = require('./realtimeNotificationService');
-            await RealtimeNotificationService.sendUnreadCountUpdate(notification.userId);
-          }
+            const RealtimeNotificationService = require('./realtimeNotificationService');
+            if (RealtimeNotificationService?.sendUnreadCountUpdate) {
+              await RealtimeNotificationService.sendUnreadCountUpdate(notification.userId);
+            }
         } catch (socketError) {
           console.error('❌ [NotificationService] Error emitting real-time notification:', socketError);
           // Don't fail the notification creation if socket emission fails
