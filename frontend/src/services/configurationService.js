@@ -126,6 +126,91 @@ const configurationService = {
     }
   },
 
+  /** Normalize a list of dropdown string values (trim, drop empties, dedupe). */
+  normalizeStringList(list) {
+    return [...new Set((list || []).map((t) => String(t).trim()).filter(Boolean))];
+  },
+
+  /**
+   * Load a JSON string-list configuration. Seeds defaults when missing/empty.
+   * On network errors, returns defaults for UI only and does not overwrite the DB.
+   */
+  async loadStringList(key, defaults = [], meta = {}) {
+    try {
+      const stored = await this.getConfigValue(key, null);
+      if (Array.isArray(stored) && stored.length > 0) {
+        return this.normalizeStringList(stored);
+      }
+      const seeded = this.normalizeStringList(defaults);
+      if (seeded.length > 0) {
+        try {
+          await this.saveStringList(key, seeded, meta);
+        } catch (_) {
+          // Seed failed — still return defaults for the UI
+        }
+      }
+      return seeded;
+    } catch (error) {
+      if (error?.status === 404) {
+        const seeded = this.normalizeStringList(defaults);
+        if (seeded.length > 0) {
+          try {
+            await this.saveStringList(key, seeded, meta);
+          } catch (_) {
+            /* ignore */
+          }
+        }
+        return seeded;
+      }
+      return this.normalizeStringList(defaults);
+    }
+  },
+
+  async saveStringList(key, list, meta = {}) {
+    return this.saveConfiguration({
+      key,
+      value: JSON.stringify(this.normalizeStringList(list)),
+      type: 'JSON',
+      category: meta.category || 'JOBS',
+      description: meta.description || key,
+    });
+  },
+
+  /**
+   * Append a custom value to a config list (re-fetch + merge to avoid races).
+   * Returns { list, value, created }.
+   */
+  async addToStringList(key, value, defaults = [], meta = {}) {
+    let latest;
+    try {
+      const stored = await this.getConfigValue(key, null);
+      latest =
+        Array.isArray(stored) && stored.length > 0
+          ? this.normalizeStringList(stored)
+          : this.normalizeStringList(defaults);
+    } catch (error) {
+      if (error?.status === 404) {
+        latest = this.normalizeStringList(defaults);
+      } else {
+        throw error;
+      }
+    }
+
+    const trimmed = String(value || '').trim();
+    if (!trimmed) {
+      return { list: latest, value: '', created: false };
+    }
+
+    const existing = latest.find((t) => t.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      return { list: latest, value: existing, created: false };
+    }
+
+    const updated = this.normalizeStringList([...latest, trimmed]);
+    await this.saveStringList(key, updated, meta);
+    return { list: updated, value: trimmed, created: true };
+  },
+
   // Get configurations by category
   async getConfigurationsByCategory(category) {
     try {

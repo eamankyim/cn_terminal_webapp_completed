@@ -22,6 +22,13 @@ import { SelectField } from '../../components/SelectField';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
+import {
+  addToStringList,
+  GOODS_TYPES_CONFIG_KEY,
+  loadStringList,
+  SHIPPING_LINES_CONFIG_KEY,
+  VESSEL_NAMES_CONFIG_KEY,
+} from '../../api/configLists';
 import type { Job } from '../../types/api';
 import type { Customer, CustomersListResponse } from '../../types/api';
 import type { Consignment } from '../../types/api';
@@ -65,8 +72,6 @@ const DEFAULT_GOODS_TYPES = [
   'Tools & Hardware',
 ];
 
-const GOODS_TYPES_CONFIG_KEY = 'GOODS_TYPES';
-
 const DEFAULT_VESSELS = [
   'RHL Concordia',
   'MAERSK TEMA',
@@ -89,47 +94,22 @@ const DOCUMENTS_BROUGHT = [
   'Draft BL',
 ];
 
-type CustomField = 'goodsTypes' | 'vesselName' | 'line';
-
-interface ConfigResponse {
-  success?: boolean;
-  data?: { key: string; value: string; type: string };
-}
-
-async function loadPersistedGoodsTypes(): Promise<string[]> {
-  try {
-    const res = await api.get<ConfigResponse>(
-      `/configurations/${GOODS_TYPES_CONFIG_KEY}`,
-    );
-    const raw = res?.data?.value;
-    if (!raw) return DEFAULT_GOODS_TYPES;
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return [
-        ...new Set(
-          parsed.map((t) => String(t).trim()).filter(Boolean),
-        ),
-      ];
-    }
-  } catch (error: any) {
-    // Only fall back on missing config; rethrow network errors so callers don't overwrite
-    if (error?.status === 404) {
-      return DEFAULT_GOODS_TYPES;
-    }
-    throw error;
-  }
-  return DEFAULT_GOODS_TYPES;
-}
-
-async function persistGoodsTypes(types: string[]): Promise<void> {
-  await api.post('/configurations', {
-    key: GOODS_TYPES_CONFIG_KEY,
-    value: JSON.stringify(types),
-    type: 'JSON',
+const LIST_META = {
+  goods: {
     category: 'JOBS',
     description: 'Available goods types for job forms',
-  });
-}
+  },
+  vessels: {
+    category: 'JOBS',
+    description: 'Available vessel names for job forms',
+  },
+  lines: {
+    category: 'JOBS',
+    description: 'Available shipping lines for job forms',
+  },
+};
+
+type CustomField = 'goodsTypes' | 'vesselName' | 'line';
 
 export const JobCreateScreen: React.FC = () => {
   const { accent } = useTheme();
@@ -200,10 +180,32 @@ export const JobCreateScreen: React.FC = () => {
     let cancelled = false;
     void (async () => {
       try {
-        const types = await loadPersistedGoodsTypes();
-        if (!cancelled) setGoodsTypeOptions(types);
+        const [types, vessels, lines] = await Promise.all([
+          loadStringList(
+            GOODS_TYPES_CONFIG_KEY,
+            DEFAULT_GOODS_TYPES,
+            LIST_META.goods,
+          ),
+          loadStringList(
+            VESSEL_NAMES_CONFIG_KEY,
+            DEFAULT_VESSELS,
+            LIST_META.vessels,
+          ),
+          loadStringList(
+            SHIPPING_LINES_CONFIG_KEY,
+            DEFAULT_LINES,
+            LIST_META.lines,
+          ),
+        ]);
+        if (cancelled) return;
+        setGoodsTypeOptions(types);
+        setVesselOptions(vessels);
+        setLineOptions(lines);
       } catch {
-        if (!cancelled) setGoodsTypeOptions(DEFAULT_GOODS_TYPES);
+        if (cancelled) return;
+        setGoodsTypeOptions(DEFAULT_GOODS_TYPES);
+        setVesselOptions(DEFAULT_VESSELS);
+        setLineOptions(DEFAULT_LINES);
       }
     })();
     return () => {
@@ -304,69 +306,83 @@ export const JobCreateScreen: React.FC = () => {
       setCustomOpen(false);
       return;
     }
-    if (customField === 'goodsTypes') {
-      setCustomSaving(true);
-      try {
-        let latest: string[];
-        try {
-          latest = await loadPersistedGoodsTypes();
-        } catch {
-          latest = [...goodsTypeOptions];
-        }
-        const existing = latest.find(
-          (t) => t.toLowerCase() === trimmed.toLowerCase(),
+
+    setCustomSaving(true);
+    try {
+      if (customField === 'goodsTypes') {
+        const { list, value, created } = await addToStringList(
+          GOODS_TYPES_CONFIG_KEY,
+          trimmed,
+          DEFAULT_GOODS_TYPES,
+          LIST_META.goods,
         );
-        if (existing) {
-          setGoodsTypeOptions(latest);
-          setGoodsTypes((prev) =>
-            prev.includes(existing) ? prev : [...prev, existing],
-          );
-          setCustomOpen(false);
-          setCustomField(null);
-          setCustomValue('');
-          Alert.alert('Already exists', `"${existing}" is already in the list.`);
-          return;
-        }
-        const updated = [
-          ...new Set([...latest, trimmed].map((t) => t.trim()).filter(Boolean)),
-        ];
-        setGoodsTypeOptions(updated);
+        setGoodsTypeOptions(list);
         setGoodsTypes((prev) =>
-          prev.includes(trimmed) ? prev : [...prev, trimmed],
+          prev.includes(value) ? prev : [...prev, value],
         );
-        setCustomOpen(false);
-        setCustomField(null);
-        setCustomValue('');
-        await persistGoodsTypes(updated);
-      } catch (err: any) {
-        Alert.alert(
-          'Error',
-          err?.message ?? 'Failed to save goods type.',
-        );
-        try {
-          const refreshed = await loadPersistedGoodsTypes();
-          setGoodsTypeOptions(refreshed);
-        } catch {
-          // keep current options
+        if (!created) {
+          Alert.alert('Already exists', `"${value}" is already in the list.`);
         }
-      } finally {
-        setCustomSaving(false);
+      } else if (customField === 'vesselName') {
+        const { list, value, created } = await addToStringList(
+          VESSEL_NAMES_CONFIG_KEY,
+          trimmed,
+          DEFAULT_VESSELS,
+          LIST_META.vessels,
+        );
+        setVesselOptions(list);
+        setVesselName(value);
+        if (!created) {
+          Alert.alert('Already exists', `"${value}" is already in the list.`);
+        }
+      } else if (customField === 'line') {
+        const { list, value, created } = await addToStringList(
+          SHIPPING_LINES_CONFIG_KEY,
+          trimmed,
+          DEFAULT_LINES,
+          LIST_META.lines,
+        );
+        setLineOptions(list);
+        setLine(value);
+        if (!created) {
+          Alert.alert('Already exists', `"${value}" is already in the list.`);
+        }
       }
-      return;
-    } else if (customField === 'vesselName') {
-      setVesselOptions((prev) =>
-        prev.includes(trimmed) ? prev : [...prev, trimmed],
+      setCustomOpen(false);
+      setCustomField(null);
+      setCustomValue('');
+    } catch (err: any) {
+      Alert.alert(
+        'Error',
+        err?.message ?? 'Failed to save custom option.',
       );
-      setVesselName(trimmed);
-    } else if (customField === 'line') {
-      setLineOptions((prev) =>
-        prev.includes(trimmed) ? prev : [...prev, trimmed],
-      );
-      setLine(trimmed);
+      try {
+        const [types, vessels, lines] = await Promise.all([
+          loadStringList(
+            GOODS_TYPES_CONFIG_KEY,
+            DEFAULT_GOODS_TYPES,
+            LIST_META.goods,
+          ),
+          loadStringList(
+            VESSEL_NAMES_CONFIG_KEY,
+            DEFAULT_VESSELS,
+            LIST_META.vessels,
+          ),
+          loadStringList(
+            SHIPPING_LINES_CONFIG_KEY,
+            DEFAULT_LINES,
+            LIST_META.lines,
+          ),
+        ]);
+        setGoodsTypeOptions(types);
+        setVesselOptions(vessels);
+        setLineOptions(lines);
+      } catch {
+        // keep current options
+      }
+    } finally {
+      setCustomSaving(false);
     }
-    setCustomOpen(false);
-    setCustomField(null);
-    setCustomValue('');
   };
 
   const openConsigneeModal = () => {
