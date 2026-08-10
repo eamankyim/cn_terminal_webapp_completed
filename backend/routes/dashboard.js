@@ -54,6 +54,9 @@ router.get('/stats', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOA
     const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
     const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
 
+    // Submitted jobs only — drafts never inflate dashboard stats (including for admins)
+    const submittedJobs = { isDraft: false };
+
     // Get total counts
     const [
       totalJobs,
@@ -64,7 +67,7 @@ router.get('/stats', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOA
       totalPayments,
       jobsDelivered
     ] = await Promise.all([
-      prisma.job.count(),
+      prisma.job.count({ where: submittedJobs }),
       prisma.customer.count(), // This is actually clients in your system
       prisma.shipment.count(),
       prisma.consignment.count(),
@@ -72,6 +75,7 @@ router.get('/stats', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOA
       prisma.payment.count(),
       prisma.job.count({
         where: {
+          ...submittedJobs,
           status: 'DELIVERED'
         }
       })
@@ -80,6 +84,7 @@ router.get('/stats', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOA
     // Get jobs in progress (excluding NEW, CLEARED, DELIVERED)
     const jobsInProgress = await prisma.job.count({
       where: {
+        ...submittedJobs,
         status: {
           notIn: ['NEW', 'CLEARED', 'DELIVERED']
         }
@@ -103,6 +108,7 @@ router.get('/stats', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOA
     // Get workflow status counts
     const workflowStatuses = await prisma.job.groupBy({
       by: ['status'],
+      where: submittedJobs,
       _count: {
         status: true
       }
@@ -117,6 +123,7 @@ router.get('/stats', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOA
     const [recentJobs, recentPayments, recentInvoices] = await Promise.all([
       // Recent jobs - using only fields that exist in current schema
       prisma.job.findMany({
+        where: submittedJobs,
         take: 3,
         orderBy: { createdAt: 'desc' },
         select: {
@@ -309,6 +316,7 @@ router.get('/recent-jobs', authenticateToken, requirePermission(UI_PERMISSIONS.D
 
     const jobs = await prisma.job.findMany({
       where: {
+        isDraft: false,
         status: {
           notIn: ['NEW', 'CLEARED', 'DELIVERED']
         }
@@ -387,6 +395,7 @@ router.get('/assigned-jobs', authenticateToken, requirePermission(UI_PERMISSIONS
 
     const jobs = await prisma.job.findMany({
       where: {
+        isDraft: false,
         assignedToId: req.user.id
       },
       take: parseInt(limit),

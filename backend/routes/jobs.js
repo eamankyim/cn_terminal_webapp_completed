@@ -146,67 +146,65 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
 
     // Build where condition
     const where = {};
-    
-    // Special visibility rules for draft jobs
-    // Draft jobs are only visible to:
-    // 1. The person who created it (createdById)
-    // 2. The person assigned to it (assignedToId) - but only if they created it themselves
-    const visibilityConditions = [
-      // Non-draft jobs are visible to everyone
-      { isDraft: false },
-      // Draft jobs are only visible to creator or assigned person (if they created it)
-      {
-        AND: [
-          { isDraft: true },
-          {
-            OR: [
-              { createdById: req.user.id }, // Creator can see their drafts
-              { 
-                AND: [
-                  { assignedToId: req.user.id }, // Assigned person
-                  { createdById: req.user.id }   // But only if they created it
-                ]
-              }
-            ]
-          }
-        ]
-      }
-    ];
-    
-    // Role-based filtering: DRIVER only sees assigned jobs
-    if (req.user.role === 'DRIVER') {
-      // DRIVER only sees jobs where they are the assignee OR the driverName matches
-      const driverFilter = {
-        OR: [
-          { assignedToId: req.user.id },
-          { driverName: req.user.name }
-        ]
-      };
-      
-      // Merge driver filter with visibility conditions
-      const conditionsWithDriver = visibilityConditions.map(condition => ({
-        AND: [condition, driverFilter]
-      }));
-      
-      visibilityConditions.splice(0, visibilityConditions.length, ...conditionsWithDriver);
-      
-      console.log('  - Applied DRIVER filtering: only assigned jobs or driver-matched jobs');
-    }
 
-    // Add search conditions if provided
-    if (search) {
-      const searchConditions = [
+    // ADMIN / IT_CONSULTANT see all jobs including everyone else's drafts.
+    // Others: non-drafts are public; drafts only for creator or assignee.
+    const canSeeAllDrafts = ['ADMIN', 'IT_CONSULTANT'].includes(req.user.role);
+
+    if (!canSeeAllDrafts) {
+      const visibilityConditions = [
+        { isDraft: false },
+        {
+          AND: [
+            { isDraft: true },
+            {
+              OR: [
+                { createdById: req.user.id },
+                { assignedToId: req.user.id }
+              ]
+            }
+          ]
+        }
+      ];
+
+      // Role-based filtering: DRIVER only sees assigned jobs
+      if (req.user.role === 'DRIVER') {
+        const driverFilter = {
+          OR: [
+            { assignedToId: req.user.id },
+            { driverName: req.user.name }
+          ]
+        };
+
+        const conditionsWithDriver = visibilityConditions.map(condition => ({
+          AND: [condition, driverFilter]
+        }));
+
+        visibilityConditions.splice(0, visibilityConditions.length, ...conditionsWithDriver);
+
+        console.log('  - Applied DRIVER filtering: only assigned jobs or driver-matched jobs');
+      }
+
+      if (search) {
+        const searchConditions = [
+          { trackingId: { contains: search, mode: 'insensitive' } },
+          { assignedTo: { contains: search, mode: 'insensitive' } },
+          { customer: { name: { contains: search, mode: 'insensitive' } } }
+        ];
+
+        where.AND = [
+          { OR: visibilityConditions },
+          { OR: searchConditions }
+        ];
+      } else {
+        where.OR = visibilityConditions;
+      }
+    } else if (search) {
+      where.OR = [
         { trackingId: { contains: search, mode: 'insensitive' } },
         { assignedTo: { contains: search, mode: 'insensitive' } },
         { customer: { name: { contains: search, mode: 'insensitive' } } }
       ];
-      
-      where.AND = [
-        { OR: visibilityConditions },
-        { OR: searchConditions }
-      ];
-    } else {
-      where.OR = visibilityConditions;
     }
 
     if (status) {
