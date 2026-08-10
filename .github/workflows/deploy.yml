@@ -4,50 +4,50 @@ on:
   push:
     branches:
       - production
-      - main  # Also trigger on main for testing
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Deploy to Server
-      uses: appleboy/ssh-action@master
+      uses: appleboy/ssh-action@v1.2.0
       with:
         host: ${{ secrets.PROD_SERVER_IP }}
         username: ${{ secrets.PROD_SERVER_USER }}
         key: ${{ secrets.PROD_SERVER_SSH_KEY }}
+        # Full no-cache frontend builds often exceed the default 10m SSH timeout
+        command_timeout: 40m
+        script_stop: true
         script: |
-          cd ~/cn_terminal || mkdir -p ~/cn_terminal && cd ~/cn_terminal
-          
-          # Pull latest code from production branch
+          set -euo pipefail
+
+          cd ~/cn_terminal || { mkdir -p ~/cn_terminal && cd ~/cn_terminal; }
+
           echo "📥 Pulling latest code..."
           if [ -d .git ]; then
             git fetch origin
-            git checkout production || git checkout -b production
+            git checkout production
+            git reset --hard origin/production
             git pull origin production
           else
             echo "📥 Cloning repository..."
             git clone -b production https://github.com/${{ github.repository }}.git .
             git checkout production
           fi
-          
-          # Create .env.production file from GitHub secrets
+
           echo "📝 Creating/updating .env.production file from GitHub secrets..."
-          
-          # Use DATABASE_URL secret if provided, otherwise construct from DB_PASSWORD
+
           DATABASE_URL_SECRET="${{ secrets.DATABASE_URL }}"
           DB_PASSWORD_SECRET="${{ secrets.DB_PASSWORD }}"
-          
+
           if [ -n "$DATABASE_URL_SECRET" ]; then
             DB_URL="$DATABASE_URL_SECRET"
           else
-            # Construct DATABASE_URL from DB_PASSWORD
             DB_URL="postgresql://cn_terminal_user:${DB_PASSWORD_SECRET}@postgres:5432/cn_terminal_db?schema=public"
           fi
-          
-          # Create .env.production file using echo (to avoid YAML parsing issues with heredoc)
+
           echo "NODE_ENV=production" > .env.production
           echo "DATABASE_URL=${DB_URL}" >> .env.production
           echo "PORT=5000" >> .env.production
@@ -62,41 +62,57 @@ jobs:
           echo "REACT_APP_FROM_NAME=${{ secrets.REACT_APP_FROM_NAME }}" >> .env.production
           echo "REACT_APP_EMAIL_DEV_MODE=false" >> .env.production
           echo "DB_PASSWORD=${DB_PASSWORD_SECRET}" >> .env.production
-          
+
           echo "✅ .env.production file created from GitHub secrets"
-          
-          # Make scripts executable
+
           chmod +x deploy.sh auto-deploy.sh deploy-production.sh 2>/dev/null || true
-          
-          # Load environment variables
+          set -a
+          # shellcheck disable=SC1091
           source .env.production
-          
-          # Build and start containers
-          echo "🚀 Building and starting containers..."
+          set +a
+
+          echo "🛑 Stopping old containers..."
           docker-compose -f docker-compose.prod.yml down --remove-orphans || true
-          # Force-remove lingering containers that block recreate after a failed down
+          # Compose sometimes leaves named containers behind (esp. nginx on external network)
           docker rm -f cn_terminal_backend cn_terminal_frontend cn_terminal_postgres cn_terminal-nginx 2>/dev/null || true
-          docker-compose -f docker-compose.prod.yml build --no-cache
+
+          echo "🚀 Building and starting containers..."
+          # Prefer cached layers for reliability/speed; use --no-cache only when needed
+          docker-compose -f docker-compose.prod.yml build
           docker-compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
-          
-          # Wait for containers to be fully up
-          echo "⏳ Waiting for containers to be ready..."
-          sleep 20
-          
-          # Connect nginx to host-network (if not already connected)
+
+          # If anything still blocked by name conflicts, force-remove and retry once
+          if ! docker ps --format '{{.Names}}' | grep -qx 'cn_terminal_backend'; then
+            echo "⚠️ Backend missing after up — forcing cleanup and retry..."
+            docker-compose -f docker-compose.prod.yml down --remove-orphans || true
+            docker rm -f cn_terminal_backend cn_terminal_frontend cn_terminal_postgres cn_terminal-nginx 2>/dev/null || true
+            docker-compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
+          fi
+
+          echo "⏳ Waiting for backend to become healthy..."
+          for i in $(seq 1 60); do
+            if docker exec cn_terminal_backend node -e "require('http').get('http://127.0.0.1:5000/api/health',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"; then
+              echo "✅ Backend is responding"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "❌ Backend did not become ready in time"
+              docker-compose -f docker-compose.prod.yml ps || true
+              docker-compose -f docker-compose.prod.yml logs --tail=80 backend || true
+              exit 1
+            fi
+            sleep 5
+          done
+
           echo "🔗 Connecting nginx to host-network..."
           docker network connect host-network cn_terminal-nginx 2>/dev/null || echo "Already connected or network doesn't exist"
-          
-          # Setup database (only for first deployment or schema changes)
+
           echo "🗄️ Setting up database..."
-          docker exec cn_terminal_backend npx prisma generate || true
-          docker exec cn_terminal_backend npx prisma db push || true
-          
+          docker exec cn_terminal_backend npx prisma generate
+          docker exec cn_terminal_backend npx prisma db push
+
           echo "✅ Deployment complete!"
           echo ""
           echo "📊 Container Status:"
           docker-compose -f docker-compose.prod.yml ps
-          echo ""
-          echo "📋 Next steps:"
-          echo "  - Create admin user: docker exec -it cn_terminal_backend node scripts/create-admin.js"
-          echo "  - Check logs: docker-compose -f docker-compose.prod.yml logs -f"
+          docker ps --filter name=cn_terminal --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
