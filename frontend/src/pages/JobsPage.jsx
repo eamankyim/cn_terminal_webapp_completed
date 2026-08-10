@@ -1865,6 +1865,7 @@ const JobsPage = () => {
                   placeholder="Select documents brought by client"
                   style={{ width: '100%' }}
                 >
+                  <Option value="Parking list">Parking list</Option>
                   <Option value="Parking list & Copy">Parking list & Copy</Option>
                   <Option value="Container No">Container No</Option>
                   <Option value="Copy BL">Copy BL</Option>
