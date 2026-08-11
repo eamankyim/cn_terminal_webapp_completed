@@ -69,7 +69,8 @@ const MainTabsNavigator: React.FC = () => {
 
   const showDashboard = canAccessDashboard(user);
   const showJobs = hasPermission(user, UI_PERMISSIONS.JOBS);
-  const showCustomers = hasPermission(user, UI_PERMISSIONS.CLIENTS);
+  // Clients are available to every authenticated user
+  const showCustomers = Boolean(user);
 
   const initialRouteName = getDefaultTabForRole(user?.role, {
     showDashboard,

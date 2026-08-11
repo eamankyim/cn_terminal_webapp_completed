@@ -137,8 +137,8 @@ const router = express.Router();
  *       500:
  *         description: Internal server error
  */
-// Get all customers
-router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), async (req, res) => {
+// Get all customers (available to every authenticated user)
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const { page = 1, limit = 10, search = '' } = req.query;
     const skip = (page - 1) * limit;
@@ -243,8 +243,39 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), as
  *       500:
  *         description: Internal server error
  */
-// Get customer by ID
-router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), async (req, res) => {
+// Customer selector for dropdowns (must be registered before /:id)
+router.get('/selector', authenticateToken, async (req, res) => {
+  try {
+    const { search = '' } = req.query;
+
+    const customers = await prisma.customer.findMany({
+      where: search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {},
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        customerType: true,
+      },
+      orderBy: { name: 'asc' },
+      take: 50,
+    });
+
+    res.json({ customers });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get customer by ID (available to every authenticated user)
+router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -281,8 +312,8 @@ router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS),
   }
 });
 
-// Create new customer
-router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), async (req, res) => {
+// Create new customer (available to every authenticated user)
+router.post('/', authenticateToken, async (req, res) => {
   try {
 
     const {
@@ -469,7 +500,7 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), a
  *         description: Internal server error
  */
 // Update customer
-router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), async (req, res) => {
+router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -709,7 +740,7 @@ router.delete('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENT
  *         description: Internal server error
  */
 // Get customer statistics
-router.get('/:id/statistics', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), async (req, res) => {
+router.get('/:id/statistics', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -815,34 +846,4 @@ router.get('/:id/statistics', authenticateToken, requirePermission(UI_PERMISSION
  *       500:
  *         description: Internal server error
  */
-// Get customer by ID for dropdown/selector
-router.get('/selector', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENTS), async (req, res) => {
-  try {
-    const { search = '' } = req.query;
-    
-    const customers = await prisma.customer.findMany({
-      where: search ? {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } }
-        ]
-      } : {},
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        customerType: true
-      },
-      orderBy: { name: 'asc' },
-      take: 50
-    });
-
-    res.json({ customers });
-  } catch (error) {
-
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 module.exports = router;
