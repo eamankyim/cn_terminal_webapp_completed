@@ -186,13 +186,31 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
 
+    // Bidirectional aliases so ui:* and resource:* checks both work
+    const aliases = {
+      'customer:create': ['ui:create_customer'],
+      'ui:create_customer': ['customer:create'],
+      'customer:edit': ['ui:edit_customer'],
+      'ui:edit_customer': ['customer:edit'],
+      'customer:delete': ['ui:delete_customer'],
+      'ui:delete_customer': ['customer:delete'],
+      'customer:view_all': ['ui:view_all_customers', 'ui:clients'],
+      'ui:view_all_customers': ['customer:view_all', 'ui:clients'],
+      'ui:clients': ['customer:view', 'customer:view_all'],
+      'customer:view': ['ui:clients'],
+    };
+
+    const candidates = [permission, ...(aliases[permission] || [])];
+
     // Check if user has specific permissions array from database
     if (currentUser.permissions && Array.isArray(currentUser.permissions)) {
-      return currentUser.permissions.includes(permission);
+      if (candidates.some((p) => currentUser.permissions.includes(p))) {
+        return true;
+      }
     }
 
     // Fallback to UI-based permissions
-    return hasUIPermission(currentUser.role, permission);
+    return candidates.some((p) => hasUIPermission(currentUser.role, p));
   };
 
   // Function to refresh user permissions from the server

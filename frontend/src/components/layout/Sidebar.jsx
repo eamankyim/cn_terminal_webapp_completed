@@ -55,7 +55,8 @@ const Sidebar = ({ collapsed, onNavigate }) => {
       key: '/clients',
       icon: <UserOutlined />,
       label: 'Clients',
-      permission: UI_PERMISSIONS.CLIENTS,
+      // Clients are available to every authenticated user
+      alwaysShow: true,
     },
     {
       key: '/invoices',
@@ -103,6 +104,7 @@ const Sidebar = ({ collapsed, onNavigate }) => {
 
   // Filter menu items based on user permissions and role restrictions
   const filteredMenuItems = menuItems.filter(item => {
+    if (item.alwaysShow) return true;
     if (!item.permission) return true; // Show items without permission requirements
     
     // Hide Dashboard for all roles except ADMIN, ACCOUNTANT, and IT_CONSULTANT
