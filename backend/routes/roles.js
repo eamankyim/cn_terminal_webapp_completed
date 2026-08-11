@@ -9,8 +9,26 @@ const {
   revokeUserPermission,
   getUserPermissions
 } = require('../utils/databasePermissions');
+const { ensureMissingSystemRoles } = require('../utils/seedUtils');
 
 const router = express.Router();
+
+/**
+ * Ensure missing system roles (e.g. INVOICE_OFFICER) exist with default permissions.
+ * Admin / IT only. Safe to call repeatedly.
+ */
+router.post('/ensure-missing', authenticateToken, requireAdminOrIT, async (req, res) => {
+  try {
+    const result = await ensureMissingSystemRoles(req.user.id);
+    res.json(result);
+  } catch (error) {
+    console.error('Error ensuring missing roles:', error);
+    res.status(500).json({
+      error: 'Failed to ensure missing roles',
+      details: error.message
+    });
+  }
+});
 
 /**
  * @swagger

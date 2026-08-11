@@ -1070,6 +1070,12 @@ router.put('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
         ...(isActive !== undefined && { isActive })
     };
 
+    // Keep roleId in sync so login returns the correct RolePermission set
+    if (role) {
+      const roleRecord = await prisma.role.findUnique({ where: { name: role } });
+      updateData.roleId = roleRecord?.id || null;
+    }
+
     // Handle password update if provided
     if (password) {
       console.log('🔐 Password provided - hashing...');
