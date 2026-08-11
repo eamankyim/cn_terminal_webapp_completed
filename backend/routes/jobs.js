@@ -33,7 +33,7 @@ const router = express.Router();
  *         name: search
  *         schema:
  *           type: string
- *         description: Search term for tracking ID or goods type
+ *         description: Search by tracking ID, container number, BL number, assignee, or customer name
  *       - in: query
  *         name: status
  *         schema:
@@ -188,7 +188,9 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
       if (search) {
         const searchConditions = [
           { trackingId: { contains: search, mode: 'insensitive' } },
-          { assignedTo: { contains: search, mode: 'insensitive' } },
+          { containerNumber: { contains: search, mode: 'insensitive' } },
+          { blNumber: { contains: search, mode: 'insensitive' } },
+          { assignedTo: { name: { contains: search, mode: 'insensitive' } } },
           { customer: { name: { contains: search, mode: 'insensitive' } } }
         ];
 
@@ -202,7 +204,9 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
     } else if (search) {
       where.OR = [
         { trackingId: { contains: search, mode: 'insensitive' } },
-        { assignedTo: { contains: search, mode: 'insensitive' } },
+        { containerNumber: { contains: search, mode: 'insensitive' } },
+        { blNumber: { contains: search, mode: 'insensitive' } },
+        { assignedTo: { name: { contains: search, mode: 'insensitive' } } },
         { customer: { name: { contains: search, mode: 'insensitive' } } }
       ];
     }

@@ -1777,7 +1777,7 @@ const JobsPage = () => {
                   )}
                   <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <Input.Search
-                      placeholder="Search by Job ID (e.g., 2026-08-10-0001)"
+                      placeholder="Search by Job ID, Container No, or BL"
                       allowClear
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
@@ -1812,8 +1812,12 @@ const JobsPage = () => {
                       // Search filter
                       if (searchQuery) {
                         const query = searchQuery.toLowerCase();
-                        const matchesSearch = job.trackingId?.toLowerCase().includes(query) || 
-                                           job.id?.toLowerCase().includes(query);
+                        const matchesSearch =
+                          job.trackingId?.toLowerCase().includes(query) ||
+                          job.id?.toLowerCase().includes(query) ||
+                          job.containerNumber?.toLowerCase().includes(query) ||
+                          job.blNumber?.toLowerCase().includes(query) ||
+                          job.customer?.name?.toLowerCase().includes(query);
                         if (!matchesSearch) return false;
                       }
                       

@@ -341,7 +341,7 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
                 <TextInput
                   value={searchInput}
                   onChangeText={setSearchInput}
-                  placeholder="Search by Job ID"
+                  placeholder="Search by Job ID, Container No, or BL"
                   placeholderTextColor="#999"
                   autoCapitalize="none"
                   autoCorrect={false}
