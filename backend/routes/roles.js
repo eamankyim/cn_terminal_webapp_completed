@@ -358,10 +358,13 @@ router.put('/users/:userId/role', authenticateToken, requireAdminOrIT, async (re
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Update user role
+    // Update user role and keep roleId in sync for login permission loading
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: { role },
+      data: {
+        role,
+        roleId: roleRecord.id,
+      },
       select: {
         id: true,
         name: true,
