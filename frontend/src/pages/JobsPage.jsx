@@ -668,22 +668,39 @@ const JobsPage = () => {
       title: 'Documents Brought',
       dataIndex: 'documentsBrought',
       key: 'documentsBrought',
-      render: (documentsBrought) => (
-        <div>
-          {documentsBrought && documentsBrought.length > 0 ? (
-            documentsBrought.slice(0, 2).map((doc, index) => (
-              <Tag key={index} color="green" style={{ marginBottom: '2px', fontSize: '11px' }}>
-                {doc}
-              </Tag>
-            ))
-          ) : (
-            <Text type="secondary" style={{ fontSize: '12px' }}>None</Text>
-          )}
-          {documentsBrought && documentsBrought.length > 2 && (
-            <Tag style={{ fontSize: '11px' }}>+{documentsBrought.length - 2}</Tag>
-          )}
-        </div>
-      )
+      render: (documentsBrought, record) => {
+        const docs = Array.isArray(documentsBrought) ? documentsBrought : [];
+        const resolvedTags = docs.map((doc) => {
+          if (doc === 'Container No') {
+            // Backwards compatibility for older rows that stored the label.
+            return record?.containerNumber || doc;
+          }
+          return doc;
+        });
+
+        return (
+          <div>
+            {resolvedTags.length > 0 ? (
+              resolvedTags.slice(0, 2).map((tag, index) => (
+                <Tag
+                  key={index}
+                  color="green"
+                  style={{ marginBottom: '2px', fontSize: '11px' }}
+                >
+                  {tag}
+                </Tag>
+              ))
+            ) : (
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                None
+              </Text>
+            )}
+            {resolvedTags.length > 2 && (
+              <Tag style={{ fontSize: '11px' }}>+{resolvedTags.length - 2}</Tag>
+            )}
+          </div>
+        );
+      }
     },
     {
       title: 'Container No.',
@@ -749,6 +766,55 @@ const JobsPage = () => {
 
     }
     
+    const staticDocumentLabels = [
+      'Parking list',
+      'Parking list & Copy',
+      'Copy BL',
+      'Original BL',
+      'Draft BL',
+    ];
+
+    const existingDocs = Array.isArray(job.documentsBrought)
+      ? job.documentsBrought
+      : [];
+
+    // Map stored values back into multi-select placeholder choices.
+    // New jobs store actual values (container number/image) inside documentsBrought.
+    // The form expects placeholders ('Container No', 'Container Image') in documentsBrought.
+    let derivedContainerImage = '';
+    let mappedDocumentsBrought = [];
+
+    existingDocs.forEach((d) => {
+      if (d === 'Container No') {
+        mappedDocumentsBrought.push('Container No');
+        return;
+      }
+
+      if (d === 'Container Image') {
+        mappedDocumentsBrought.push('Container Image');
+        return;
+      }
+
+      if (staticDocumentLabels.includes(d)) {
+        mappedDocumentsBrought.push(d);
+        return;
+      }
+
+      // If it matches the stored container number, treat it as "Container No".
+      if (job.containerNumber && d === job.containerNumber) {
+        mappedDocumentsBrought.push('Container No');
+        return;
+      }
+
+      // Otherwise assume it's the container image value.
+      if (!derivedContainerImage) {
+        derivedContainerImage = d;
+      }
+      mappedDocumentsBrought.push('Container Image');
+    });
+
+    mappedDocumentsBrought = Array.from(new Set(mappedDocumentsBrought));
+
     const formValues = {
       customerId: job.customerId,
       consignmentId: job.consignmentId,
@@ -756,13 +822,14 @@ const JobsPage = () => {
       assignedToId: job.assignedToId,
       eta: job.eta ? dayjs(job.eta) : null,
       mediumOfEnquiry: job.mediumOfEnquiry,
-      documentsBrought: job.documentsBrought || [],
+      documentsBrought: mappedDocumentsBrought,
       containerNumber: job.containerNumber,
       blNumber: job.blNumber,
       vesselName: job.vesselName,
       line: job.line,
       jobDescription: job.jobDescription,
       status: job.status,
+      containerImage: derivedContainerImage,
       documents: existingDocuments
     };
 
@@ -856,6 +923,39 @@ const JobsPage = () => {
     try {
       // Extract documents from form values (but don't process them here)
       const { documents: documentsValue, ...jobData } = values;
+
+      // Transform "placeholder" document selections into their actual typed values.
+      // We store the actual values inside `documentsBrought` (no DB column for container image).
+      const containerNumberValue = (jobData.containerNumber || '').trim();
+      const containerImageValue = (jobData.containerImage || '').trim();
+
+      let transformedDocumentsBrought = Array.isArray(jobData.documentsBrought)
+        ? [...jobData.documentsBrought]
+        : [];
+
+      if (transformedDocumentsBrought.includes('Container No')) {
+        if (!containerNumberValue) {
+          message.error('Please enter container number for "Container No".');
+          setSubmitLoading(false);
+          return;
+        }
+        transformedDocumentsBrought = transformedDocumentsBrought.filter(
+          (d) => d !== 'Container No',
+        );
+        transformedDocumentsBrought.push(containerNumberValue);
+      }
+
+      if (transformedDocumentsBrought.includes('Container Image')) {
+        if (!containerImageValue) {
+          message.error('Please enter container image value for "Container Image".');
+          setSubmitLoading(false);
+          return;
+        }
+        transformedDocumentsBrought = transformedDocumentsBrought.filter(
+          (d) => d !== 'Container Image',
+        );
+        transformedDocumentsBrought.push(containerImageValue);
+      }
       
       // Handle documents - could be array or object with fileList property
       const documents = Array.isArray(documentsValue) 
@@ -909,7 +1009,9 @@ const JobsPage = () => {
       const jobStatus = jobData.status || 'NEW';
       
       // Set isDraft to false when submitting
-      const submittedJobData = { ...jobData, isDraft: false };
+      const submittedJobData = { ...jobData, isDraft: false, documentsBrought: transformedDocumentsBrought };
+      // Prevent sending client-only field to backend (backend does not store it separately).
+      delete submittedJobData.containerImage;
       
       let response;
       if (editingJob) {
@@ -987,6 +1089,38 @@ const JobsPage = () => {
       const formValues = form.getFieldsValue(true);
       const { documents: documentsValue, ...jobData } = formValues;
 
+      // Transform placeholder document selections into actual typed values.
+      const containerNumberValue = (jobData.containerNumber || '').trim();
+      const containerImageValue = (jobData.containerImage || '').trim();
+
+      let transformedDocumentsBrought = Array.isArray(jobData.documentsBrought)
+        ? [...jobData.documentsBrought]
+        : [];
+
+      if (transformedDocumentsBrought.includes('Container No')) {
+        if (!containerNumberValue) {
+          message.error('Please enter container number for "Container No".');
+          setDraftLoading(false);
+          return;
+        }
+        transformedDocumentsBrought = transformedDocumentsBrought.filter(
+          (d) => d !== 'Container No',
+        );
+        transformedDocumentsBrought.push(containerNumberValue);
+      }
+
+      if (transformedDocumentsBrought.includes('Container Image')) {
+        if (!containerImageValue) {
+          message.error('Please enter container image value for "Container Image".');
+          setDraftLoading(false);
+          return;
+        }
+        transformedDocumentsBrought = transformedDocumentsBrought.filter(
+          (d) => d !== 'Container Image',
+        );
+        transformedDocumentsBrought.push(containerImageValue);
+      }
+
       if (!jobData.customerId) {
         message.warning('Select a client to save a draft');
         return;
@@ -1001,11 +1135,12 @@ const JobsPage = () => {
         ...jobData,
         isDraft: true,
         goodsTypes: Array.isArray(jobData.goodsTypes) ? jobData.goodsTypes : [],
-        documentsBrought: Array.isArray(jobData.documentsBrought)
-          ? jobData.documentsBrought
-          : [],
+        documentsBrought: transformedDocumentsBrought,
         consignmentId: jobData.consignmentId || null,
       };
+
+      // Prevent sending client-only field to backend.
+      delete draftJobData.containerImage;
 
       let response;
       if (editingJob) {
@@ -1754,7 +1889,7 @@ const JobsPage = () => {
                     }}
                     mobileConfig={{
                       primaryFields: ['trackingId', 'clientName', 'status'],
-                      secondaryFields: ['goodsTypes', 'assignedTo', 'createdAt', 'documentsBrought']
+                      secondaryFields: ['goodsTypes', 'assignedTo', 'createdAt', 'documentsBrought', 'containerNumber']
                     }}
                     onRowClick={(record) => handleViewJob(record)}
                     locale={{
@@ -1977,6 +2112,7 @@ const JobsPage = () => {
                   <Option value="Parking list">Parking list</Option>
                   <Option value="Parking list & Copy">Parking list & Copy</Option>
                   <Option value="Container No">Container No</Option>
+                  <Option value="Container Image">Container Image</Option>
                   <Option value="Copy BL">Copy BL</Option>
                   <Option value="Original BL">Original BL</Option>
                   <Option value="Draft BL">Draft BL</Option>
@@ -1996,6 +2132,18 @@ const JobsPage = () => {
               </Form.Item>
             </Col>
             <Col span={12}>
+              <Form.Item
+                name="containerImage"
+                label="Container Image"
+                rules={[{ required: false, message: 'Please enter container image value' }]}
+              >
+                <Input placeholder="Enter container image value" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={24}>
               <Form.Item
                 name="blNumber"
                 label="B/L Number"
@@ -2962,11 +3110,24 @@ const JobsPage = () => {
                   <div style={{ width: '140px', fontWeight: 'bold' }}>Documents Brought:</div>
                   <div>
                     {selectedJob.documentsBrought && selectedJob.documentsBrought.length > 0 ? (
-                      selectedJob.documentsBrought.map((doc, index) => (
-                        <Tag key={index} color="green" style={{ marginBottom: '2px', marginRight: '4px' }}>
-                          {doc}
-                        </Tag>
-                      ))
+                      selectedJob.documentsBrought.map((doc, index) => {
+                        const resolved =
+                          doc === 'Container No'
+                            ? selectedJob.containerNumber
+                              ? selectedJob.containerNumber
+                              : 'Not specified'
+                            : doc;
+
+                        return (
+                          <Tag
+                            key={index}
+                            color="green"
+                            style={{ marginBottom: '2px', marginRight: '4px' }}
+                          >
+                            {resolved}
+                          </Tag>
+                        );
+                      })
                     ) : (
                       <Tag color="default">No documents specified</Tag>
                     )}
