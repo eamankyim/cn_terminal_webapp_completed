@@ -187,6 +187,7 @@ class NotificationService {
     const statusMessages = {
       'NEW': 'Job has been created',
       'PREINVOICED': 'Job is ready for invoicing',
+      'INVOICED': 'Job has been invoiced',
       'VETTED': 'Job has been vetted and reviewed',
       'ENTRY': 'Job is being processed for entry',
       'RELEASED': 'Job has been released',

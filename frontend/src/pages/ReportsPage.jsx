@@ -71,7 +71,7 @@ const ReportsPage = () => {
   const [activeTab, setActiveTab] = useState('overview');
   
   // Check if user should see revenue data
-  const employeeRoles = ['ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'TRANSPORT_COORDINATOR', 'RELEASE_OFFICER', 'PREINVOICE_OFFICER', 'REVIEW_OFFICER', 'VETTING_OFFICER', 'CLEARING_OFFICER', 'STAFF', 'DRIVER', 'WAREHOUSE'];
+  const employeeRoles = ['ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'TRANSPORT_COORDINATOR', 'RELEASE_OFFICER', 'PREINVOICE_OFFICER', 'INVOICE_OFFICER', 'REVIEW_OFFICER', 'VETTING_OFFICER', 'CLEARING_OFFICER', 'STAFF', 'DRIVER', 'WAREHOUSE'];
   const shouldHideRevenue = employeeRoles.includes(currentUser?.role);
   
   // Export functionality

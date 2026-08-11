@@ -41,6 +41,12 @@ const ROLES_TO_CREATE = [
     isSystem: true
   },
   {
+    name: 'INVOICE_OFFICER',
+    displayName: 'Invoice Officer',
+    description: 'Issues invoices after pre-invoice and moves jobs to invoiced',
+    isSystem: true
+  },
+  {
     name: 'REVIEW_OFFICER',
     displayName: 'Review Officer',
     description: 'Reviews and preinvoices jobs',

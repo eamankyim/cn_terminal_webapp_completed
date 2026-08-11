@@ -1134,13 +1134,14 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
     const STATUS_HIERARCHY = {
       'NEW': 1,
       'PREINVOICED': 2,
-      'VETTED': 3,           // Job has been vetted/reviewed
-      'ENTRY_COMPLETED': 4,
-      'DUTY_PAID': 5,        // Duty has been paid
-      'READY_FOR_RELEASE': 6,  // Transport coordinator assigns and uploads docs
-      'RELEASED': 7,
-      'CLEARED': 8,
-      'DELIVERED': 9           // Final status - no further changes
+      'INVOICED': 3,            // Invoice officer stage after pre-invoice
+      'VETTED': 4,              // Job has been vetted/reviewed
+      'ENTRY_COMPLETED': 5,
+      'DUTY_PAID': 6,           // Duty has been paid
+      'READY_FOR_RELEASE': 7,  // Transport coordinator assigns and uploads docs
+      'RELEASED': 8,
+      'CLEARED': 9,
+      'DELIVERED': 10          // Final status - no further changes
     };
 
     const currentLevel = STATUS_HIERARCHY[existingJob.status];

@@ -92,7 +92,7 @@ router.get('/', authenticateToken, requireAdminOrIT, async (req, res) => {
  *         required: true
  *         schema:
  *           type: string
- *           enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, PREINVOICE_OFFICER, REVIEW_OFFICER, VETTING_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, ACCOUNTANT]
+ *           enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, PREINVOICE_OFFICER, INVOICE_OFFICER, REVIEW_OFFICER, VETTING_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, ACCOUNTANT]
  *         description: Role name
  *     responses:
  *       200:
@@ -146,7 +146,7 @@ router.get('/:role/permissions', authenticateToken, requireAdminOrIT, async (req
  *         required: true
  *         schema:
  *           type: string
- *           enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, PREINVOICE_OFFICER, REVIEW_OFFICER, VETTING_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, ACCOUNTANT]
+ *           enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, PREINVOICE_OFFICER, INVOICE_OFFICER, REVIEW_OFFICER, VETTING_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, ACCOUNTANT]
  *         description: Role name
  *     requestBody:
  *       required: true

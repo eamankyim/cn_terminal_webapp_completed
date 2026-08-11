@@ -33,6 +33,7 @@ const PAGE_SIZE = 20;
 const FILTER_STATUSES = [
   'NEW',
   'PREINVOICED',
+  'INVOICED',
   'VETTED',
   'ENTRY',
   'ENTRY_COMPLETED',
@@ -426,7 +427,9 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
                 {item.customer?.name ?? 'Unknown client'}
               </Text>
               <Text className="text-sm text-gray-500 mt-1.5">
-                {formatJobDate(item.createdAt)}
+                ETA {formatJobDate(item.eta)}
+                {' · '}
+                Created {formatJobDate(item.createdAt)}
               </Text>
             </View>
             <StatusBadge

@@ -217,7 +217,7 @@ router.post('/login', async (req, res) => {
  *                 example: Password123
  *               role:
  *                 type: string
- *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, PREINVOICE_OFFICER, REVIEW_OFFICER, VETTING_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, ACCOUNTANT]
+ *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, PREINVOICE_OFFICER, INVOICE_OFFICER, REVIEW_OFFICER, VETTING_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, ACCOUNTANT]
  *                 default: STAFF
  *                 description: User's role in the system
  *                 example: STAFF
@@ -257,7 +257,7 @@ router.post('/register', authenticateToken, requireAdminOrIT, async (req, res) =
     const { name, email, password, role = 'STAFF' } = req.body;
     
     // Validate role
-    const validRoles = ['ADMIN', 'IT_CONSULTANT', 'ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'TRANSPORT_COORDINATOR', 'RELEASE_OFFICER', 'PREINVOICE_OFFICER', 'REVIEW_OFFICER', 'VETTING_OFFICER', 'CLEARING_OFFICER', 'STAFF', 'DRIVER', 'ACCOUNTANT'];
+    const validRoles = ['ADMIN', 'IT_CONSULTANT', 'ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'TRANSPORT_COORDINATOR', 'RELEASE_OFFICER', 'PREINVOICE_OFFICER', 'INVOICE_OFFICER', 'REVIEW_OFFICER', 'VETTING_OFFICER', 'CLEARING_OFFICER', 'STAFF', 'DRIVER', 'ACCOUNTANT'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ error: 'Invalid role specified' });
     }
@@ -997,7 +997,7 @@ router.put('/users/:id/status', authenticateToken, requireAdmin, async (req, res
  *                 example: john@example.com
  *               role:
  *                 type: string
- *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, PREINVOICE_OFFICER, REVIEW_OFFICER, VETTING_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, ACCOUNTANT]
+ *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, PREINVOICE_OFFICER, INVOICE_OFFICER, REVIEW_OFFICER, VETTING_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, ACCOUNTANT]
  *                 description: User's role
  *                 example: STAFF
  *               isActive:
@@ -1284,14 +1284,97 @@ router.delete('/users/:id', authenticateToken, requireAdmin, async (req, res) =>
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
-    await prisma.user.delete({
-      where: { id }
+    // Reassign required FK references to the acting admin so delete can succeed
+    const reassignToId = req.user.id;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.job.updateMany({
+        where: { assignedToId: id },
+        data: { assignedToId: reassignToId }
+      });
+      await tx.job.updateMany({
+        where: { createdById: id },
+        data: { createdById: reassignToId }
+      });
+      await tx.job.updateMany({
+        where: { updatedById: id },
+        data: { updatedById: reassignToId }
+      });
+      await tx.jobStatusHistory.updateMany({
+        where: { updatedById: id },
+        data: { updatedById: reassignToId }
+      });
+      await tx.jobComment.updateMany({
+        where: { createdById: id },
+        data: { createdById: reassignToId }
+      });
+      await tx.invoice.updateMany({
+        where: { createdById: id },
+        data: { createdById: reassignToId }
+      });
+      await tx.estimate.updateMany({
+        where: { createdById: id },
+        data: { createdById: reassignToId }
+      });
+      await tx.payment.updateMany({
+        where: { createdById: id },
+        data: { createdById: reassignToId }
+      });
+      await tx.file.updateMany({
+        where: { uploadedBy: id },
+        data: { uploadedBy: reassignToId }
+      });
+      await tx.invitation.updateMany({
+        where: { invitedBy: id },
+        data: { invitedBy: reassignToId }
+      });
+      await tx.rolePermission.updateMany({
+        where: { createdBy: id },
+        data: { createdBy: reassignToId }
+      });
+      await tx.userPermission.updateMany({
+        where: { grantedBy: id },
+        data: { grantedBy: reassignToId }
+      });
+      await tx.userPermission.deleteMany({
+        where: { userId: id }
+      });
+      await tx.notification.deleteMany({
+        where: { userId: id }
+      });
+      await tx.passwordResetToken.deleteMany({
+        where: { userId: id }
+      });
+      await tx.expenseRequest.updateMany({
+        where: { requestedById: id },
+        data: { requestedById: reassignToId }
+      });
+      await tx.expenseRequest.updateMany({
+        where: { approvedById: id },
+        data: { approvedById: reassignToId }
+      });
+      await tx.payoutRequest.updateMany({
+        where: { userId: id },
+        data: { userId: reassignToId }
+      });
+      await tx.payoutRequest.updateMany({
+        where: { approvedBy: id },
+        data: { approvedBy: reassignToId }
+      });
+      await tx.payout.updateMany({
+        where: { processedById: id },
+        data: { processedById: reassignToId }
+      });
+
+      await tx.user.delete({
+        where: { id }
+      });
     });
 
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
-
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 

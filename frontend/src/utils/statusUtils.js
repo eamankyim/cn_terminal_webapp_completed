@@ -9,6 +9,7 @@ export const getJobStatusColor = (status, isDraft = false) => {
   const statusColors = {
     'NEW': 'blue',                  // Fresh start - blue for new beginnings
     'PREINVOICED': 'cyan',          // Preparation phase - cyan for preparation
+    'INVOICED': 'processing',       // Invoice created - processing blue
     'VETTED': 'purple',             // Job vetted/reviewed - purple for review
     'ENTRY_COMPLETED': 'orange',    // Entry completed - orange for active work
     'DUTY_PAID': 'gold',            // Duty paid - gold for payment
@@ -78,6 +79,7 @@ export const getJobStatusIcon = (status, isDraft = false) => {
   const statusIcons = {
     'NEW': '➕',                     // Plus for new
     'PREINVOICED': '📋',            // Clipboard for preparation
+    'INVOICED': '🧾',               // Receipt for invoiced
     'VETTED': '✅',                 // Checkmark for vetted
     'ENTRY_COMPLETED': '📦',        // Package for entry completed
     'DUTY_PAID': '💰',              // Money for duty paid
@@ -95,13 +97,14 @@ export const getJobStatusPriority = (status) => {
   const priorities = {
     'NEW': 1,
     'PREINVOICED': 2,
-    'VETTED': 3,
-    'ENTRY_COMPLETED': 4,
-    'DUTY_PAID': 5,
-    'READY_FOR_RELEASE': 6,
-    'RELEASED': 7,
-    'CLEARED': 8,
-    'DELIVERED': 9
+    'INVOICED': 3,
+    'VETTED': 4,
+    'ENTRY_COMPLETED': 5,
+    'DUTY_PAID': 6,
+    'READY_FOR_RELEASE': 7,
+    'RELEASED': 8,
+    'CLEARED': 9,
+    'DELIVERED': 10
   };
   
   return priorities[status] || 0;
@@ -112,6 +115,7 @@ export const getJobStatusDescription = (status) => {
   const descriptions = {
     'NEW': 'New job created',
     'PREINVOICED': 'Ready for invoicing',
+    'INVOICED': 'Invoice issued for the job',
     'VETTED': 'Job has been vetted and reviewed',
     'ENTRY_COMPLETED': 'Customs entry completed',
     'DUTY_PAID': 'Duty payment completed',
@@ -126,7 +130,7 @@ export const getJobStatusDescription = (status) => {
 
 // Get all job statuses in order
 export const getJobStatusesInOrder = () => {
-  return ['NEW', 'PREINVOICED', 'VETTED', 'ENTRY_COMPLETED', 'DUTY_PAID', 'READY_FOR_RELEASE', 'RELEASED', 'CLEARED', 'DELIVERED'];
+  return ['NEW', 'PREINVOICED', 'INVOICED', 'VETTED', 'ENTRY_COMPLETED', 'DUTY_PAID', 'READY_FOR_RELEASE', 'RELEASED', 'CLEARED', 'DELIVERED'];
 };
 
 // Check if status is terminal (final state)
