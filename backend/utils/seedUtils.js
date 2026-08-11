@@ -379,6 +379,64 @@ async function autoSeedIfNeeded(creatorId) {
   };
 }
 
+/**
+ * Ensure any missing system roles exist and have their default permissions.
+ * Safe to run repeatedly (upserts role rows; adds missing role_permissions only).
+ */
+async function ensureMissingSystemRoles(creatorId) {
+  const { ROLE_UI_PERMISSIONS, ALL_UI_PERMISSIONS } = require('./uiPermissions');
+
+  const permissionMap = await seedPermissions();
+  if (creatorId) {
+    await seedUIPermissions(creatorId);
+  }
+
+  // Refresh permission map after UI permission seed
+  const allPermissions = await prisma.permission.findMany({
+    select: { id: true, name: true }
+  });
+  const fullPermissionMap = {};
+  allPermissions.forEach((p) => {
+    fullPermissionMap[p.name] = p.id;
+  });
+
+  const roleMap = await seedRoles(creatorId);
+  const results = [];
+
+  for (const [roleName, roleId] of Object.entries(roleMap)) {
+    const resourcePerms = ROLE_PERMISSIONS[roleName] || [];
+    const uiPerms = ROLE_UI_PERMISSIONS[roleName] || ALL_UI_PERMISSIONS;
+    const desired = [...new Set([...resourcePerms, ...uiPerms])];
+
+    let added = 0;
+    for (const permissionName of desired) {
+      const permissionId = fullPermissionMap[permissionName];
+      if (!permissionId) continue;
+      try {
+        await prisma.rolePermission.create({
+          data: {
+            roleId,
+            permissionId,
+            createdBy: creatorId
+          }
+        });
+        added++;
+      } catch (_) {
+        // already assigned
+      }
+    }
+
+    const count = await prisma.rolePermission.count({ where: { roleId } });
+    results.push({ role: roleName, added, permissionCount: count });
+  }
+
+  return {
+    success: true,
+    roles: results,
+    message: `Ensured ${results.length} system roles and permissions`
+  };
+}
+
 module.exports = {
   seedPermissions,
   seedRoles,
@@ -387,6 +445,7 @@ module.exports = {
   seedRoleInfo: ROLE_INFO,
   rolesExist,
   settingsExist,
-  autoSeedIfNeeded
+  autoSeedIfNeeded,
+  ensureMissingSystemRoles
 };
 
