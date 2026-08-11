@@ -110,19 +110,21 @@ const JOB_LIST_META = {
 const STATUS_HIERARCHY = {
   'NEW': 1,
   'PREINVOICED': 2,
-  'VETTED': 3,           // Job has been vetted/reviewed
-  'ENTRY_COMPLETED': 4,
-  'DUTY_PAID': 5,        // Duty has been paid
-  'READY_FOR_RELEASE': 6,  // Transport coordinator assigns and uploads docs
-  'RELEASED': 7,
-  'CLEARED': 8,
-  'DELIVERED': 9           // Final status - no further changes
+  'INVOICED': 3,            // Invoice officer stage after pre-invoice
+  'VETTED': 4,              // Job has been vetted/reviewed
+  'ENTRY_COMPLETED': 5,
+  'DUTY_PAID': 6,           // Duty has been paid
+  'READY_FOR_RELEASE': 7,  // Transport coordinator assigns and uploads docs
+  'RELEASED': 8,
+  'CLEARED': 9,
+  'DELIVERED': 10          // Final status - no further changes
 };
 
 // Status display names
 const STATUS_LABELS = {
   'NEW': 'New',
   'PREINVOICED': 'Pre-invoiced',
+  'INVOICED': 'Invoiced',
   'VETTED': 'Vetted',
   'ENTRY_COMPLETED': 'Entry Completed',
   'DUTY_PAID': 'Duty Paid',
@@ -531,6 +533,7 @@ const JobsPage = () => {
     const statusIcons = {
       'NEW': <PlusOutlined />,
       'PREINVOICED': <FileTextOutlined />,
+      'INVOICED': <DollarOutlined />,
       'VETTED': <DollarOutlined />,
       'ENTRY': <ContainerOutlined />,
       'RELEASED': <CheckCircleOutlined />,
@@ -637,6 +640,13 @@ const JobsPage = () => {
           </Tag>
         );
       }
+    },
+    {
+      title: 'ETA',
+      dataIndex: 'eta',
+      key: 'eta',
+      render: (eta) =>
+        eta ? new Date(eta).toLocaleDateString() : <Text type="secondary">-</Text>
     },
     {
       title: 'Created',
@@ -1731,6 +1741,16 @@ const JobsPage = () => {
         <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
+              title="Invoiced"
+              value={jobs.filter(j => j.status === 'INVOICED').length}
+              prefix={<DollarOutlined />}
+              valueStyle={{ color: '#13c2c2' }}
+            />
+          </Card>
+          </Col>
+        <Col xs={12} sm={12} lg={6}>
+          <Card>
+            <Statistic
               title="Vetted"
               value={jobs.filter(j => j.status === 'VETTED').length}
               prefix={<DollarOutlined />}
@@ -1838,7 +1858,7 @@ const JobsPage = () => {
                       showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} jobs`
                     }}
                     mobileConfig={{
-                      primaryFields: ['trackingId', 'clientName', 'status'],
+                      primaryFields: ['trackingId', 'clientName', 'status', 'eta'],
                       secondaryFields: ['goodsTypes', 'assignedTo', 'createdAt', 'documentsBrought', 'containerNumber']
                     }}
                     onRowClick={(record) => handleViewJob(record)}
@@ -1892,7 +1912,7 @@ const JobsPage = () => {
                       showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} drafts`
                     }}
                     mobileConfig={{
-                      primaryFields: ['trackingId', 'clientName', 'status'],
+                      primaryFields: ['trackingId', 'clientName', 'status', 'eta'],
                       secondaryFields: ['goodsTypes', 'assignedTo', 'createdAt', 'documentsBrought', 'containerNumber']
                     }}
                     onRowClick={(record) => handleViewJob(record)}
@@ -2882,7 +2902,7 @@ const JobsPage = () => {
                   <div>
                     {selectedJob.eta ? (
                       <Tag color="blue">
-                        {new Date(selectedJob.eta).toLocaleString()}
+                        {new Date(selectedJob.eta).toLocaleDateString()}
                       </Tag>
                     ) : (
                       <Text type="secondary">Not set</Text>

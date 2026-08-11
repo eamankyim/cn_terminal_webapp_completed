@@ -39,6 +39,11 @@ const ROLE_INFO = {
     description: 'Handles pre-invoicing tasks and prepares billing information',
     isSystem: true
   },
+  INVOICE_OFFICER: {
+    displayName: 'Invoice Officer',
+    description: 'Issues invoices after pre-invoice and moves jobs to invoiced',
+    isSystem: true
+  },
   REVIEW_OFFICER: {
     displayName: 'Review Officer',
     description: 'Reviews and preinvoices jobs',

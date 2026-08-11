@@ -6,6 +6,28 @@ export type UserRole =
   | 'DRIVER'
   | 'ENQUIRY_OFFICER'
   | 'ENTRY_OFFICER'
+  | 'TRANSPORT_COORDINATOR'
+  | 'RELEASE_OFFICER'
+  | 'PREINVOICE_OFFICER'
+  | 'INVOICE_OFFICER'
+  | 'REVIEW_OFFICER'
+  | 'VETTING_OFFICER'
+  | 'CLEARING_OFFICER'
+  | string;
+
+export type JobStatus =
+  | 'NEW'
+  | 'PREINVOICED'
+  | 'INVOICED'
+  | 'VETTED'
+  | 'ENTRY'
+  | 'ENTRY_COMPLETED'
+  | 'DUTY_PAID'
+  | 'READY_FOR_RELEASE'
+  | 'RELEASE'
+  | 'RELEASED'
+  | 'CLEARED'
+  | 'DELIVERED'
   | string;
 
 export interface User {

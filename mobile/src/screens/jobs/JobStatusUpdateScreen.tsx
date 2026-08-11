@@ -28,6 +28,7 @@ import { controlHeight } from '../../theme/inputs';
 
 const STATUS_OPTIONS = [
   'PREINVOICED',
+  'INVOICED',
   'VETTED',
   'ENTRY_COMPLETED',
   'DUTY_PAID',

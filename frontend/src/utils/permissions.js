@@ -223,6 +223,7 @@ export const ROLE_PERMISSIONS = {
   TRANSPORT_COORDINATOR: COMMON_EMPLOYEE_PERMISSIONS,
   RELEASE_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
   PREINVOICE_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
+  INVOICE_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
   REVIEW_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
   VETTING_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
   CLEARING_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
@@ -315,6 +316,13 @@ export const ROLE_INFO = {
     name: 'Preinvoice Officer',
     description: 'Handles pre-invoicing tasks and prepares billing information',
     color: 'magenta',
+    icon: <FileTextOutlined />,
+    level: 3
+  },
+  INVOICE_OFFICER: {
+    name: 'Invoice Officer',
+    description: 'Issues invoices after pre-invoice and moves jobs to invoiced',
+    color: 'blue',
     icon: <FileTextOutlined />,
     level: 3
   },
@@ -501,9 +509,11 @@ export const isEmployeeRole = (role) => {
     'ENQUIRY_OFFICER', 
     'ENTRY_OFFICER', 
     'TRANSPORT_COORDINATOR', 
-    'RELEASE_OFFICER', 
+    'RELEASE_OFFICER',
+    'PREINVOICE_OFFICER',
+    'INVOICE_OFFICER',
     'REVIEW_OFFICER', 
-    'INVOICE_OFFICER', 
+    'VETTING_OFFICER',
     'CLEARING_OFFICER'
   ];
   return employeeRoles.includes(role);

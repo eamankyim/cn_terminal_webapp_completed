@@ -136,6 +136,7 @@ class SmsService {
       const statusMessages = {
         'NEW': 'Your job has been created',
         'PREINVOICED': 'Your job is ready for invoicing',
+        'INVOICED': 'Your job has been invoiced',
         'VETTED': 'Your job has been vetted and reviewed',
         'ENTRY_COMPLETED': 'Customs entry for your job has been completed',
         'DUTY_PAID': 'Duty payment for your job has been completed',

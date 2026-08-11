@@ -184,6 +184,11 @@ export const ROLE_UI_PERMISSIONS = {
     // Full access to everything
     ...Object.values(UI_PERMISSIONS)
   ],
+
+  INVOICE_OFFICER: [
+    // Full access to everything
+    ...Object.values(UI_PERMISSIONS)
+  ],
   
   REVIEW_OFFICER: [
     // Full access to everything

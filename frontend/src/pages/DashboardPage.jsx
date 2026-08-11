@@ -110,6 +110,7 @@ const DashboardPage = () => {
     'TRANSPORT_COORDINATOR',
     'RELEASE_OFFICER', 
     'PREINVOICE_OFFICER',
+    'INVOICE_OFFICER',
     'REVIEW_OFFICER', 
     'VETTING_OFFICER', 
     'CLEARING_OFFICER'
@@ -160,6 +161,7 @@ const DashboardPage = () => {
     const statusIcons = {
       'NEW': <FileAddOutlined />,
       'PREINVOICED': <FileTextOutlined />,
+      'INVOICED': <CalculatorOutlined />,
       'VETTED': <CalculatorOutlined />,
       'ENTRY_COMPLETED': <ContainerOutlined />,
       'READY_FOR_RELEASE': <CarOutlined />,
