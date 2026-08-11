@@ -89,6 +89,7 @@ const DOCUMENTS_BROUGHT = [
   'Parking list',
   'Parking list & Copy',
   'Container No',
+  'Container Image',
   'Copy BL',
   'Original BL',
   'Draft BL',
@@ -127,6 +128,7 @@ export const JobCreateScreen: React.FC = () => {
   const [mediumOfEnquiry, setMediumOfEnquiry] = useState<string | null>(null);
   const [documentsBrought, setDocumentsBrought] = useState<string[]>([]);
   const [containerNumber, setContainerNumber] = useState('');
+  const [containerImage, setContainerImage] = useState('');
   const [blNumber, setBlNumber] = useState('');
   const [vesselName, setVesselName] = useState<string | null>(null);
   const [vesselOptions, setVesselOptions] = useState<string[]>(DEFAULT_VESSELS);
@@ -525,6 +527,7 @@ export const JobCreateScreen: React.FC = () => {
     setMediumOfEnquiry(null);
     setDocumentsBrought([]);
     setContainerNumber('');
+    setContainerImage('');
     setBlNumber('');
     setVesselName(null);
     setLine(null);
@@ -554,6 +557,43 @@ export const JobCreateScreen: React.FC = () => {
       }
     }
 
+  // Convert placeholder selections into actual typed values.
+  // We store them inside `documentsBrought` (no separate DB column for container image).
+  const containerNumberValue = containerNumber.trim();
+  const containerImageValue = containerImage.trim();
+
+  let transformedDocumentsBrought = Array.isArray(documentsBrought)
+    ? [...documentsBrought]
+    : [];
+
+  if (transformedDocumentsBrought.includes('Container No')) {
+    if (!containerNumberValue) {
+      Alert.alert(
+        'Validation',
+        'Please enter container number for "Container No".',
+      );
+      return null;
+    }
+    transformedDocumentsBrought = transformedDocumentsBrought.filter(
+      (d) => d !== 'Container No',
+    );
+    transformedDocumentsBrought.push(containerNumberValue);
+  }
+
+  if (transformedDocumentsBrought.includes('Container Image')) {
+    if (!containerImageValue) {
+      Alert.alert(
+        'Validation',
+        'Please enter container image value for "Container Image".',
+      );
+      return null;
+    }
+    transformedDocumentsBrought = transformedDocumentsBrought.filter(
+      (d) => d !== 'Container Image',
+    );
+    transformedDocumentsBrought.push(containerImageValue);
+  }
+
     return {
       customerId,
       assignedToId: assignedToId || undefined,
@@ -563,7 +603,7 @@ export const JobCreateScreen: React.FC = () => {
       goodsTypes,
       ...(eta ? { eta } : {}),
       ...(mediumOfEnquiry ? { mediumOfEnquiry } : {}),
-      documentsBrought,
+      documentsBrought: transformedDocumentsBrought,
       ...(containerNumber.trim()
         ? { containerNumber: containerNumber.trim() }
         : {}),
@@ -795,6 +835,16 @@ export const JobCreateScreen: React.FC = () => {
             value={containerNumber}
             onChangeText={setContainerNumber}
             placeholder="Enter container number"
+            editable={!isBusy}
+          />
+        </View>
+
+        <View className="mb-4">
+          <Text className="text-sm text-gray-600 mb-1">Container Image</Text>
+          <Input
+            value={containerImage}
+            onChangeText={setContainerImage}
+            placeholder="Enter container image value"
             editable={!isBusy}
           />
         </View>
