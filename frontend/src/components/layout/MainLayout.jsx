@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Button, Space, Avatar, Dropdown, Menu, Drawer } from 'antd';
+import { Layout, Button, Space, Avatar, Dropdown, Menu, Drawer, Tooltip, message } from 'antd';
 import { 
   MenuFoldOutlined, 
   MenuUnfoldOutlined, 
@@ -21,6 +21,7 @@ const { Header, Content } = Layout;
 const MainLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [hardRefreshing, setHardRefreshing] = useState(false);
   const { currentUser, logout, refreshUserPermissions } = useAuth();
   const { isMobile } = useResponsive();
   const navigate = useNavigate();
@@ -46,6 +47,25 @@ const MainLayout = () => {
     const success = await refreshUserPermissions();
     if (success) {
       // Show success message and reload the page to reflect changes
+      window.location.reload();
+    }
+  };
+
+  /** Hard refresh: clear Cache Storage then force a full page reload. */
+  const handleHardRefresh = async () => {
+    if (hardRefreshing) return;
+    setHardRefreshing(true);
+    message.loading({ content: 'Refreshing…', key: 'hard-refresh', duration: 0 });
+    try {
+      if (typeof caches !== 'undefined' && caches?.keys) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
+      }
+    } catch (_) {
+      // non-blocking — still reload
+    } finally {
+      message.destroy('hard-refresh');
+      // Full navigation reload (bypasses SPA soft state)
       window.location.reload();
     }
   };
@@ -118,7 +138,23 @@ const MainLayout = () => {
               }}
             />
             
-            <Space size="large">
+            <Space size="middle">
+              <Tooltip title="Hard refresh">
+                <Button
+                  type="text"
+                  icon={<ReloadOutlined spin={hardRefreshing} />}
+                  onClick={handleHardRefresh}
+                  loading={hardRefreshing}
+                  aria-label="Hard refresh"
+                  style={{
+                    fontSize: '18px',
+                    width: 40,
+                    height: 40,
+                    color: '#666',
+                  }}
+                />
+              </Tooltip>
+
               {/* Real-time Notifications */}
               <NotificationBell />
               

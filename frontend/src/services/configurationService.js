@@ -1,5 +1,30 @@
 import api from './api';
 
+/** Short-lived in-memory cache so dropdowns don't race / hang on every open. */
+const listCache = new Map(); // key -> { list, expiresAt }
+const CACHE_TTL_MS = 30_000;
+
+function getCachedList(key) {
+  const entry = listCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    listCache.delete(key);
+    return null;
+  }
+  return entry.list;
+}
+
+function setCachedList(key, list) {
+  listCache.set(key, {
+    list: [...list],
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  });
+}
+
+function invalidateCachedList(key) {
+  listCache.delete(key);
+}
+
 const configurationService = {
   // Get all configurations grouped by category
   async getConfigurations() {
@@ -27,6 +52,7 @@ const configurationService = {
   async saveConfiguration(configData) {
     try {
       const response = await api.post('/configurations', configData);
+      if (configData?.key) invalidateCachedList(configData.key);
       return response;
     } catch (error) {
 
@@ -38,6 +64,9 @@ const configurationService = {
   async saveConfigurations(configurations) {
     try {
       const response = await api.put('/configurations/bulk', { configurations });
+      (configurations || []).forEach((c) => {
+        if (c?.key) invalidateCachedList(c.key);
+      });
       return response;
     } catch (error) {
 
@@ -49,6 +78,7 @@ const configurationService = {
   async deleteConfiguration(key) {
     try {
       const response = await api.delete(`/configurations/${key}`);
+      invalidateCachedList(key);
       return response;
     } catch (error) {
 
@@ -132,41 +162,57 @@ const configurationService = {
   },
 
   /**
-   * Load a JSON string-list configuration. Seeds defaults when missing/empty.
-   * On network errors, returns defaults for UI only and does not overwrite the DB.
+   * Load a JSON string-list configuration.
+   * Ensures defaults only when the key is missing — never overwrites custom values.
+   * On network errors, returns defaults for UI only and does not write to the DB.
    */
   async loadStringList(key, defaults = [], meta = {}) {
+    const cached = getCachedList(key);
+    if (cached && cached.length > 0) {
+      return cached;
+    }
+
+    const seeded = this.normalizeStringList(defaults);
+
     try {
       const stored = await this.getConfigValue(key, null);
       if (Array.isArray(stored) && stored.length > 0) {
-        return this.normalizeStringList(stored);
+        const list = this.normalizeStringList(stored);
+        setCachedList(key, list);
+        return list;
       }
-      const seeded = this.normalizeStringList(defaults);
-      if (seeded.length > 0) {
-        try {
-          await this.saveStringList(key, seeded, meta);
-        } catch (_) {
-          // Seed failed — still return defaults for the UI
-        }
-      }
-      return seeded;
+
+      // Missing or empty: create-only ensure (safe under concurrency)
+      const response = await api.post(`/configurations/${key}/ensure-list`, {
+        defaults: seeded,
+        category: meta.category || 'JOBS',
+        description: meta.description || key,
+      });
+      const list = this.normalizeStringList(response?.data?.list ?? seeded);
+      setCachedList(key, list);
+      return list;
     } catch (error) {
       if (error?.status === 404) {
-        const seeded = this.normalizeStringList(defaults);
-        if (seeded.length > 0) {
-          try {
-            await this.saveStringList(key, seeded, meta);
-          } catch (_) {
-            /* ignore */
-          }
+        try {
+          const response = await api.post(`/configurations/${key}/ensure-list`, {
+            defaults: seeded,
+            category: meta.category || 'JOBS',
+            description: meta.description || key,
+          });
+          const list = this.normalizeStringList(response?.data?.list ?? seeded);
+          setCachedList(key, list);
+          return list;
+        } catch (_) {
+          return seeded;
         }
-        return seeded;
       }
-      return this.normalizeStringList(defaults);
+      // Network/server error — do not overwrite DB
+      return seeded;
     }
   },
 
   async saveStringList(key, list, meta = {}) {
+    invalidateCachedList(key);
     return this.saveConfiguration({
       key,
       value: JSON.stringify(this.normalizeStringList(list)),
@@ -177,38 +223,48 @@ const configurationService = {
   },
 
   /**
-   * Append a custom value to a config list (re-fetch + merge to avoid races).
+   * Append a custom value via atomic server merge (avoids lost-update races).
    * Returns { list, value, created }.
    */
   async addToStringList(key, value, defaults = [], meta = {}) {
-    let latest;
-    try {
-      const stored = await this.getConfigValue(key, null);
-      latest =
-        Array.isArray(stored) && stored.length > 0
-          ? this.normalizeStringList(stored)
-          : this.normalizeStringList(defaults);
-    } catch (error) {
-      if (error?.status === 404) {
-        latest = this.normalizeStringList(defaults);
-      } else {
-        throw error;
-      }
-    }
-
     const trimmed = String(value || '').trim();
     if (!trimmed) {
+      const latest = await this.loadStringList(key, defaults, meta);
       return { list: latest, value: '', created: false };
     }
 
-    const existing = latest.find((t) => t.toLowerCase() === trimmed.toLowerCase());
-    if (existing) {
-      return { list: latest, value: existing, created: false };
+    const response = await api.post(`/configurations/${key}/list-items`, {
+      item: trimmed,
+      defaults: this.normalizeStringList(defaults),
+      category: meta.category || 'JOBS',
+      description: meta.description || key,
+    });
+
+    const list = this.normalizeStringList(response?.data?.list || []);
+    const resolvedValue = response?.data?.value || trimmed;
+    const created = Boolean(response?.data?.created);
+    setCachedList(key, list);
+    return { list, value: resolvedValue, created };
+  },
+
+  /**
+   * Merge many values into a list atomically (migration / harvest).
+   */
+  async mergeStringList(key, values, defaults = [], meta = {}) {
+    const items = this.normalizeStringList(values);
+    if (items.length === 0) {
+      return this.loadStringList(key, defaults, meta);
     }
 
-    const updated = this.normalizeStringList([...latest, trimmed]);
-    await this.saveStringList(key, updated, meta);
-    return { list: updated, value: trimmed, created: true };
+    const response = await api.post(`/configurations/${key}/list-items`, {
+      items,
+      defaults: this.normalizeStringList(defaults),
+      category: meta.category || 'JOBS',
+      description: meta.description || key,
+    });
+    const list = this.normalizeStringList(response?.data?.list || []);
+    setCachedList(key, list);
+    return list;
   },
 
   // Get configurations by category

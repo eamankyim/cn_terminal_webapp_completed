@@ -34,21 +34,40 @@ export const NotificationsScreen: React.FC = () => {
       () => ({
         onNewNotification: () => {
           void refetch();
+          void queryClient.invalidateQueries({
+            queryKey: ['notifications-unread-count'],
+          });
         },
-        onUnreadCountUpdate: () => {
+        onUnreadCountUpdate: (payload: { count?: number }) => {
+          if (typeof payload?.count === 'number') {
+            queryClient.setQueryData(
+              ['notifications-unread-count'],
+              { success: true, data: { count: payload.count } },
+            );
+          }
           void refetch();
         },
         onNotificationReadUpdate: () => {
           void refetch();
+          void queryClient.invalidateQueries({
+            queryKey: ['notifications-unread-count'],
+          });
         },
         onNotificationDeleted: () => {
           void refetch();
+        },
+        onNotificationsCleared: () => {
+          void refetch();
+          queryClient.setQueryData(
+            ['notifications-unread-count'],
+            { success: true, data: { count: 0 } },
+          );
         },
         onSystemNotification: () => {
           void refetch();
         },
       }),
-      [refetch],
+      [refetch, queryClient],
     ),
   );
 

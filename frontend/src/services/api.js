@@ -47,9 +47,11 @@ class ApiService {
     
     const url = `${this.baseURL}${endpoint}`;
     const isFormData = options.body instanceof FormData;
+    const timeoutMs = options.timeoutMs ?? 20_000;
+    const { timeoutMs: _ignoredTimeout, signal: externalSignal, ...restOptions } = options;
     const config = {
-      headers: this.getHeaders(options.headers, isFormData),
-      ...options,
+      headers: this.getHeaders(restOptions.headers, isFormData),
+      ...restOptions,
     };
 
     // Add logging for team members endpoint
@@ -65,6 +67,18 @@ class ApiService {
       console.log('  - [ApiService] Base URL:', this.baseURL);
       console.log('  - [ApiService] Token from localStorage:', !!localStorage.getItem('cn_terminal_token'));
     }
+
+    const controller = new AbortController();
+    const onExternalAbort = () => controller.abort();
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        controller.abort();
+      } else {
+        externalSignal.addEventListener('abort', onExternalAbort);
+      }
+    }
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    config.signal = controller.signal;
 
     try {
       const startTime = Date.now();
@@ -99,7 +113,7 @@ class ApiService {
           console.error('  - Error data:', errorData);
         }
         
-        const error = new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        const error = new Error(errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`);
         error.status = response.status;
         error.response = { data: errorData };
         throw error;
@@ -133,6 +147,12 @@ class ApiService {
       
       return data;
     } catch (error) {
+      if (error?.name === 'AbortError') {
+        const timeoutError = new Error(`Request timed out after ${timeoutMs}ms`);
+        timeoutError.status = 408;
+        timeoutError.isTimeout = true;
+        throw timeoutError;
+      }
       if (isUsersEndpoint) {
         console.error('❌ [ApiService] Request error:');
         console.error('  - Error name:', error.name);
@@ -147,13 +167,35 @@ class ApiService {
         }
       }
       throw error;
+    } finally {
+      clearTimeout(timeoutId);
+      if (externalSignal) {
+        externalSignal.removeEventListener('abort', onExternalAbort);
+      }
     }
   }
 
   // GET request
-  async get(endpoint, options = {}) {
-    const { params = {} } = options;
-    const queryString = new URLSearchParams(params).toString();
+  // Accepts flat query args: get('/jobs', { limit: 100, page: 1 })
+  // or nested: get('/jobs', { params: { limit: 100 }, timeoutMs: 20000 })
+  async get(endpoint, paramsOrOptions = {}) {
+    const nested =
+      paramsOrOptions &&
+      typeof paramsOrOptions === 'object' &&
+      paramsOrOptions.params &&
+      typeof paramsOrOptions.params === 'object';
+    const querySource = nested ? paramsOrOptions.params : paramsOrOptions;
+    const cleaned = Object.fromEntries(
+      Object.entries(querySource || {}).filter(
+        ([key, value]) =>
+          value !== undefined &&
+          value !== null &&
+          !['headers', 'timeoutMs', 'signal', 'params', 'method', 'body'].includes(key)
+      )
+    );
+    const queryString = new URLSearchParams(
+      Object.entries(cleaned).map(([key, value]) => [key, String(value)])
+    ).toString();
     const url = queryString ? `${endpoint}?${queryString}` : endpoint;
     
     // Add logging for team members endpoint
@@ -166,7 +208,12 @@ class ApiService {
       console.log('  - Token preview:', this.token ? `${this.token.substring(0, 20)}...` : 'NONE');
     }
     
-    return this.request(url, { method: 'GET' });
+    return this.request(url, {
+      method: 'GET',
+      headers: paramsOrOptions.headers,
+      timeoutMs: paramsOrOptions.timeoutMs,
+      signal: paramsOrOptions.signal,
+    });
   }
 
   // POST request

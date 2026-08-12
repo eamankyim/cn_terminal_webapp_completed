@@ -124,6 +124,7 @@ const STATUS_HIERARCHY = {
 // Status display names
 const STATUS_LABELS = {
   'NEW': 'New',
+  'IN_PROGRESS': 'In Progress',
   'PREINVOICED': 'Pre-invoiced',
   'INVOICED': 'Invoiced',
   'VETTED': 'Vetted',
@@ -236,21 +237,37 @@ const JobsPage = () => {
     loadPersistedDropdownOptions();
   }, []);
 
-  // Handle jobId parameter from URL
+  // Handle jobId parameter from URL (e.g. dashboard → Jobs)
   useEffect(() => {
     const jobId = searchParams.get('jobId');
-    if (jobId && jobs.length > 0) {
-      const job = jobs.find(j => j.id === jobId);
-      if (job) {
+    if (!jobId) return;
 
-        setSelectedJob(job);
-        setIsDetailsDrawerVisible(true);
-        // Clear the URL parameter after opening the job details
+    let cancelled = false;
+
+    const openJobFromUrl = async () => {
+      try {
+        let job = jobs.find((j) => j.id === jobId);
+        if (!job) {
+          job = await jobService.getJob(jobId);
+        }
+        if (cancelled || !job) return;
+
+        await handleViewJob(job);
         const newSearchParams = new URLSearchParams(searchParams);
         newSearchParams.delete('jobId');
-        navigate(`/enquiries?${newSearchParams.toString()}`, { replace: true });
+        const qs = newSearchParams.toString();
+        navigate(qs ? `/enquiries?${qs}` : '/enquiries', { replace: true });
+      } catch (error) {
+        console.error('Failed to open job from URL:', error);
+        message.error('Could not open that job');
       }
-    }
+    };
+
+    openJobFromUrl();
+
+    return () => {
+      cancelled = true;
+    };
   }, [searchParams, jobs, navigate]);
 
   // Sync selectedJob with jobs list when jobs update
@@ -329,49 +346,38 @@ const JobsPage = () => {
     }
   });
 
+  const applyJobsLists = (allJobs) => {
+    const regularJobs = allJobs.filter((job) => !job.isDraft);
+    const drafts = allJobs.filter((job) => job.isDraft);
+    setJobs(regularJobs);
+    setDraftJobs(drafts);
+  };
+
   const loadJobs = async () => {
     try {
       setJobsLoading(true);
       setError(null);
-      const response = await jobService.getJobs({ limit: 100 });
 
-      console.log('🔷 [JobsPage] loadJobs response:', response);
-      console.log('  - User role:', currentUser?.role);
-      console.log('  - Total jobs returned:', response.jobs?.length);
-      
-      const allJobs = response.jobs || [];
-      
-      // Debug: Log all jobs and their status
-      console.log('  - Jobs by status:');
-      const statusCounts = {};
-      allJobs.forEach((job) => {
-        statusCounts[job.status] = (statusCounts[job.status] || 0) + 1;
-      });
-      console.log(statusCounts);
-      
-      // Log PREINVOICED jobs specifically
-      const preinvoicedJobs = allJobs.filter(job => job.status === 'PREINVOICED');
-      console.log('  - PREINVOICED jobs:', preinvoicedJobs.length);
-      preinvoicedJobs.forEach(job => {
-        console.log('    -', job.trackingId, 'isDraft:', job.isDraft);
-      });
-      
-      // Separate regular jobs from drafts
-      const regularJobs = allJobs.filter(job => !job.isDraft);
-      const drafts = allJobs.filter(job => job.isDraft);
+      const pageSize = 100;
+      const first = await jobService.getJobs({ limit: pageSize, page: 1 });
+      const firstJobs = first.jobs || [];
+      applyJobsLists(firstJobs);
+      setJobsLoading(false);
 
-      console.log('  - Regular jobs:', regularJobs.length);
-      console.log('  - Draft jobs:', drafts.length);
+      const totalPages = first.pagination?.totalPages || 1;
+      if (totalPages <= 1) {
+        return;
+      }
 
-      setJobs(regularJobs);
-      setDraftJobs(drafts);
-
-      // Also reload terminal options when jobs are loaded
-      loadTerminalOptions();
+      // Load remaining pages in the background so the UI stays responsive
+      const rest = [];
+      for (let page = 2; page <= totalPages; page += 1) {
+        const response = await jobService.getJobs({ limit: pageSize, page });
+        rest.push(...(response.jobs || []));
+      }
+      applyJobsLists([...firstJobs, ...rest]);
     } catch (error) {
-
       setError('Failed to load jobs');
-    } finally {
       setJobsLoading(false);
     }
   };
@@ -421,48 +427,42 @@ const JobsPage = () => {
           .map((t) => (typeof t === 'string' ? t : t?.value))
           .filter(Boolean);
         if (fromLs.length > 0) {
-          const combined = configurationService.normalizeStringList([
-            ...terminals,
-            ...fromLs
-          ]);
-          if (combined.length > terminals.length) {
-            await configurationService.saveStringList(
-              TERMINAL_NAMES_CONFIG_KEY,
-              combined,
-              JOB_LIST_META[TERMINAL_NAMES_CONFIG_KEY]
-            );
-            mergedTerminals = combined;
-          }
+          mergedTerminals = await configurationService.mergeStringList(
+            TERMINAL_NAMES_CONFIG_KEY,
+            fromLs,
+            DEFAULT_TERMINAL_NAMES,
+            JOB_LIST_META[TERMINAL_NAMES_CONFIG_KEY]
+          );
           localStorage.removeItem('terminalOptions');
         }
       } catch (_) {
         // ignore migration errors
       }
 
-      // Harvest custom terminals already saved on RELEASED jobs
-      try {
-        const response = await jobService.getJobs({ limit: 1000 });
-        const allJobs = response.jobs || [];
-        const fromJobs = allJobs
-          .filter((job) => job.status === 'RELEASED' && job.terminalName)
-          .map((job) => job.terminalName);
-        const withJobs = configurationService.normalizeStringList([
-          ...mergedTerminals,
-          ...fromJobs
-        ]);
-        if (withJobs.length > mergedTerminals.length) {
-          await configurationService.saveStringList(
+      setTerminalOptions(buildTerminalSelectOptions(mergedTerminals));
+
+      // Legacy harvest: merge RELEASED job terminals in the background (non-blocking)
+      void (async () => {
+        try {
+          const response = await jobService.getJobs({
+            limit: 100,
+            status: 'RELEASED',
+          });
+          const fromJobs = (response.jobs || [])
+            .map((job) => job.terminalName)
+            .filter(Boolean);
+          if (fromJobs.length === 0) return;
+          const withJobs = await configurationService.mergeStringList(
             TERMINAL_NAMES_CONFIG_KEY,
-            withJobs,
+            fromJobs,
+            DEFAULT_TERMINAL_NAMES,
             JOB_LIST_META[TERMINAL_NAMES_CONFIG_KEY]
           );
-          mergedTerminals = withJobs;
+          setTerminalOptions(buildTerminalSelectOptions(withJobs));
+        } catch (_) {
+          // non-critical
         }
-      } catch (_) {
-        // non-critical
-      }
-
-      setTerminalOptions(buildTerminalSelectOptions(mergedTerminals));
+      })();
     } catch (error) {
       console.error('Error loading dropdown options:', error);
       setGoodsTypes((prev) => (prev?.length ? prev : DEFAULT_GOODS_TYPES));
@@ -1883,7 +1883,13 @@ const JobsPage = () => {
                       
                       // Status filter
                       if (statusFilter) {
-                        if (job.status !== statusFilter) return false;
+                        if (statusFilter === 'IN_PROGRESS') {
+                          if (['NEW', 'CLEARED', 'DELIVERED'].includes(job.status)) {
+                            return false;
+                          }
+                        } else if (job.status !== statusFilter) {
+                          return false;
+                        }
                       }
                       
                       return true;

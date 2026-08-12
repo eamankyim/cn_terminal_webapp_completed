@@ -8,6 +8,7 @@ type NotificationSocketCallbacks = {
   onUnreadCountUpdate?: (payload: any) => void;
   onNotificationReadUpdate?: (payload: any) => void;
   onNotificationDeleted?: (payload: any) => void;
+  onNotificationsCleared?: (payload: any) => void;
   onSystemNotification?: (payload: any) => void;
 };
 
@@ -52,6 +53,12 @@ export function useNotificationSocket(callbacks: NotificationSocketCallbacks) {
         callbacks.onNotificationDeleted,
       );
     }
+    if (callbacks.onNotificationsCleared) {
+      notificationSocket.on(
+        'notifications_cleared',
+        callbacks.onNotificationsCleared,
+      );
+    }
     if (callbacks.onSystemNotification) {
       notificationSocket.on(
         'system_notification',
@@ -65,6 +72,7 @@ export function useNotificationSocket(callbacks: NotificationSocketCallbacks) {
       notificationSocket.off('unread_count_update');
       notificationSocket.off('notification_read_update');
       notificationSocket.off('notification_deleted');
+      notificationSocket.off('notifications_cleared');
       notificationSocket.off('system_notification');
     };
   }, [callbacks, token, user]);

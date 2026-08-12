@@ -31,6 +31,7 @@ import { JobDetailContent } from '../jobs/JobDetailScreen';
 const PAGE_SIZE = 20;
 
 const FILTER_STATUSES = [
+  'IN_PROGRESS',
   'NEW',
   'PREINVOICED',
   'INVOICED',
@@ -202,7 +203,7 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
       key: 'progress',
       count: inProgressCount,
       label: 'In Progress',
-      filter: undefined,
+      filter: 'IN_PROGRESS',
     },
     {
       key: 'completed',
@@ -308,8 +309,7 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
                 <TouchableOpacity
                   key={item.key}
                   className="items-center border border-gray-300 rounded-xl px-1.5 py-3"
-                  activeOpacity={item.filter != null ? 0.7 : 1}
-                  disabled={item.filter == null}
+                  activeOpacity={0.7}
                   onPress={() => {
                     if (item.filter === 'all') {
                       applyStatusFilter(undefined);
