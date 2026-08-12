@@ -48,10 +48,16 @@ class ApiService {
     const url = `${this.baseURL}${endpoint}`;
     const isFormData = options.body instanceof FormData;
     const timeoutMs = options.timeoutMs ?? 20_000;
-    const { timeoutMs: _ignoredTimeout, signal: externalSignal, ...restOptions } = options;
+    const {
+      timeoutMs: _ignoredTimeout,
+      signal: externalSignal,
+      headers: customHeaders,
+      ...restOptions
+    } = options;
+    // Build auth headers last so an undefined `headers` option cannot wipe Authorization
     const config = {
-      headers: this.getHeaders(restOptions.headers, isFormData),
       ...restOptions,
+      headers: this.getHeaders(customHeaders, isFormData),
     };
 
     // Add logging for team members endpoint
@@ -210,9 +216,11 @@ class ApiService {
     
     return this.request(url, {
       method: 'GET',
-      headers: paramsOrOptions.headers,
-      timeoutMs: paramsOrOptions.timeoutMs,
-      signal: paramsOrOptions.signal,
+      ...(paramsOrOptions.headers ? { headers: paramsOrOptions.headers } : {}),
+      ...(paramsOrOptions.timeoutMs != null
+        ? { timeoutMs: paramsOrOptions.timeoutMs }
+        : {}),
+      ...(paramsOrOptions.signal ? { signal: paramsOrOptions.signal } : {}),
     });
   }
 
