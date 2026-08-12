@@ -1,6 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const { ROLE_PERMISSIONS } = require('../utils/permissions');
-const { UI_PERMISSIONS } = require('../utils/uiPermissions');
+const { UI_PERMISSIONS, ROLE_UI_PERMISSIONS } = require('../utils/uiPermissions');
 
 const prisma = new PrismaClient();
 
@@ -34,6 +34,11 @@ const COMBINED_ROLE_PERMISSIONS = {
   INVOICE_OFFICER: [
     ...ROLE_PERMISSIONS.INVOICE_OFFICER,
     ...Object.values(UI_PERMISSIONS)
+  ],
+
+  SUPERVISOR: [
+    ...ROLE_PERMISSIONS.SUPERVISOR,
+    ...ROLE_UI_PERMISSIONS.SUPERVISOR
   ],
   
   REVIEW_OFFICER: [

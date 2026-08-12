@@ -315,5 +315,6 @@ module.exports = {
   requireAnyPermission,
   requireAllPermissions,
   requireAdminOrIT,
+  checkUserPermission,
   PERMISSIONS
 };

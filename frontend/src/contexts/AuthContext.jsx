@@ -198,6 +198,12 @@ export const AuthProvider = ({ children }) => {
       'ui:view_all_customers': ['customer:view_all', 'ui:clients'],
       'ui:clients': ['customer:view', 'customer:view_all'],
       'customer:view': ['ui:clients'],
+      'job:update_status': ['ui:update_job_status'],
+      'ui:update_job_status': ['job:update_status'],
+      'job:assign': ['ui:assign_job'],
+      'ui:assign_job': ['job:assign'],
+      'job:edit': ['ui:edit_job'],
+      'ui:edit_job': ['job:edit'],
     };
 
     const candidates = [permission, ...(aliases[permission] || [])];

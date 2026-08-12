@@ -1193,7 +1193,7 @@ const SettingsPage = () => {
       }
       
       // For employee roles, only show Profile and Team Members tabs
-      const employeeRoles = ['STAFF', 'DRIVER', 'WAREHOUSE', 'ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'RELEASE_OFFICER', 'PREINVOICE_OFFICER', 'INVOICE_OFFICER', 'REVIEW_OFFICER', 'VETTING_OFFICER', 'CLEARING_OFFICER'];
+      const employeeRoles = ['STAFF', 'DRIVER', 'WAREHOUSE', 'ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'RELEASE_OFFICER', 'PREINVOICE_OFFICER', 'INVOICE_OFFICER', 'SUPERVISOR', 'REVIEW_OFFICER', 'VETTING_OFFICER', 'CLEARING_OFFICER'];
       if (employeeRoles.includes(currentUser?.role)) {
         return tab.key === 'profile' || tab.key === 'team-members';
       }
@@ -1415,6 +1415,7 @@ const SettingsPage = () => {
                       'RELEASE_OFFICER': 'Operations',
                       'PREINVOICE_OFFICER': 'Quality Assurance',
                       'INVOICE_OFFICER': 'Finance',
+                      'SUPERVISOR': 'Operations',
                       'REVIEW_OFFICER': 'Quality Assurance',
                       'VETTING_OFFICER': 'Finance',
                       'CLEARING_OFFICER': 'Customs',

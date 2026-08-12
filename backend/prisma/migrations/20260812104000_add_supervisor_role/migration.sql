@@ -1,0 +1,2 @@
+-- AlterEnum: add SUPERVISOR user role
+ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SUPERVISOR';
