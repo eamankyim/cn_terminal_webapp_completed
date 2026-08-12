@@ -160,14 +160,6 @@ router.patch('/:id/read', authenticateToken, async (req, res) => {
  */
 router.patch('/read-all', authenticateToken, async (req, res) => {
   try {
-    // First get all notifications to send individual delete updates
-    const allNotifications = await prisma.notification.findMany({
-      where: {
-        userId: req.user.id
-      },
-      select: { id: true }
-    });
-
     // Delete all notifications for the user
     const result = await prisma.notification.deleteMany({
       where: {
@@ -177,18 +169,13 @@ router.patch('/read-all', authenticateToken, async (req, res) => {
 
     // Send real-time updates for notification deletions and unread count
     if (global.io) {
-      // Send individual notification delete updates
-      allNotifications.forEach(notification => {
-        global.io.to(`user_${req.user.id}`).emit('notification_deleted', {
-          notificationId: notification.id
-        });
+      // One clear event instead of N individual deletes (those made the badge flash)
+      global.io.to(`user_${req.user.id}`).emit('notifications_cleared', {
+        deletedCount: result.count
       });
-      
-      // Send unread count update (will be 0 since all notifications are deleted)
       global.io.to(`user_${req.user.id}`).emit('unread_count_update', {
         count: 0
       });
-
     }
 
     res.json({

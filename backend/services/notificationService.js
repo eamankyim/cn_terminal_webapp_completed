@@ -88,10 +88,10 @@ class NotificationService {
         }
       });
 
-      // Emit real-time notification to ALL users (broadcast)
+      // Emit real-time notification only to the intended recipient
       if (global.io) {
         try {
-          console.log(`🌐 [NotificationService] Broadcasting real-time notification to ALL users`);
+          console.log(`🌐 [NotificationService] Emitting real-time notification`);
           console.log(`  - Notification ID: ${notification.id}`);
           console.log(`  - Title: ${notification.title}`);
           console.log(`  - User ID: ${notification.userId || 'N/A'}`);
@@ -110,20 +110,18 @@ class NotificationService {
             payment: notification.payment
           };
           
-          // Broadcast to all connected users (this includes Admin)
-          global.io.emit('new_notification', notificationPayload);
-          console.log(`✅ [NotificationService] Real-time notification broadcasted to all connected users`);
-          
-          // Also send to specific user room if userId is provided (for targeted delivery)
           if (notification.userId) {
+            // Targeted delivery only — never broadcast (broadcast made every
+            // client's unread badge jump on other users' notifications).
             global.io.to(`user_${notification.userId}`).emit('new_notification', notificationPayload);
-            console.log(`✅ [NotificationService] Also sent to user room: user_${notification.userId}`);
+            console.log(`✅ [NotificationService] Sent to user room: user_${notification.userId}`);
             
-            // Update unread count for the specific user
             const RealtimeNotificationService = require('./realtimeNotificationService');
             if (RealtimeNotificationService?.sendUnreadCountUpdate) {
               await RealtimeNotificationService.sendUnreadCountUpdate(notification.userId);
             }
+          } else {
+            console.warn('⚠️ [NotificationService] Notification has no userId — skipped socket emit');
           }
         } catch (socketError) {
           console.error('❌ [NotificationService] Error emitting real-time notification:', socketError);
@@ -371,18 +369,11 @@ class NotificationService {
       );
 
       // Also emit system-wide notification to all connected users
+      // Per-user rows already emit new_notification + unread_count_update.
+      // Do NOT emit a second global event that would inflate every badge.
       if (global.io) {
         try {
-          console.log('🌐 [NotificationService] Emitting system-wide notification to all connected users');
-          global.io.emit('system_notification', {
-            title,
-            message,
-            type,
-            category: 'SYSTEM_ALERT',
-            createdAt: new Date().toISOString(),
-            metadata
-          });
-          console.log('✅ [NotificationService] System-wide notification emitted');
+          console.log('🌐 [NotificationService] System notifications created per user (no global badge broadcast)');
         } catch (socketError) {
           console.error('❌ [NotificationService] Error emitting system notification:', socketError);
         }

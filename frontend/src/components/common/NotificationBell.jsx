@@ -30,18 +30,17 @@ const NotificationBell = () => {
     markAllAsRead,
     deleteNotification,
     loadNotifications,
-    refreshNotifications,
-    syncUnreadCount
+    loadUnreadCount,
+    refreshNotifications
   } = useNotifications();
 
   // Debug logging
 
-  // Sync unread count when dropdown opens
+  // Refresh authoritative unread count when dropdown opens
   const handleDropdownVisibleChange = (visible) => {
     setDropdownVisible(visible);
     if (visible) {
-
-      syncUnreadCount();
+      loadUnreadCount();
     }
   };
 
@@ -285,7 +284,7 @@ const NotificationBell = () => {
         backgroundColor: '#ffffff'
       }}
     >
-      <Badge count={unreadCount} size="small">
+      <Badge count={unreadCount} size="small" overflowCount={99} showZero={false}>
         <Button 
           type="text" 
           icon={<BellOutlined />} 

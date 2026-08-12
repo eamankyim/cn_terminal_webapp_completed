@@ -212,7 +212,15 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
     }
 
     if (status) {
-      where.status = status;
+      // Virtual filter used by dashboard "Jobs in Progress"
+      // (submitted jobs that are past NEW and not yet CLEARED/DELIVERED)
+      if (status === 'IN_PROGRESS') {
+        where.status = {
+          notIn: ['NEW', 'CLEARED', 'DELIVERED']
+        };
+      } else {
+        where.status = status;
+      }
     }
 
     if (customerId) {

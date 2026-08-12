@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -7,15 +7,17 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { reloadAppAsync } from 'expo';
 import { api } from '../../api/http';
 import { StatsRow } from '../../components/StatsRow';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { PERMISSIONS, UI_PERMISSIONS } from '../../utils/permissions';
+import { useNotificationSocket } from '../../realtime/useNotificationSocket';
 
 interface DashboardStats {
   stats: {
@@ -69,8 +71,10 @@ type QuickAction = {
 export const DashboardScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const { user, hasPermission } = useAuth();
   const { accent } = useTheme();
+  const [hardRefreshing, setHardRefreshing] = useState(false);
 
   const {
     data: statsData,
@@ -90,11 +94,47 @@ export const DashboardScreen: React.FC = () => {
       api.get<{ success: boolean; data: { count: number } }>(
         '/notifications/unread-count',
       ),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
+
+  useNotificationSocket(
+    useMemo(
+      () => ({
+        onUnreadCountUpdate: (payload: { count?: number }) => {
+          if (typeof payload?.count !== 'number') return;
+          queryClient.setQueryData(
+            ['notifications-unread-count'],
+            { success: true, data: { count: payload.count } },
+          );
+        },
+        onNotificationsCleared: () => {
+          queryClient.setQueryData(
+            ['notifications-unread-count'],
+            { success: true, data: { count: 0 } },
+          );
+        },
+      }),
+      [queryClient],
+    ),
+  );
 
   const refetch = () => {
     void refetchStats();
     void refetchUnread();
+  };
+
+  const handleHardRefresh = async () => {
+    if (hardRefreshing) return;
+    setHardRefreshing(true);
+    try {
+      await queryClient.cancelQueries();
+      queryClient.clear();
+      await reloadAppAsync();
+    } catch {
+      setHardRefreshing(false);
+      refetch();
+    }
   };
 
   const isLoading = statsLoading;
@@ -163,7 +203,7 @@ export const DashboardScreen: React.FC = () => {
       title: 'In Progress',
       subtitle: 'Jobs currently in progress',
       count: stats?.jobsInProgress ?? 0,
-      onPress: () => goToJobs(),
+      onPress: () => goToJobs({ status: 'IN_PROGRESS' }),
     },
     {
       key: 'delivered',
@@ -249,7 +289,21 @@ export const DashboardScreen: React.FC = () => {
       }
     >
       {/* Top bar */}
-      <View className="flex-row items-center justify-end mb-5">
+      <View className="flex-row items-center justify-end mb-5" style={{ gap: 16 }}>
+        <TouchableOpacity
+          onPress={() => {
+            void handleHardRefresh();
+          }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityLabel="Hard refresh"
+          disabled={hardRefreshing}
+        >
+          {hardRefreshing ? (
+            <ActivityIndicator size="small" color="#000" />
+          ) : (
+            <Ionicons name="refresh-outline" size={24} color="#000" />
+          )}
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={() => goToAccountScreen('Notifications')}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}

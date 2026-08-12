@@ -5,6 +5,20 @@ const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 const prisma = new PrismaClient();
 
+function normalizeStringList(list) {
+  return [...new Set((list || []).map((t) => String(t).trim()).filter(Boolean))];
+}
+
+function parseJsonStringList(raw) {
+  if (raw == null || raw === '') return [];
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return Array.isArray(parsed) ? normalizeStringList(parsed) : [];
+  } catch {
+    return [];
+  }
+}
+
 // Get all configurations
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -33,6 +47,185 @@ router.get('/', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch configurations',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Ensure a JSON string-list config exists.
+ * Creates with defaults only when missing — never overwrites existing custom values.
+ */
+router.post('/:key/ensure-list', authenticateToken, async (req, res) => {
+  try {
+    const { key } = req.params;
+    const {
+      defaults = [],
+      category = 'JOBS',
+      description
+    } = req.body || {};
+    const userId = req.user.id;
+    const seeded = normalizeStringList(defaults);
+
+    const existing = await prisma.configuration.findUnique({ where: { key } });
+    if (existing) {
+      return res.json({
+        success: true,
+        created: false,
+        data: {
+          key,
+          list: parseJsonStringList(existing.value),
+          configuration: existing
+        }
+      });
+    }
+
+    try {
+      const configuration = await prisma.configuration.create({
+        data: {
+          key,
+          value: JSON.stringify(seeded),
+          type: 'JSON',
+          category,
+          description: description || key,
+          isActive: true,
+          updatedBy: userId
+        }
+      });
+
+      return res.json({
+        success: true,
+        created: true,
+        data: {
+          key,
+          list: seeded,
+          configuration
+        }
+      });
+    } catch (error) {
+      // Concurrent create — return the row that won
+      if (error.code === 'P2002') {
+        const configuration = await prisma.configuration.findUnique({ where: { key } });
+        return res.json({
+          success: true,
+          created: false,
+          data: {
+            key,
+            list: parseJsonStringList(configuration?.value),
+            configuration
+          }
+        });
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error('ensure-list error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to ensure configuration list',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Atomically append item(s) to a JSON string-list config.
+ * Merges with defaults only when the config is missing.
+ */
+router.post('/:key/list-items', authenticateToken, async (req, res) => {
+  try {
+    const { key } = req.params;
+    const {
+      items,
+      item,
+      defaults = [],
+      category = 'JOBS',
+      description
+    } = req.body || {};
+    const userId = req.user.id;
+
+    const toAdd = normalizeStringList([
+      ...(Array.isArray(items) ? items : []),
+      ...(item != null ? [item] : [])
+    ]);
+
+    if (toAdd.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one list item is required'
+      });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.configuration.findUnique({ where: { key } });
+      let list = existing
+        ? parseJsonStringList(existing.value)
+        : normalizeStringList(defaults);
+
+      // If row exists but value was corrupt/empty, seed defaults then append
+      if (existing && list.length === 0) {
+        list = normalizeStringList(defaults);
+      }
+
+      const before = new Set(list.map((v) => v.toLowerCase()));
+      const added = [];
+      for (const value of toAdd) {
+        if (!before.has(value.toLowerCase())) {
+          list.push(value);
+          before.add(value.toLowerCase());
+          added.push(value);
+        }
+      }
+      list = normalizeStringList(list);
+
+      let configuration;
+      if (existing) {
+        configuration = await tx.configuration.update({
+          where: { key },
+          data: {
+            value: JSON.stringify(list),
+            type: 'JSON',
+            category: category || existing.category || 'JOBS',
+            description: description || existing.description || key,
+            updatedBy: userId
+          }
+        });
+      } else {
+        configuration = await tx.configuration.create({
+          data: {
+            key,
+            value: JSON.stringify(list),
+            type: 'JSON',
+            category,
+            description: description || key,
+            isActive: true,
+            updatedBy: userId
+          }
+        });
+      }
+
+      return { list, added, configuration };
+    });
+
+    res.json({
+      success: true,
+      message: result.added.length
+        ? 'List item(s) added successfully'
+        : 'Item(s) already present in list',
+      data: {
+        key,
+        list: result.list,
+        added: result.added,
+        created: result.added.length > 0,
+        value: result.added[0] || toAdd[0],
+        configuration: result.configuration
+      }
+    });
+  } catch (error) {
+    console.error('list-items error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update configuration list',
       error: error.message
     });
   }
