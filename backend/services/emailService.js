@@ -469,6 +469,7 @@ CN Terminal Team
       case 'RELEASE_OFFICER': return 'Release Officer';
       case 'PREINVOICE_OFFICER': return 'Preinvoice Officer';
       case 'INVOICE_OFFICER': return 'Invoice Officer';
+      case 'SUPERVISOR': return 'Supervisor';
       case 'REVIEW_OFFICER': return 'Review Officer';
       case 'VETTING_OFFICER': return 'Vetting Officer';
       case 'CLEARING_OFFICER': return 'Clearing Officer';

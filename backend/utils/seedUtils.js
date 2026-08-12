@@ -44,6 +44,11 @@ const ROLE_INFO = {
     description: 'Issues invoices after pre-invoice and moves jobs to invoiced',
     isSystem: true
   },
+  SUPERVISOR: {
+    displayName: 'Supervisor',
+    description: 'Assigns/reassigns jobs, comments, and attaches documents without changing status',
+    isSystem: true
+  },
   REVIEW_OFFICER: {
     displayName: 'Review Officer',
     description: 'Reviews and preinvoices jobs',

@@ -111,6 +111,7 @@ const DashboardPage = () => {
     'RELEASE_OFFICER', 
     'PREINVOICE_OFFICER',
     'INVOICE_OFFICER',
+    'SUPERVISOR',
     'REVIEW_OFFICER', 
     'VETTING_OFFICER', 
     'CLEARING_OFFICER'

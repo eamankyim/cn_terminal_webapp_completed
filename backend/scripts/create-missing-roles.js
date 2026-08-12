@@ -47,6 +47,12 @@ const ROLES_TO_CREATE = [
     isSystem: true
   },
   {
+    name: 'SUPERVISOR',
+    displayName: 'Supervisor',
+    description: 'Assigns/reassigns jobs, comments, and attaches documents without changing status',
+    isSystem: true
+  },
+  {
     name: 'REVIEW_OFFICER',
     displayName: 'Review Officer',
     description: 'Reviews and preinvoices jobs',

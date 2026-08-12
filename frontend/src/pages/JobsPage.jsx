@@ -1731,16 +1731,6 @@ const JobsPage = () => {
         <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Pre-invoiced"
-              value={jobs.filter(j => j.status === 'PREINVOICED').length}
-              prefix={<FileTextOutlined />}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-          </Col>
-        <Col xs={12} sm={12} lg={6}>
-          <Card>
-            <Statistic
               title="Invoiced"
               value={jobs.filter(j => j.status === 'INVOICED').length}
               prefix={<DollarOutlined />}
@@ -2647,7 +2637,8 @@ const JobsPage = () => {
          open={isDetailsDrawerVisible}
          width={800}
                 extra={
-          <Space>
+            <Space>
+            {hasPermission(PERMISSIONS.JOB_UPDATE_STATUS) && (
             <Button 
               type="primary"
               icon={<EditOutlined />}
@@ -2666,6 +2657,7 @@ const JobsPage = () => {
             >
               Update Status
             </Button>
+            )}
            {(() => {
              const hasEditPermission = hasPermission(PERMISSIONS.JOB_EDIT);
              const hasDeletePermission = hasPermission(PERMISSIONS.JOB_DELETE);

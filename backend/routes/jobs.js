@@ -1,6 +1,6 @@
 const express = require('express');
 const { prisma } = require('../config/database');
-const { authenticateToken, requirePermission } = require('../middleware/auth');
+const { authenticateToken, requirePermission, checkUserPermission, PERMISSIONS } = require('../middleware/auth');
 const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 const NotificationService = require('../services/notificationService');
 const RealtimeNotificationService = require('../services/realtimeNotificationService');
@@ -1022,6 +1022,17 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
 // Update job status
 router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
   try {
+    // Supervisors and other roles without status permission cannot advance workflow
+    const canUpdateStatus =
+      ['ADMIN', 'IT_CONSULTANT'].includes(req.user.role) ||
+      (await checkUserPermission(req.user.id, PERMISSIONS.JOB_UPDATE_STATUS));
+    if (!canUpdateStatus) {
+      return res.status(403).json({
+        error: 'You do not have permission to update job status',
+        required: PERMISSIONS.JOB_UPDATE_STATUS
+      });
+    }
+
     const { id } = req.params;
     const { status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, boeNumber, demurrageType } = req.body;
 

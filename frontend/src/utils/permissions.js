@@ -10,7 +10,8 @@ import {
   FlagOutlined,
   UserOutlined,
   ContainerOutlined,
-  CarOutlined
+  CarOutlined,
+  TeamOutlined
 } from '@ant-design/icons';
 
 // Define all available permissions
@@ -224,6 +225,20 @@ export const ROLE_PERMISSIONS = {
   RELEASE_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
   PREINVOICE_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
   INVOICE_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
+  SUPERVISOR: [
+    PERMISSIONS.USER_VIEW,
+    PERMISSIONS.JOB_VIEW,
+    PERMISSIONS.JOB_EDIT,
+    PERMISSIONS.JOB_ASSIGN,
+    PERMISSIONS.JOB_VIEW_ALL,
+    PERMISSIONS.CUSTOMER_VIEW,
+    PERMISSIONS.CUSTOMER_VIEW_ALL,
+    PERMISSIONS.FILE_UPLOAD,
+    PERMISSIONS.FILE_DOWNLOAD,
+    PERMISSIONS.FILE_DELETE,
+    PERMISSIONS.NOTIFICATION_VIEW,
+    PERMISSIONS.SETTINGS_VIEW,
+  ],
   REVIEW_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
   VETTING_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
   CLEARING_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
@@ -324,6 +339,13 @@ export const ROLE_INFO = {
     description: 'Issues invoices after pre-invoice and moves jobs to invoiced',
     color: 'blue',
     icon: <FileTextOutlined />,
+    level: 3
+  },
+  SUPERVISOR: {
+    name: 'Supervisor',
+    description: 'Assigns/reassigns jobs, comments, and attaches documents without changing status',
+    color: 'orange',
+    icon: <TeamOutlined />,
     level: 3
   },
   REVIEW_OFFICER: {
@@ -512,6 +534,7 @@ export const isEmployeeRole = (role) => {
     'RELEASE_OFFICER',
     'PREINVOICE_OFFICER',
     'INVOICE_OFFICER',
+    'SUPERVISOR',
     'REVIEW_OFFICER', 
     'VETTING_OFFICER',
     'CLEARING_OFFICER'
