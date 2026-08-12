@@ -6,6 +6,7 @@ import { JobCommentsScreen } from '../screens/jobs/JobCommentsScreen';
 import { JobStatusUpdateScreen } from '../screens/jobs/JobStatusUpdateScreen';
 import { JobCreateScreen } from '../screens/jobs/JobCreateScreen';
 import { JobEditScreen } from '../screens/jobs/JobEditScreen';
+import { JobReassignScreen } from '../screens/jobs/JobReassignScreen';
 import { EnquiriesListScreen } from '../screens/enquiries/EnquiriesListScreen';
 import { EnquiryDetailScreen } from '../screens/enquiries/EnquiryDetailScreen';
 import type { JobsStackParamList } from './types';
@@ -25,6 +26,7 @@ export const JobsStack: React.FC = () => {
       <Stack.Screen name="JobStatusUpdate" component={JobStatusUpdateScreen} />
       <Stack.Screen name="JobCreate" component={JobCreateScreen} />
       <Stack.Screen name="JobEdit" component={JobEditScreen} />
+      <Stack.Screen name="JobReassign" component={JobReassignScreen} />
       <Stack.Screen name="EnquiriesList" component={EnquiriesListScreen} />
       <Stack.Screen name="EnquiryDetail" component={EnquiryDetailScreen} />
     </Stack.Navigator>

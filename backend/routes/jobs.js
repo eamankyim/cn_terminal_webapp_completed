@@ -1511,6 +1511,118 @@ router.delete('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS),
   }
 });
 
+// Reassign job to another team member (no status change) with a required comment
+router.post('/:id/reassign', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
+  try {
+    const canAssign =
+      ['ADMIN', 'IT_CONSULTANT'].includes(req.user.role) ||
+      (await checkUserPermission(req.user.id, PERMISSIONS.JOB_ASSIGN));
+    if (!canAssign) {
+      return res.status(403).json({
+        error: 'You do not have permission to reassign jobs',
+        required: PERMISSIONS.JOB_ASSIGN
+      });
+    }
+
+    const { id } = req.params;
+    const { assignedToId, comment } = req.body;
+
+    if (!assignedToId) {
+      return res.status(400).json({ error: 'Assignee is required' });
+    }
+    if (!comment || String(comment).trim() === '') {
+      return res.status(400).json({ error: 'Comment is required when reassigning a job' });
+    }
+
+    const existingJob = await prisma.job.findUnique({
+      where: { id },
+      include: {
+        assignedTo: { select: { id: true, name: true, email: true } }
+      }
+    });
+
+    if (!existingJob) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    if (existingJob.assignedToId === assignedToId) {
+      return res.status(400).json({ error: 'Job is already assigned to this user' });
+    }
+
+    const assignee = await prisma.user.findFirst({
+      where: { id: assignedToId, isActive: true },
+      select: { id: true, name: true, email: true, role: true }
+    });
+
+    if (!assignee) {
+      return res.status(400).json({ error: 'Selected assignee not found or inactive' });
+    }
+
+    const previousAssigneeName = existingJob.assignedTo?.name || 'Unassigned';
+    const trimmedComment = String(comment).trim();
+    const reassignmentNote = `Reassigned from ${previousAssigneeName} to ${assignee.name}: ${trimmedComment}`;
+
+    const [updatedJob, jobComment] = await prisma.$transaction(async (tx) => {
+      const job = await tx.job.update({
+        where: { id },
+        data: {
+          assignedToId,
+          updatedById: req.user.id
+        },
+        include: {
+          customer: {
+            select: { id: true, name: true, email: true, phone: true }
+          },
+          assignedTo: {
+            select: { id: true, name: true, email: true }
+          },
+          createdBy: {
+            select: { id: true, name: true, email: true }
+          },
+          consignment: true
+        }
+      });
+
+      const createdComment = await tx.jobComment.create({
+        data: {
+          jobId: id,
+          comment: reassignmentNote,
+          createdById: req.user.id
+        },
+        include: {
+          createdBy: {
+            select: { id: true, name: true, email: true }
+          }
+        }
+      });
+
+      return [job, createdComment];
+    });
+
+    try {
+      await RealtimeNotificationService.notifyJobAssignmentRealtime(
+        updatedJob.id,
+        assignedToId,
+        req.user.id
+      );
+    } catch (notifyError) {
+      console.error('Reassign notification failed:', notifyError);
+    }
+
+    SocketService.emitJobUpdated(updatedJob);
+    SocketService.emitJobCommentAdded(id, jobComment);
+
+    res.json({
+      message: 'Job reassigned successfully',
+      job: updatedJob,
+      comment: jobComment
+    });
+  } catch (error) {
+    console.error('Error reassigning job:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Add comment to job (doesn't change status)
 router.post('/:id/comments', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
   try {
