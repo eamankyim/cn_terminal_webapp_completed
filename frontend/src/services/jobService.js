@@ -41,6 +41,18 @@ class JobService {
     }
   }
 
+  async reassignJob(id, { assignedToId, comment }) {
+    try {
+      const response = await apiService.post(`/jobs/${id}/reassign`, {
+        assignedToId,
+        comment,
+      });
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   async updateJobStatus(id, status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, demurrageType, boeNumber) {
     try {
       const response = await apiService.updateJobStatus(id, status, comment, eta, assignedToId, demurrageFreeDays, releaseMoneyReceived, shipperName, invoiceNumber, terminalName, scheduleTime, driverName, driverContact, demurrageType, boeNumber);

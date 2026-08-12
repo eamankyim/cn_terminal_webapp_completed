@@ -5,6 +5,7 @@ export type JobsStackParamList = {
   JobStatusUpdate: { jobId: string };
   JobCreate: undefined;
   JobEdit: { jobId: string };
+  JobReassign: { jobId: string };
   EnquiriesList: undefined;
   EnquiryDetail: { enquiryId: string };
 };

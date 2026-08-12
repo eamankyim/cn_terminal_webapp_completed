@@ -48,7 +48,8 @@ import {
   ExclamationCircleOutlined,
   CarOutlined,
   EnvironmentOutlined,
-  InfoCircleOutlined
+  InfoCircleOutlined,
+  SwapOutlined
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import CustomerSelector from '../components/common/CustomerSelector';
@@ -195,6 +196,9 @@ const JobsPage = () => {
   const [isStatusUpdateModalVisible, setIsStatusUpdateModalVisible] = useState(false);
   const [statusUpdateForm] = Form.useForm();
   const [currentJobForStatusUpdate, setCurrentJobForStatusUpdate] = useState(null);
+  const [isReassignModalVisible, setIsReassignModalVisible] = useState(false);
+  const [reassignForm] = Form.useForm();
+  const [reassignLoading, setReassignLoading] = useState(false);
   const [jobs, setJobs] = useState([]);
   const [draftJobs, setDraftJobs] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
@@ -1309,6 +1313,52 @@ const JobsPage = () => {
   const handleCustomOptionCancel = () => {
     setIsCustomOptionModalVisible(false);
     setCustomOptionValue('');
+  };
+
+  const handleReassignJob = async (values) => {
+    if (!selectedJob?.id) {
+      message.error('Job ID not found');
+      return;
+    }
+    setReassignLoading(true);
+    try {
+      const response = await jobService.reassignJob(selectedJob.id, {
+        assignedToId: values.assignedToId,
+        comment: values.comment,
+      });
+
+      if (response?.job) {
+        setSelectedJob((prevJob) => ({
+          ...prevJob,
+          assignedToId: response.job.assignedToId,
+          assignedTo: response.job.assignedTo,
+          updatedAt: response.job.updatedAt,
+        }));
+      }
+
+      if (response?.comment) {
+        setJobComments((prev) => [response.comment, ...prev]);
+      } else {
+        try {
+          const comments = await jobService.getJobComments(selectedJob.id);
+          setJobComments(comments);
+        } catch (_) {
+          // non-blocking
+        }
+      }
+
+      message.success('Job reassigned successfully');
+      setIsReassignModalVisible(false);
+      reassignForm.resetFields();
+      loadJobs();
+    } catch (error) {
+      console.error('Reassign error:', error);
+      message.error(
+        error?.response?.data?.error || error?.message || 'Failed to reassign job'
+      );
+    } finally {
+      setReassignLoading(false);
+    }
   };
 
   const handleStatusUpdate = async (values) => {
@@ -2622,6 +2672,83 @@ const JobsPage = () => {
           </Form>
         </Modal>
 
+      {/* Reassign Job Modal */}
+      <Modal
+        title="Reassign Job"
+        open={isReassignModalVisible}
+        onCancel={() => {
+          setIsReassignModalVisible(false);
+          reassignForm.resetFields();
+        }}
+        footer={null}
+        destroyOnClose
+      >
+        <Form
+          form={reassignForm}
+          layout="vertical"
+          onFinish={handleReassignJob}
+        >
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="Status will not change. A comment is required to record why the job is being reassigned."
+          />
+          {selectedJob?.assignedTo?.name && (
+            <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+              Currently assigned to: {selectedJob.assignedTo.name}
+            </Text>
+          )}
+          <Form.Item
+            name="assignedToId"
+            label="Assign To"
+            rules={[{ required: true, message: 'Please select a team member' }]}
+          >
+            <Select
+              showSearch
+              placeholder="Select team member"
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                String(option?.children ?? '')
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+            >
+              {staffMembers
+                .filter((member) => member.id !== selectedJob?.assignedToId)
+                .map((member) => (
+                  <Select.Option key={member.id} value={member.id}>
+                    {member.name}
+                    {member.email ? ` (${member.email})` : ''}
+                  </Select.Option>
+                ))}
+            </Select>
+          </Form.Item>
+          <Form.Item
+            name="comment"
+            label="Comment"
+            rules={[{ required: true, message: 'Please add a comment for this reassignment' }]}
+          >
+            <TextArea rows={4} placeholder="Explain why this job is being reassigned..." />
+          </Form.Item>
+          <Form.Item style={{ marginTop: 24, textAlign: 'right', marginBottom: 0 }}>
+            <Space>
+              <Button
+                onClick={() => {
+                  setIsReassignModalVisible(false);
+                  reassignForm.resetFields();
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="primary" htmlType="submit" loading={reassignLoading}>
+                Reassign
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
       {/* Job Details Drawer */}
        <Drawer
         title={
@@ -2661,12 +2788,25 @@ const JobsPage = () => {
            {(() => {
              const hasEditPermission = hasPermission(PERMISSIONS.JOB_EDIT);
              const hasDeletePermission = hasPermission(PERMISSIONS.JOB_DELETE);
-             const showMenu = hasEditPermission || hasDeletePermission;
+             const hasAssignPermission = hasPermission(PERMISSIONS.JOB_ASSIGN);
+             const showMenu = hasEditPermission || hasDeletePermission || hasAssignPermission;
 
              return showMenu && (
             <Dropdown
               menu={{
                 items: [
+                  ...(hasAssignPermission ? [{
+                    key: 'reassign',
+                    label: 'Reassign',
+                    icon: <SwapOutlined />,
+                    onClick: () => {
+                      reassignForm.setFieldsValue({
+                        assignedToId: undefined,
+                        comment: undefined,
+                      });
+                      setIsReassignModalVisible(true);
+                    },
+                  }] : []),
                   ...(hasEditPermission ? [{
                     key: 'edit',
                      label: 'Edit Job',
