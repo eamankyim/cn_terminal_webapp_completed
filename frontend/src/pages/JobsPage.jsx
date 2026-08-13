@@ -65,7 +65,8 @@ import jobService from '../services/jobService';
 import { fileService } from '../services/fileService';
 import apiService from '../services/api';
 import configurationService from '../services/configurationService';
-import { getJobStatusColor, getJobStatusIcon as getStatusIconUtil, getEtaUrgency, getEtaAntColor } from '../utils/statusUtils';
+import { getJobStatusColor, getJobStatusIcon as getStatusIconUtil, getEtaUrgency, getEtaAntColor, ETA_FILTER, ETA_FILTER_OPTIONS, jobMatchesEtaFilter } from '../utils/statusUtils';
+import { getDefaultEtaFilter, setDefaultEtaFilter } from '../utils/userPreferences';
 import { useJobSocket } from '../hooks/useJobSocket.js';
 
 const DEFAULT_GOODS_TYPES = [
@@ -207,6 +208,8 @@ const JobsPage = () => {
   const [jobsLoading, setJobsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState(null);
+  const [etaFilter, setEtaFilter] = useState(ETA_FILTER.ALL);
+  const [defaultEtaFilter, setDefaultEtaFilterState] = useState(ETA_FILTER.ALL);
   const [jobComments, setJobComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentForm] = Form.useForm();
@@ -237,6 +240,19 @@ const JobsPage = () => {
     loadPersistedDropdownOptions();
   }, []);
 
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const saved = getDefaultEtaFilter(currentUser.id);
+    setDefaultEtaFilterState(saved);
+    setEtaFilter(saved);
+  }, [currentUser?.id]);
+
+  const handleSaveEtaFilterDefault = () => {
+    if (!currentUser?.id) return;
+    const saved = setDefaultEtaFilter(currentUser.id, etaFilter || ETA_FILTER.ALL);
+    setDefaultEtaFilterState(saved);
+    message.success('ETA filter saved as your default');
+  };
   // Handle jobId parameter from URL (e.g. dashboard → Jobs)
   useEffect(() => {
     const jobId = searchParams.get('jobId');
@@ -1867,6 +1883,24 @@ const JobsPage = () => {
                         </Option>
                       ))}
                     </Select>
+                    <Select
+                      placeholder="Filter by ETA"
+                      value={etaFilter || ETA_FILTER.ALL}
+                      onChange={(value) => setEtaFilter(value || ETA_FILTER.ALL)}
+                      style={{ width: '200px' }}
+                    >
+                      {ETA_FILTER_OPTIONS.map((opt) => (
+                        <Option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </Option>
+                      ))}
+                    </Select>
+                    <Button
+                      onClick={handleSaveEtaFilterDefault}
+                      disabled={(etaFilter || ETA_FILTER.ALL) === defaultEtaFilter}
+                    >
+                      Set as default
+                    </Button>
                     <Button 
                       icon={<ClockCircleOutlined />}
                       onClick={loadJobs}
@@ -1899,6 +1933,11 @@ const JobsPage = () => {
                         } else if (job.status !== statusFilter) {
                           return false;
                         }
+                      }
+
+                      // ETA urgency filter
+                      if (!jobMatchesEtaFilter(job, etaFilter)) {
+                        return false;
                       }
                       
                       return true;

@@ -2,6 +2,7 @@ const express = require('express');
 const { prisma } = require('../config/database');
 const { authenticateToken, requirePermission, PERMISSIONS } = require('../middleware/auth');
 const { UI_PERMISSIONS } = require('../utils/uiPermissions');
+const { applyEtaFilterToWhere, shouldOrderByEta } = require('../utils/etaFilter');
 
 const router = express.Router();
 
@@ -312,17 +313,25 @@ router.get('/recent-shipments', authenticateToken, requirePermission(UI_PERMISSI
 router.get('/recent-jobs', authenticateToken, requirePermission(UI_PERMISSIONS.DASHBOARD), async (req, res) => {
   try {
     console.log('🔷 [Dashboard] GET /recent-jobs - User:', req.user?.email, 'Role:', req.user?.role);
-    const { limit = 10 } = req.query;
+    const { limit = 10, etaFilter } = req.query;
+
+    const where = {
+      isDraft: false,
+      status: {
+        notIn: ['NEW', 'CLEARED', 'DELIVERED']
+      }
+    };
+
+    applyEtaFilterToWhere(where, etaFilter);
+
+    const orderBy = shouldOrderByEta(etaFilter)
+      ? [{ eta: 'asc' }, { createdAt: 'desc' }]
+      : { createdAt: 'desc' };
 
     const jobs = await prisma.job.findMany({
-      where: {
-        isDraft: false,
-        status: {
-          notIn: ['NEW', 'CLEARED', 'DELIVERED']
-        }
-      },
+      where,
       take: parseInt(limit),
-      orderBy: { createdAt: 'desc' },
+      orderBy,
       include: {
         customer: {
           select: {

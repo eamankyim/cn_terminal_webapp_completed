@@ -181,3 +181,41 @@ export const getEtaAntColor = (eta) => {
   return 'default';
 };
 
+/** ETA urgency filter values (Jobs / Dashboard) */
+export const ETA_FILTER = {
+  ALL: 'ALL',
+  OVERDUE: 'OVERDUE',
+  DUE_3: 'DUE_3',
+  DUE_7: 'DUE_7',
+};
+
+export const ETA_FILTER_OPTIONS = [
+  { value: ETA_FILTER.ALL, label: 'All ETAs' },
+  { value: ETA_FILTER.OVERDUE, label: 'Overdue' },
+  { value: ETA_FILTER.DUE_3, label: 'Due within 3 days' },
+  { value: ETA_FILTER.DUE_7, label: 'Due within 7 days' },
+];
+
+const ETA_TERMINAL_STATUSES = ['CLEARED', 'DELIVERED'];
+
+export const isValidEtaFilter = (value) =>
+  Object.values(ETA_FILTER).includes(value);
+
+/**
+ * Whether a job matches the selected ETA urgency filter.
+ * Active filters exclude missing ETA and CLEARED/DELIVERED.
+ */
+export const jobMatchesEtaFilter = (job, filter) => {
+  if (!filter || filter === ETA_FILTER.ALL) return true;
+  if (!job?.eta) return false;
+  if (ETA_TERMINAL_STATUSES.includes(job.status)) return false;
+
+  const days = getDaysUntilEta(job.eta);
+  if (days == null) return false;
+
+  if (filter === ETA_FILTER.OVERDUE) return days < 0;
+  if (filter === ETA_FILTER.DUE_3) return days <= 3;
+  if (filter === ETA_FILTER.DUE_7) return days <= 7;
+  return true;
+};
+
