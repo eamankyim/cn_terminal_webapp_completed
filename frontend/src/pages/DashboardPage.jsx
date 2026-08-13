@@ -20,7 +20,9 @@ import {
   Badge,
   Empty,
   Spin,
-  Alert
+  Alert,
+  Select,
+  message
 } from 'antd';
 import { 
   FileAddOutlined, 
@@ -42,15 +44,21 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../services/api';
-import { getJobStatusColor, getEtaUrgency, getEtaAntColor } from '../utils/statusUtils';
+import { getJobStatusColor, getEtaUrgency, getEtaAntColor, ETA_FILTER, ETA_FILTER_OPTIONS } from '../utils/statusUtils';
+import { getDefaultEtaFilter, setDefaultEtaFilter } from '../utils/userPreferences';
 
 const { Title, Text } = Typography;
+const { Option } = Select;
 
 const DashboardPage = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [jobsLoading, setJobsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [etaFilter, setEtaFilter] = useState(ETA_FILTER.ALL);
+  const [defaultEtaFilter, setDefaultEtaFilterState] = useState(ETA_FILTER.ALL);
+  const [prefsReady, setPrefsReady] = useState(false);
   const [dashboardData, setDashboardData] = useState({
     stats: {
       totalJobs: 0,
@@ -73,17 +81,31 @@ const DashboardPage = () => {
   }, [currentUser, navigate]);
 
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    if (!currentUser?.id) return;
+    const saved = getDefaultEtaFilter(currentUser.id);
+    setDefaultEtaFilterState(saved);
+    setEtaFilter(saved);
+    setPrefsReady(true);
+  }, [currentUser?.id]);
 
-  const loadDashboardData = async () => {
+  useEffect(() => {
+    if (!currentUser?.id || !prefsReady) return;
+    loadDashboardData(etaFilter);
+  }, [currentUser?.id, prefsReady, etaFilter]);
+
+  const loadDashboardData = async (filter = etaFilter) => {
+    const isInitial = loading;
     try {
-      setLoading(true);
+      if (isInitial) {
+        setLoading(true);
+      } else {
+        setJobsLoading(true);
+      }
       setError(null);
       
       const [statsResponse, recentJobsResponse] = await Promise.all([
         apiService.getDashboardStats(),
-        apiService.getRecentJobs(5)
+        apiService.getRecentJobs(10, filter)
       ]);
 
       setDashboardData({
@@ -96,7 +118,15 @@ const DashboardPage = () => {
       setError(`Failed to load dashboard data: ${error.message}`);
     } finally {
       setLoading(false);
+      setJobsLoading(false);
     }
+  };
+
+  const handleSaveEtaFilterDefault = () => {
+    if (!currentUser?.id) return;
+    const saved = setDefaultEtaFilter(currentUser.id, etaFilter || ETA_FILTER.ALL);
+    setDefaultEtaFilterState(saved);
+    message.success('ETA filter saved as your default');
   };
 
   // Clearing agent statistics
@@ -244,23 +274,43 @@ const DashboardPage = () => {
           <Card 
             title="Jobs in Progress" 
             extra={
-              <PermissionGate 
-                userPermissions={currentUser?.permissions} 
-                permissions={PERMISSIONS.JOB_CREATE}
-              >
-                <Button 
-                  type="primary" 
-                  icon={<PlusOutlined />}
-                  onClick={() => navigate('/enquiries')}
+              <Space wrap>
+                <Select
+                  value={etaFilter || ETA_FILTER.ALL}
+                  onChange={(value) => setEtaFilter(value || ETA_FILTER.ALL)}
+                  style={{ width: 190 }}
                 >
-                  New Job
+                  {ETA_FILTER_OPTIONS.map((opt) => (
+                    <Option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </Option>
+                  ))}
+                </Select>
+                <Button
+                  onClick={handleSaveEtaFilterDefault}
+                  disabled={(etaFilter || ETA_FILTER.ALL) === defaultEtaFilter}
+                >
+                  Set as default
                 </Button>
-              </PermissionGate>
+                <PermissionGate 
+                  userPermissions={currentUser?.permissions} 
+                  permissions={PERMISSIONS.JOB_CREATE}
+                >
+                  <Button 
+                    type="primary" 
+                    icon={<PlusOutlined />}
+                    onClick={() => navigate('/enquiries')}
+                  >
+                    New Job
+                  </Button>
+                </PermissionGate>
+              </Space>
             }
             style={{ marginBottom: '16px' }}
           >
             <ResponsiveTable
-              dataSource={dashboardData.recentJobs} 
+              dataSource={dashboardData.recentJobs}
+              loading={jobsLoading}
               columns={[
                 {
                   title: 'Job ID',

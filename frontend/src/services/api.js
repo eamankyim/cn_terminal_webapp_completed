@@ -540,8 +540,12 @@ class ApiService {
     return this.get('/dashboard/recent-shipments', { limit });
   }
 
-  async getRecentJobs(limit = 10) {
-    return this.get('/dashboard/recent-jobs', { limit });
+  async getRecentJobs(limit = 10, etaFilter) {
+    const params = { limit };
+    if (etaFilter && etaFilter !== 'ALL') {
+      params.etaFilter = etaFilter;
+    }
+    return this.get('/dashboard/recent-jobs', params);
   }
 
   async getAssignedJobs(limit = 10) {

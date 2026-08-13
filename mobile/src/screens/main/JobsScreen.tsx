@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -26,9 +27,17 @@ import { controlHeight, inputs } from '../../theme/inputs';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { PERMISSIONS } from '../../utils/permissions';
-import { getEtaTextColor } from '../../utils/etaUrgency';
+import {
+  ETA_FILTER,
+  ETA_FILTER_OPTIONS,
+  getEtaTextColor,
+  type EtaFilterValue,
+} from '../../utils/etaUrgency';
+import {
+  getDefaultEtaFilter,
+  setDefaultEtaFilter,
+} from '../../utils/userPreferences';
 import { JobDetailContent } from '../jobs/JobDetailScreen';
-
 const PAGE_SIZE = 20;
 
 const FILTER_STATUSES = [
@@ -113,13 +122,17 @@ interface Props {
 export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
   const route = useRoute<RouteProp<JobsStackParamList, 'JobsList'>>();
   const insets = useSafeAreaInsets();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const { accent } = useTheme();
   const canCreateJob = hasPermission(PERMISSIONS.JOB_CREATE);
 
   const [statusFilter, setStatusFilter] = useState<string | undefined>(
     route.params?.status,
   );
+  const [etaFilter, setEtaFilter] = useState<EtaFilterValue>(ETA_FILTER.ALL);
+  const [defaultEtaFilter, setDefaultEtaFilterState] =
+    useState<EtaFilterValue>(ETA_FILTER.ALL);
+  const [prefsReady, setPrefsReady] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
@@ -128,6 +141,25 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
   useEffect(() => {
     setStatusFilter(route.params?.status);
   }, [route.params?.status]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user?.id) {
+        setPrefsReady(true);
+        return;
+      }
+      const saved = await getDefaultEtaFilter(user.id);
+      if (!cancelled) {
+        setDefaultEtaFilterState(saved);
+        setEtaFilter(saved);
+        setPrefsReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -153,13 +185,17 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['jobs', { statusFilter, search, limit: PAGE_SIZE }],
+    queryKey: ['jobs', { statusFilter, etaFilter, search, limit: PAGE_SIZE }],
+    enabled: prefsReady,
     initialPageParam: 1,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams();
       params.append('page', String(pageParam));
       params.append('limit', String(PAGE_SIZE));
       if (statusFilter) params.append('status', statusFilter);
+      if (etaFilter && etaFilter !== ETA_FILTER.ALL) {
+        params.append('etaFilter', etaFilter);
+      }
       if (search) params.append('search', search);
       return api.get<JobsListResponse>(`/jobs?${params.toString()}`);
     },
@@ -244,6 +280,17 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
   const applyStatusFilter = (status?: string) => {
     setStatusFilter(status);
     setFilterOpen(false);
+  };
+
+  const applyEtaFilter = (filter: EtaFilterValue) => {
+    setEtaFilter(filter);
+  };
+
+  const handleSaveEtaDefault = async () => {
+    if (!user?.id) return;
+    const saved = await setDefaultEtaFilter(user.id, etaFilter);
+    setDefaultEtaFilterState(saved);
+    Alert.alert('Saved', 'ETA filter saved as your default');
   };
 
   const onRefresh = () => {
@@ -370,7 +417,7 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
                 <Text className="text-base font-medium text-black ml-1.5">
                   Filter
                 </Text>
-                {statusFilter ? (
+                {statusFilter || etaFilter !== ETA_FILTER.ALL ? (
                   <View
                     className="w-1.5 h-1.5 rounded-full ml-1.5"
                     style={{ backgroundColor: accent }}
@@ -379,15 +426,32 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            {statusFilter ? (
-              <View className="flex-row items-center mb-2 mt-1" style={{ gap: 8 }}>
-                <StatusBadge
-                  label={formatStatusLabel(statusFilter)}
-                  variant="solid"
-                  size="sm"
-                  uppercase
-                />
-                <TouchableOpacity onPress={() => applyStatusFilter(undefined)}>
+            {(statusFilter || etaFilter !== ETA_FILTER.ALL) ? (
+              <View className="flex-row items-center mb-2 mt-1 flex-wrap" style={{ gap: 8 }}>
+                {statusFilter ? (
+                  <StatusBadge
+                    label={formatStatusLabel(statusFilter)}
+                    variant="solid"
+                    size="sm"
+                    uppercase
+                  />
+                ) : null}
+                {etaFilter !== ETA_FILTER.ALL ? (
+                  <StatusBadge
+                    label={
+                      ETA_FILTER_OPTIONS.find((o) => o.value === etaFilter)?.label ??
+                      etaFilter
+                    }
+                    variant="solid"
+                    size="sm"
+                  />
+                ) : null}
+                <TouchableOpacity
+                  onPress={() => {
+                    setStatusFilter(undefined);
+                    setEtaFilter(ETA_FILTER.ALL);
+                  }}
+                >
                   <Text className="text-sm font-medium text-black underline">
                     Clear
                   </Text>
@@ -484,10 +548,40 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
             <View className="w-10 h-1 rounded-full bg-gray-300 self-center mb-4" />
             <Text className="text-xl font-bold text-black mb-1">Filter</Text>
             <Text className="text-base text-gray-500 mb-4">
-              Filter jobs by status
+              Filter jobs by ETA and status
             </Text>
 
             <ScrollView showsVerticalScrollIndicator={false}>
+              <Text className="text-sm font-semibold text-gray-500 mb-1 mt-1">
+                ETA
+              </Text>
+              {ETA_FILTER_OPTIONS.map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  onPress={() => applyEtaFilter(opt.value)}
+                  className="flex-row items-center justify-between py-4 border-b border-gray-100"
+                >
+                  <Text className="text-base text-black">{opt.label}</Text>
+                  {etaFilter === opt.value ? (
+                    <Ionicons name="checkmark" size={20} color="#000" />
+                  ) : null}
+                </TouchableOpacity>
+              ))}
+
+              <TouchableOpacity
+                onPress={() => void handleSaveEtaDefault()}
+                disabled={etaFilter === defaultEtaFilter}
+                className="flex-row items-center justify-center py-4 mt-1 mb-2 border border-gray-300 rounded-xl"
+                style={{ opacity: etaFilter === defaultEtaFilter ? 0.4 : 1 }}
+              >
+                <Text className="text-base font-medium text-black">
+                  Set ETA filter as default
+                </Text>
+              </TouchableOpacity>
+
+              <Text className="text-sm font-semibold text-gray-500 mb-1 mt-3">
+                Status
+              </Text>
               <TouchableOpacity
                 onPress={() => applyStatusFilter(undefined)}
                 className="flex-row items-center justify-between py-4 border-b border-gray-100"

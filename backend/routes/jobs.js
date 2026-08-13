@@ -6,6 +6,7 @@ const NotificationService = require('../services/notificationService');
 const RealtimeNotificationService = require('../services/realtimeNotificationService');
 const SocketService = require('../services/socketService');
 const { getJobSelect } = require('../utils/jobSelect');
+const { applyEtaFilterToWhere, shouldOrderByEta } = require('../utils/etaFilter');
 
 const router = express.Router();
 
@@ -142,7 +143,7 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
     console.log('  - User:', req.user?.email, 'Role:', req.user?.role);
     console.log('  - Query params:', req.query);
 
-    const { page = 1, limit = 10, search = '', status, customerId } = req.query;
+    const { page = 1, limit = 10, search = '', status, customerId, etaFilter } = req.query;
     const skip = (page - 1) * limit;
 
     // Build where condition
@@ -228,6 +229,8 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
       where.customerId = customerId;
     }
 
+    applyEtaFilterToWhere(where, etaFilter);
+
     // Test query to check if fields exist in database
     const testJob = await prisma.job.findFirst({
       select: {
@@ -243,11 +246,15 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
       }
     });
 
+    const orderBy = shouldOrderByEta(etaFilter)
+      ? [{ eta: 'asc' }, { createdAt: 'desc' }]
+      : { createdAt: 'desc' };
+
     const [jobs, totalCount] = await Promise.all([
       prisma.job.findMany({
         where,
         select: getJobSelect({ includeCounts: true }),
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip: parseInt(skip),
         take: parseInt(limit)
       }),
