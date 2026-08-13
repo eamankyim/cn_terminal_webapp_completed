@@ -17,6 +17,7 @@ import { StatusBadge } from '../../components/StatusBadge';
 import type { Job } from '../../types/api';
 import { useAuth } from '../../context/AuthContext';
 import { PERMISSIONS } from '../../utils/permissions';
+import { getEtaTextColor, getEtaUrgency } from '../../utils/etaUrgency';
 
 interface JobDetailResponse {
   job: Job & {
@@ -79,6 +80,7 @@ type OverviewRow = {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: string;
+  valueColor?: string;
 };
 
 type InfoRow = {
@@ -153,6 +155,10 @@ export const JobDetailContent: React.FC<JobDetailContentProps> = ({
       icon: 'time-outline',
       label: 'ETA',
       value: formatEta(job.eta),
+      valueColor:
+        getEtaUrgency(job.eta) === 'critical' || getEtaUrgency(job.eta) === 'warning'
+          ? getEtaTextColor(job.eta)
+          : undefined,
     },
   ];
 
@@ -296,7 +302,8 @@ export const JobDetailContent: React.FC<JobDetailContentProps> = ({
                 {row.label}
               </Text>
               <Text
-                className="text-base text-black text-right flex-1 ml-3"
+                className="text-base text-right flex-1 ml-3"
+                style={{ color: row.valueColor ?? '#000' }}
                 numberOfLines={2}
               >
                 {row.value}

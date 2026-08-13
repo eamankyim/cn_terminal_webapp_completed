@@ -65,7 +65,7 @@ import jobService from '../services/jobService';
 import { fileService } from '../services/fileService';
 import apiService from '../services/api';
 import configurationService from '../services/configurationService';
-import { getJobStatusColor, getJobStatusIcon as getStatusIconUtil } from '../utils/statusUtils';
+import { getJobStatusColor, getJobStatusIcon as getStatusIconUtil, getEtaUrgency, getEtaAntColor } from '../utils/statusUtils';
 import { useJobSocket } from '../hooks/useJobSocket.js';
 
 const DEFAULT_GOODS_TYPES = [
@@ -651,8 +651,15 @@ const JobsPage = () => {
       title: 'ETA',
       dataIndex: 'eta',
       key: 'eta',
-      render: (eta) =>
-        eta ? new Date(eta).toLocaleDateString() : <Text type="secondary">-</Text>
+      render: (eta) => {
+        if (!eta) return <Text type="secondary">-</Text>;
+        const label = new Date(eta).toLocaleDateString();
+        const urgency = getEtaUrgency(eta);
+        if (urgency === 'normal' || urgency === 'none') {
+          return label;
+        }
+        return <Tag color={getEtaAntColor(eta)}>{label}</Tag>;
+      }
     },
     {
       title: 'Created',
@@ -3041,7 +3048,7 @@ const JobsPage = () => {
                   <div style={{ width: '140px', fontWeight: 'bold' }}>ETA:</div>
                   <div>
                     {selectedJob.eta ? (
-                      <Tag color="blue">
+                      <Tag color={getEtaAntColor(selectedJob.eta)}>
                         {new Date(selectedJob.eta).toLocaleDateString()}
                       </Tag>
                     ) : (
