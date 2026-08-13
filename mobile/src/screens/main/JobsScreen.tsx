@@ -26,6 +26,7 @@ import { controlHeight, inputs } from '../../theme/inputs';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { PERMISSIONS } from '../../utils/permissions';
+import { getEtaTextColor } from '../../utils/etaUrgency';
 import { JobDetailContent } from '../jobs/JobDetailScreen';
 
 const PAGE_SIZE = 20;
@@ -427,7 +428,9 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
                 {item.customer?.name ?? 'Unknown client'}
               </Text>
               <Text className="text-sm text-gray-500 mt-1.5">
-                ETA {formatJobDate(item.eta)}
+                <Text style={{ color: getEtaTextColor(item.eta) }}>
+                  ETA {formatJobDate(item.eta)}
+                </Text>
                 {' · '}
                 Created {formatJobDate(item.createdAt)}
               </Text>

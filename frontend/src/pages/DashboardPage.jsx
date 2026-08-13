@@ -42,7 +42,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../services/api';
-import { getJobStatusColor } from '../utils/statusUtils';
+import { getJobStatusColor, getEtaUrgency, getEtaAntColor } from '../utils/statusUtils';
 
 const { Title, Text } = Typography;
 
@@ -305,15 +305,15 @@ const DashboardPage = () => {
                   title: 'ETA',
                   dataIndex: 'eta',
                   key: 'eta',
-                  render: (eta) => (
-                    eta ? (
-                      <Tag color="blue">
-                        {new Date(eta).toLocaleDateString()}
-                      </Tag>
-                    ) : (
-                      <Text type="secondary">Not set</Text>
-                    )
-                  )
+                  render: (eta) => {
+                    if (!eta) return <Text type="secondary">Not set</Text>;
+                    const label = new Date(eta).toLocaleDateString();
+                    const urgency = getEtaUrgency(eta);
+                    if (urgency === 'normal' || urgency === 'none') {
+                      return label;
+                    }
+                    return <Tag color={getEtaAntColor(eta)}>{label}</Tag>;
+                  }
                 },
                 {
                   title: 'Action',
