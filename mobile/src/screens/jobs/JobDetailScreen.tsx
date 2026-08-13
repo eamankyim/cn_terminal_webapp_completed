@@ -188,6 +188,36 @@ export const JobDetailContent: React.FC<JobDetailContentProps> = ({
       label: 'Consignee Phone',
       value: consignment?.consigneePhone ?? '—',
     },
+    {
+      key: 'shipperName',
+      label: 'Shipper Name',
+      value: job.shipperName ?? '—',
+    },
+    {
+      key: 'invoiceNumber',
+      label: 'Invoice Number',
+      value: job.invoiceNumber ?? '—',
+    },
+    {
+      key: 'boeNumber',
+      label: 'BoE Number',
+      value: job.boeNumber ?? '—',
+    },
+    {
+      key: 'terminalName',
+      label: 'Terminal',
+      value: job.terminalName ?? '—',
+    },
+    {
+      key: 'driverName',
+      label: 'Driver',
+      value: job.driverName ?? '—',
+    },
+    {
+      key: 'driverContact',
+      label: 'Driver Contact',
+      value: job.driverContact ?? '—',
+    },
   ];
 
   const openAction = (screen: string) => {

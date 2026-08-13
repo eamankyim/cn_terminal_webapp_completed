@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import apiService from '../services/api';
+import apiService, { clearSessionExpiredFlag } from '../services/api';
 import invitationService from '../services/invitationService';
 import { hasUIPermission } from '../utils/uiPermissions';
 
@@ -67,6 +67,7 @@ export const AuthProvider = ({ children }) => {
       const response = await apiService.login(email, password);
       
       if (response.user && response.token) {
+        clearSessionExpiredFlag();
         // Set user in state and localStorage
         setCurrentUser(response.user);
         setIsAuthenticated(true);
@@ -89,6 +90,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    clearSessionExpiredFlag();
     setCurrentUser(null);
     setIsAuthenticated(false);
     localStorage.removeItem('cn_terminal_user');
@@ -240,12 +242,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Auto-refresh user permissions when app starts (if user is logged in)
+  // Auto-refresh user permissions once when app starts (if user is logged in)
   useEffect(() => {
-    if (isAuthenticated && currentUser) {
+    if (isAuthenticated && currentUser?.id) {
       refreshUserPermissions();
     }
-  }, [isAuthenticated, currentUser]);
+    // Intentionally only when auth identity changes — not on every currentUser mutation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, currentUser?.id]);
 
   const value = {
     currentUser,
