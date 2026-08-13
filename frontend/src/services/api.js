@@ -1,6 +1,42 @@
 // API Service Layer for CN Terminal
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
+/** Fired on window when a protected API call returns 401. */
+export const SESSION_EXPIRED_EVENT = 'cn_terminal_session_expired';
+
+let sessionExpiredNotified = false;
+
+export function clearSessionExpiredFlag() {
+  sessionExpiredNotified = false;
+}
+
+function notifySessionExpired(endpoint) {
+  // Never treat public auth endpoints as session expiry
+  if (
+    endpoint.includes('/auth/login') ||
+    endpoint.includes('/auth/forgot-password') ||
+    endpoint.includes('/auth/reset-password') ||
+    endpoint.includes('/auth/verify-reset-token') ||
+    endpoint.includes('/invitations/') ||
+    endpoint.includes('/init/')
+  ) {
+    return;
+  }
+
+  if (sessionExpiredNotified) return;
+  sessionExpiredNotified = true;
+
+  try {
+    window.dispatchEvent(
+      new CustomEvent(SESSION_EXPIRED_EVENT, {
+        detail: { endpoint },
+      })
+    );
+  } catch (_) {
+    // ignore
+  }
+}
+
 class ApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
@@ -122,6 +158,9 @@ class ApiService {
         const error = new Error(errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`);
         error.status = response.status;
         error.response = { data: errorData };
+        if (response.status === 401) {
+          notifySessionExpired(endpoint);
+        }
         throw error;
       }
 

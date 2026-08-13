@@ -67,6 +67,16 @@ export interface Job {
   isDraft?: boolean;
   eta?: string | null;
   createdAt: string;
+  shipperName?: string | null;
+  invoiceNumber?: string | null;
+  boeNumber?: string | null;
+  terminalName?: string | null;
+  scheduleTime?: string | null;
+  driverName?: string | null;
+  driverContact?: string | null;
+  demurrageFreeDays?: number | null;
+  releaseMoneyReceived?: boolean | null;
+  demurrageType?: string | null;
   customer?: {
     id: string;
     name: string;

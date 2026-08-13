@@ -20,6 +20,40 @@ export interface ApiError extends Error {
   isTimeout?: boolean;
 }
 
+type SessionExpiredHandler = () => void;
+let sessionExpiredHandler: SessionExpiredHandler | null = null;
+let sessionExpiredNotified = false;
+
+export function setSessionExpiredHandler(
+  handler: SessionExpiredHandler | null,
+) {
+  sessionExpiredHandler = handler;
+}
+
+export function clearSessionExpiredFlag() {
+  sessionExpiredNotified = false;
+}
+
+function notifySessionExpired(path: string) {
+  if (
+    path.includes('/auth/login') ||
+    path.includes('/auth/forgot-password') ||
+    path.includes('/auth/reset-password') ||
+    path.includes('/auth/verify-reset-token') ||
+    path.includes('/invitations/') ||
+    path.includes('/init/')
+  ) {
+    return;
+  }
+  if (sessionExpiredNotified) return;
+  sessionExpiredNotified = true;
+  try {
+    sessionExpiredHandler?.();
+  } catch {
+    // ignore
+  }
+}
+
 async function getAuthToken() {
   try {
     return (await storageGetItem(TOKEN_KEY)) ?? null;
@@ -148,6 +182,9 @@ async function apiRequest<TResponse>(
     );
     error.status = response.status;
     error.details = data;
+    if (response.status === 401) {
+      notifySessionExpired(path);
+    }
     throw error;
   }
 

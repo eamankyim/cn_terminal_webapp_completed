@@ -377,7 +377,9 @@ const JobsPage = () => {
       }
       applyJobsLists([...firstJobs, ...rest]);
     } catch (error) {
-      setError('Failed to load jobs');
+      if (error?.status !== 401) {
+        setError('Failed to load jobs');
+      }
       setJobsLoading(false);
     }
   };
@@ -2875,9 +2877,9 @@ const JobsPage = () => {
                                <br />
                           <Text type="secondary">{entry.comment}</Text>
                                <br />
-                               <Text type="secondary" style={{ fontSize: '12px' }}>
-                            {entry.date} - {entry.updatedBy}
-                               </Text>
+                          <Text type="secondary" style={{ fontSize: '12px' }}>
+                            {entry.date} - {entry.updatedByUser?.name || entry.updatedBy || 'Unknown'}
+                          </Text>
                              </div>
                            </Timeline.Item>
                          ))}
@@ -3137,7 +3139,7 @@ const JobsPage = () => {
                     </div>
                   </>
                 )}
-                {(selectedJob.status === 'VETTED' || selectedJob.status === 'ENTRY_COMPLETED' || selectedJob.status === 'READY_FOR_RELEASE' || selectedJob.status === 'RELEASED' || selectedJob.status === 'CLEARED' || selectedJob.status === 'DELIVERED') && (
+                {(selectedJob.status === 'VETTED' || selectedJob.status === 'ENTRY_COMPLETED' || selectedJob.status === 'DUTY_PAID' || selectedJob.status === 'READY_FOR_RELEASE' || selectedJob.status === 'RELEASED' || selectedJob.status === 'CLEARED' || selectedJob.status === 'DELIVERED') && (
                   <>
                     <div style={{ marginBottom: '16px', display: 'flex' }}>
                       <div style={{ width: '140px', fontWeight: 'bold' }}>Shipper Name:</div>
@@ -3165,7 +3167,7 @@ const JobsPage = () => {
                     </div>
                   </>
                 )}
-                {(selectedJob.status === 'ENTRY_COMPLETED' || selectedJob.status === 'READY_FOR_RELEASE' || selectedJob.status === 'RELEASED' || selectedJob.status === 'CLEARED' || selectedJob.status === 'DELIVERED') && (
+                {(selectedJob.status === 'ENTRY_COMPLETED' || selectedJob.status === 'DUTY_PAID' || selectedJob.status === 'READY_FOR_RELEASE' || selectedJob.status === 'RELEASED' || selectedJob.status === 'CLEARED' || selectedJob.status === 'DELIVERED') && (
                   <div style={{ marginBottom: '16px', display: 'flex' }}>
                     <div style={{ width: '140px', fontWeight: 'bold' }}>BoE Number:</div>
                     <div>

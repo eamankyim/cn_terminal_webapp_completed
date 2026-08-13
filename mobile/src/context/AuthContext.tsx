@@ -5,12 +5,15 @@ import React, {
   useEffect,
   useState,
 } from 'react';
+import { Alert } from 'react-native';
 import {
   api,
   clearAuth,
+  clearSessionExpiredFlag,
   getStoredToken,
   getStoredUser,
   saveAuth,
+  setSessionExpiredHandler,
 } from '../api/http';
 import type { AuthLoginResponse, User, UserRole } from '../types/api';
 import {
@@ -75,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       '/auth/login',
       { email, password },
     );
+    clearSessionExpiredFlag();
     setToken(data.token);
     await saveAuth(data.token, data.user);
     // Refresh /auth/me so permissions match server (login payload may omit them)
@@ -89,11 +93,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const logout = useCallback(async () => {
+    clearSessionExpiredFlag();
     await clearAuth();
     setUser(null);
     setToken(null);
     setStatus('unauthenticated');
   }, []);
+
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      Alert.alert(
+        'Session expired',
+        'Your session has expired or is no longer valid. Please log out and sign in again.',
+        [
+          {
+            text: 'Log out & sign in',
+            onPress: () => {
+              void logout();
+            },
+          },
+        ],
+        { cancelable: false },
+      );
+    });
+    return () => setSessionExpiredHandler(null);
+  }, [logout]);
 
   const refreshMe = useCallback(async () => {
     const me = await api.get<{ user: User }>('/auth/me');

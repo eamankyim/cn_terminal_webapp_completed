@@ -5,6 +5,7 @@ const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 const NotificationService = require('../services/notificationService');
 const RealtimeNotificationService = require('../services/realtimeNotificationService');
 const SocketService = require('../services/socketService');
+const { getJobSelect } = require('../utils/jobSelect');
 
 const router = express.Router();
 
@@ -245,93 +246,7 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
     const [jobs, totalCount] = await Promise.all([
       prisma.job.findMany({
         where,
-        select: {
-          id: true,
-          trackingId: true,
-          customerId: true,
-          consignmentId: true,
-          createdById: true,
-          updatedById: true,
-          assignedToId: true,
-          status: true,
-          isDraft: true,
-          submittedDate: true,
-          eta: true,
-          demurrageFreeDays: true,
-          releaseMoneyReceived: true,
-          shipperName: true,
-          invoiceNumber: true,
-          terminalName: true,
-          scheduleTime: true,
-          driverName: true,
-          driverContact: true,
-          createdAt: true,
-          updatedAt: true,
-          goodsTypes: true,
-          mediumOfEnquiry: true,
-          documentsBrought: true,
-          containerNumber: true,
-          blNumber: true,
-          vesselName: true,
-          line: true,
-          jobDescription: true,
-          customer: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true,
-              ghanaCard: true,
-              tin: true
-            }
-          },
-          consignment: {
-            select: {
-              id: true,
-              trackingId: true,
-              consigneeName: true,
-              consigneePhone: true,
-              status: true,
-              ghanaCard: true,
-              tin: true
-            }
-          },
-          createdBy: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
-          updatedBy: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
-          assignedTo: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
-          statusHistory: {
-            orderBy: { date: 'desc' },
-            include: {
-              updatedByUser: {
-                select: {
-                  id: true,
-                  name: true
-                }
-              }
-            }
-          },
-          _count: {
-            select: {
-              documents: true,
-              invoices: true
-            }
-          }
-        },
+        select: getJobSelect({ includeCounts: true }),
         orderBy: { createdAt: 'desc' },
         skip: parseInt(skip),
         take: parseInt(limit)
@@ -377,85 +292,7 @@ router.get('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
 
     const job = await prisma.job.findUnique({
       where: { id },
-      select: {
-        id: true,
-        trackingId: true,
-        customerId: true,
-        consignmentId: true,
-        createdById: true,
-        updatedById: true,
-        assignedToId: true,
-        status: true,
-        isDraft: true,
-        submittedDate: true,
-        eta: true,
-        demurrageFreeDays: true,
-        releaseMoneyReceived: true,
-        shipperName: true,
-        invoiceNumber: true,
-        createdAt: true,
-        updatedAt: true,
-        goodsTypes: true,
-        mediumOfEnquiry: true,
-        documentsBrought: true,
-        containerNumber: true,
-        blNumber: true,
-        vesselName: true,
-        line: true,
-        jobDescription: true,
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            address: true,
-            ghanaCard: true,
-            tin: true
-          }
-        },
-        consignment: {
-          select: {
-            id: true,
-            trackingId: true,
-            consigneeName: true,
-            consigneePhone: true,
-            status: true,
-            ghanaCard: true,
-            tin: true
-          }
-        },
-        createdBy: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        updatedBy: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        assignedTo: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        statusHistory: {
-          orderBy: { date: 'desc' }
-        },
-        documents: {
-          orderBy: { uploadedAt: 'desc' }
-        },
-        invoices: {
-          include: {
-            payments: true
-          },
-          orderBy: { createdAt: 'desc' }
-        }
-      }
+      select: getJobSelect({ includeDocuments: true, includeInvoices: true })
     });
 
     if (!job) {
@@ -695,38 +532,7 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
 
     const job = await prisma.job.create({
       data: jobData,
-      include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true
-          }
-        },
-        consignment: {
-          select: {
-            id: true,
-            trackingId: true,
-            consigneeName: true,
-            consigneePhone: true,
-            status: true
-          }
-        },
-        createdBy: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        assignedTo: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        }
-      }
+      select: getJobSelect({ includeCounts: true })
     });
 
     // Create initial status history
@@ -739,22 +545,32 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
       }
     });
 
+    // Re-fetch so statusHistory (with author) is present in the response
+    const completeJob = await prisma.job.findUnique({
+      where: { id: job.id },
+      select: getJobSelect({ includeCounts: true })
+    });
+
     // Create notifications for job creation and assignment with real-time updates
     try {
       // Notify all users about the new job assignment
-      await RealtimeNotificationService.notifyJobAssignmentRealtime(job.id, job.assignedToId, req.user.id);
+      await RealtimeNotificationService.notifyJobAssignmentRealtime(
+        completeJob.id,
+        completeJob.assignedToId,
+        req.user.id
+      );
 
       // Notify all users about new job creation
       await NotificationService.createNotificationForAllUsers({
         title: 'New Job Created',
-        message: `New job ${job.trackingId} has been created for ${job.customer.name}`,
+        message: `New job ${completeJob.trackingId} has been created for ${completeJob.customer.name}`,
         type: 'INFO',
         category: 'JOB_CREATED',
-        jobId: job.id,
+        jobId: completeJob.id,
         metadata: {
-          jobTrackingId: job.trackingId,
-          customerName: job.customer.name,
-          assignedTo: job.assignedToId,
+          jobTrackingId: completeJob.trackingId,
+          customerName: completeJob.customer.name,
+          assignedTo: completeJob.assignedToId,
           createdBy: req.user.name
         }
       });
@@ -765,11 +581,11 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
     }
 
     // Emit socket event for real-time update
-    SocketService.emitJobCreated(job);
+    SocketService.emitJobCreated(completeJob);
 
     res.status(201).json({
       message: 'Job created successfully',
-      job
+      job: completeJob
     });
   } catch (error) {
 
@@ -968,39 +784,9 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
     }
 
     // Update job
-    const updatedJob = await prisma.job.update({
+    await prisma.job.update({
       where: { id },
-      data: updateData,
-      include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true
-          }
-        },
-        consignment: {
-          select: {
-            id: true,
-            trackingId: true,
-            consigneeName: true,
-            status: true
-          }
-        },
-        createdBy: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        updatedBy: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      }
+      data: updateData
     });
 
     // Create status history entry if status changed
@@ -1013,6 +799,11 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
         }
       });
     }
+
+    const updatedJob = await prisma.job.findUnique({
+      where: { id },
+      select: getJobSelect({ includeCounts: true })
+    });
 
     // Emit socket event for real-time update
     SocketService.emitJobUpdated(updatedJob);
@@ -1286,81 +1077,7 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
     // Fetch the complete job data with relations
     const completeJob = await prisma.job.findUnique({
       where: { id },
-      select: {
-        id: true,
-        trackingId: true,
-        customerId: true,
-        consignmentId: true,
-        createdById: true,
-        updatedById: true,
-        assignedToId: true,
-        status: true,
-        isDraft: true,
-        submittedDate: true,
-        eta: true,
-        demurrageFreeDays: true,
-        releaseMoneyReceived: true,
-        shipperName: true,
-        invoiceNumber: true,
-        boeNumber: true,
-        terminalName: true,
-        scheduleTime: true,
-        driverName: true,
-        driverContact: true,
-        demurrageType: true,
-        createdAt: true,
-        updatedAt: true,
-        goodsTypes: true,
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            address: true
-          }
-        },
-        consignment: {
-          select: {
-            id: true,
-            trackingId: true,
-            consigneeName: true,
-            consigneePhone: true,
-            status: true,
-            tin: true
-          }
-        },
-        createdBy: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        updatedBy: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        assignedTo: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        statusHistory: {
-          orderBy: { date: 'desc' }
-        },
-        documents: {
-          orderBy: { uploadedAt: 'desc' }
-        },
-        invoices: {
-          include: {
-            payments: true
-          },
-          orderBy: { createdAt: 'desc' }
-        }
-      }
+      select: getJobSelect({ includeDocuments: true, includeInvoices: true })
     });
 
     // Create notification for job status change with real-time updates
@@ -1571,23 +1288,11 @@ router.post('/:id/reassign', authenticateToken, requirePermission(UI_PERMISSIONS
     const reassignmentNote = `Reassigned from ${previousAssigneeName} to ${assignee.name}: ${trimmedComment}`;
 
     const [updatedJob, jobComment] = await prisma.$transaction(async (tx) => {
-      const job = await tx.job.update({
+      await tx.job.update({
         where: { id },
         data: {
           assignedToId,
           updatedById: req.user.id
-        },
-        include: {
-          customer: {
-            select: { id: true, name: true, email: true, phone: true }
-          },
-          assignedTo: {
-            select: { id: true, name: true, email: true }
-          },
-          createdBy: {
-            select: { id: true, name: true, email: true }
-          },
-          consignment: true
         }
       });
 
@@ -1602,6 +1307,11 @@ router.post('/:id/reassign', authenticateToken, requirePermission(UI_PERMISSIONS
             select: { id: true, name: true, email: true }
           }
         }
+      });
+
+      const job = await tx.job.findUnique({
+        where: { id },
+        select: getJobSelect({ includeCounts: true })
       });
 
       return [job, createdComment];

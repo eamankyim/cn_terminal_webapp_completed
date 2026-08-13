@@ -30,6 +30,7 @@ import { CustomerProvider } from './contexts/CustomerContext';
 import { ConsignmentProvider } from './contexts/ConsignmentContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import SessionExpiredModal from './components/auth/SessionExpiredModal';
 import './utils/apiTest'; // Import API test utilities
 
 const { defaultAlgorithm } = theme;
@@ -55,6 +56,7 @@ function App() {
             <NotificationProvider>
               <Router>
             <div className="App">
+              <SessionExpiredModal />
               <Routes>
                 {/* Public Routes */}
                 <Route path="/setup" element={<SetupPage />} />
