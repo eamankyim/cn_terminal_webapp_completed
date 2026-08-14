@@ -349,7 +349,9 @@ router.post('/', authenticateToken, async (req, res) => {
       }
     }
 
-    // Create customer
+    const consigneeAddress = [address, city, country].filter(Boolean).join(', ');
+
+    // Create customer with themselves as the first consignee
     const customer = await prisma.customer.create({
       data: {
         name,
@@ -361,9 +363,23 @@ router.post('/', authenticateToken, async (req, res) => {
         country,
         tin,
         ghanaCard,
-        customerType: String(customerType).toUpperCase()
+        customerType: String(customerType).toUpperCase(),
+        consignments: {
+          create: {
+            consigneeName: name,
+            consigneePhone: phone,
+            consigneeAddress,
+            ghanaCard: ghanaCard || null,
+            tin: tin || null,
+            date: new Date(),
+            status: 'PENDING'
+          }
+        }
       },
       include: {
+        consignments: {
+          orderBy: { createdAt: 'asc' }
+        },
         _count: {
           select: {
             consignments: true,
