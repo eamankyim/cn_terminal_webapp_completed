@@ -720,13 +720,6 @@ const JobsPage = () => {
       )
     },
     {
-      title: 'Consignee',
-      key: 'consignee',
-      render: (_, record) => (
-        <Text>{record.consignment?.consigneeName || 'Not specified'}</Text>
-      )
-    },
-    {
       title: 'Documents Brought',
       dataIndex: 'documentsBrought',
       key: 'documentsBrought',
