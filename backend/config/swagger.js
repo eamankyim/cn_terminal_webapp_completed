@@ -246,7 +246,7 @@ const options = {
               items: {
                 type: 'object',
                 properties: {
-                  category: { type: 'string', enum: ['FUEL', 'MATERIALS', 'OPERATIONS', 'MISCELLANEOUS'] },
+                  category: { type: 'string', enum: ['FUEL', 'MATERIALS', 'OPERATIONS', 'MISCELLANEOUS', 'OTHER'] },
                   amount: { type: 'number' },
                   count: { type: 'integer' }
                 }
@@ -283,8 +283,9 @@ const options = {
             jobId: { type: 'string', format: 'uuid' },
             category: { 
               type: 'string', 
-              enum: ['FUEL', 'MATERIALS', 'OPERATIONS', 'MISCELLANEOUS'] 
+              enum: ['FUEL', 'MATERIALS', 'OPERATIONS', 'MISCELLANEOUS', 'OTHER'] 
             },
+            categoryOther: { type: 'string', nullable: true },
             description: { type: 'string' },
             amount: { type: 'number' },
             status: { 

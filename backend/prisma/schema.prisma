@@ -444,6 +444,7 @@ model ExpenseRequest {
   id              String          @id @default(cuid())
   amount          Float
   category        ExpenseCategory
+  categoryOther   String?
   description     String
   expenseDate     DateTime
   jobId           String?
@@ -493,6 +494,7 @@ model Expense {
   requestId            String                @unique
   amount               Float
   category             ExpenseCategory
+  categoryOther        String?
   description          String
   expenseDate          DateTime
   jobId                String?
@@ -688,6 +690,7 @@ enum ExpenseCategory {
   MATERIALS
   OPERATIONS
   MISCELLANEOUS
+  OTHER
 }
 
 enum PayoutCategory {

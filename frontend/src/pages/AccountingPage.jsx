@@ -173,7 +173,11 @@ const AccountingPage = () => {
                   {expenseStats.categoryBreakdown?.map((category, index) => (
                     <Col xs={12} sm={12} key={index} style={{ marginBottom: 16 }}>
                       <Statistic
-                        title={category.category}
+                        title={
+                          expenseService.getExpenseCategories().find(
+                            (c) => c.value === category.category
+                          )?.label || category.category
+                        }
                         value={category.amount}
                         formatter={(value) => cashflowService.formatAmount(value)}
                         prefix={<DollarOutlined />}

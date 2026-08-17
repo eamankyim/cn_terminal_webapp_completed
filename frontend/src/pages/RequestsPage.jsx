@@ -29,7 +29,6 @@ import { useNavigate } from 'react-router-dom';
 import ExpenseRequestForm from '../components/accounting/ExpenseRequestForm';
 import expenseService from '../services/expenseService';
 import { useAuth } from '../contexts/AuthContext';
-import PermissionGate from '../components/common/PermissionGate';
 import { PERMISSIONS } from '../utils/permissions';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 import DocumentPreviewModal from '../components/common/DocumentPreviewModal';
@@ -38,7 +37,7 @@ const { Title, Text } = Typography;
 
 const RequestsPage = () => {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, hasPermission } = useAuth();
   
   // Route guard: Redirect admin, accountant, and IT consultant users since they don't send requests
   useEffect(() => {
@@ -83,7 +82,12 @@ const RequestsPage = () => {
   const loadMyStats = async () => {
     try {
       const response = await expenseService.getMyExpenseStats();
-      setStats(response);
+      setStats({
+        ...response,
+        pendingRequests: response.statusBreakdown?.PENDING || 0,
+        approvedRequests: response.statusBreakdown?.APPROVED || 0,
+        totalCount: response.totalRequests || 0,
+      });
     } catch (error) {
 
     }
@@ -131,7 +135,7 @@ const RequestsPage = () => {
           <Text>{record.description}</Text>
           <br />
           <Text type="secondary" style={{ fontSize: '12px' }}>
-            {record.category}
+            {expenseService.formatExpenseCategory(record)}
           </Text>
         </div>
       ),
@@ -204,11 +208,7 @@ const RequestsPage = () => {
           </div>
           
           <div style={{ marginTop: 8 }}>
-            <PermissionGate 
-              userRole={currentUser?.role} 
-              userPermissions={currentUser?.permissions}
-              permissions={PERMISSIONS.EXPENSE_REQUEST}
-            >
+            {hasPermission(PERMISSIONS.EXPENSE_REQUEST) ? (
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
@@ -216,7 +216,7 @@ const RequestsPage = () => {
               >
                 New Expense Request
               </Button>
-            </PermissionGate>
+            ) : null}
           </div>
         </div>
       </div>
@@ -357,7 +357,7 @@ const RequestsPage = () => {
                 </Text>
               </Descriptions.Item>
               <Descriptions.Item label="Category">
-                <Tag color="blue">{selectedRequest.category}</Tag>
+                <Tag color="blue">{expenseService.formatExpenseCategory(selectedRequest)}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="Expense Date">
                 <Text>{moment(selectedRequest.expenseDate).format('DD/MM/YYYY')}</Text>

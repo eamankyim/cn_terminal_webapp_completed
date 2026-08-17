@@ -18,6 +18,13 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { useTheme } from '../../context/ThemeContext';
 import type { ExpenseRequest } from '../../types/api';
 
+function expenseCategoryLabel(item: ExpenseRequest) {
+  if (item.category === 'OTHER' && item.categoryOther?.trim()) {
+    return item.categoryOther.trim();
+  }
+  return item.category;
+}
+
 interface ExpenseRequestsResponse {
   requests: ExpenseRequest[];
   pagination: { page: number; limit: number; total: number; pages: number };
@@ -88,7 +95,7 @@ export const ExpenseRequestsScreen: React.FC = () => {
     const all = data?.requests ?? [];
     if (!search) return all;
     return all.filter((item) => {
-      const hay = `${item.category} ${item.description ?? ''} ${item.requestedBy?.name ?? ''} ${item.status}`.toLowerCase();
+      const hay = `${item.category} ${item.categoryOther ?? ''} ${item.description ?? ''} ${item.requestedBy?.name ?? ''} ${item.status}`.toLowerCase();
       return hay.includes(search);
     });
   }, [data?.requests, search]);
@@ -170,7 +177,7 @@ export const ExpenseRequestsScreen: React.FC = () => {
           <View className="mb-3 rounded-2xl border border-gray-200 px-4 py-3">
             <View className="flex-row items-center justify-between mb-1">
               <Text className="font-semibold text-base">
-                GHS {item.amount.toFixed(2)} · {item.category}
+                GHS {item.amount.toFixed(2)} · {expenseCategoryLabel(item)}
               </Text>
               <StatusBadge label={item.status} />
             </View>
@@ -227,7 +234,7 @@ export const ExpenseRequestsScreen: React.FC = () => {
             {actionModal?.request && (
               <Text className="text-sm text-gray-600 mb-2">
                 GHS {actionModal.request.amount.toFixed(2)} ·{' '}
-                {actionModal.request.category}
+                {expenseCategoryLabel(actionModal.request)}
               </Text>
             )}
             <Input

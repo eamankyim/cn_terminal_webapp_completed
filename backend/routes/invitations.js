@@ -8,6 +8,48 @@ const { validatePassword } = require('../utils/passwordValidation');
 const router = express.Router();
 
 /**
+ * If a user already exists for an invitation email, mark leftover PENDING/EXPIRED
+ * invites as ACCEPTED so stats and the table match reality.
+ */
+async function reconcileAcceptedInvitations(invitations) {
+  const openInvites = invitations.filter(
+    (inv) => inv.status === 'PENDING' || inv.status === 'EXPIRED'
+  );
+  if (openInvites.length === 0) return invitations;
+
+  const emails = [...new Set(openInvites.map((inv) => inv.email))];
+  const users = await prisma.user.findMany({
+    where: { email: { in: emails } },
+    select: { email: true }
+  });
+  const userEmails = new Set(users.map((u) => u.email.toLowerCase()));
+  const stale = openInvites.filter((inv) => userEmails.has(inv.email.toLowerCase()));
+  if (stale.length === 0) return invitations;
+
+  const staleIds = stale.map((inv) => inv.id);
+  await prisma.invitation.updateMany({
+    where: { id: { in: staleIds } },
+    data: { status: 'ACCEPTED', acceptedAt: new Date() }
+  });
+
+  const staleSet = new Set(staleIds);
+  return invitations.map((inv) =>
+    staleSet.has(inv.id)
+      ? { ...inv, status: 'ACCEPTED', acceptedAt: inv.acceptedAt || new Date() }
+      : inv
+  );
+}
+
+/** PENDING past expiry is treated as EXPIRED; ACCEPTED stays accepted. */
+function effectiveInvitationStatus(inv) {
+  if (inv.status === 'ACCEPTED' || inv.acceptedAt) return 'ACCEPTED';
+  if (inv.status === 'CANCELLED') return 'CANCELLED';
+  if (inv.status === 'EXPIRED') return 'EXPIRED';
+  if (inv.status === 'PENDING' && new Date(inv.expiresAt) < new Date()) return 'EXPIRED';
+  return inv.status || 'PENDING';
+}
+
+/**
  * @swagger
  * /api/invitations/{id}:
  *   get:
@@ -136,15 +178,14 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
       }
     });
 
-    // Log all invitation links for easy access
+    const reconciled = await reconcileAcceptedInvitations(invitations);
 
-    invitations.forEach(inv => {
-      const baseUrl = process.env.APP_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
-      const inviteLink = `${baseUrl}/accept-invitation/${inv.id}`;
-
+    res.json({
+      invitations: reconciled.map((inv) => ({
+        ...inv,
+        status: effectiveInvitationStatus(inv)
+      }))
     });
-
-    res.json({ invitations });
   } catch (error) {
 
     res.status(500).json({ 
@@ -185,21 +226,21 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
 // Get invitation statistics
 router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const [total, pending, accepted, expired, cancelled] = await Promise.all([
-      prisma.invitation.count(),
-      prisma.invitation.count({ where: { status: 'PENDING' } }),
-      prisma.invitation.count({ where: { status: 'ACCEPTED' } }),
-      prisma.invitation.count({ where: { status: 'EXPIRED' } }),
-      prisma.invitation.count({ where: { status: 'CANCELLED' } })
-    ]);
-
-    res.json({
-      total,
-      pending,
-      accepted,
-      expired,
-      cancelled
+    const invitations = await prisma.invitation.findMany({
+      select: { status: true, expiresAt: true, acceptedAt: true, email: true }
     });
+    const reconciled = await reconcileAcceptedInvitations(invitations);
+
+    const counts = { total: reconciled.length, pending: 0, accepted: 0, expired: 0, cancelled: 0 };
+    reconciled.forEach((inv) => {
+      const status = effectiveInvitationStatus(inv);
+      if (status === 'ACCEPTED') counts.accepted += 1;
+      else if (status === 'EXPIRED') counts.expired += 1;
+      else if (status === 'CANCELLED') counts.cancelled += 1;
+      else counts.pending += 1;
+    });
+
+    res.json(counts);
   } catch (error) {
 
     res.status(500).json({ error: 'Internal server error' });

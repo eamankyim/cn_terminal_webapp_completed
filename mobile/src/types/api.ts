@@ -154,6 +154,7 @@ export interface ExpenseRequest {
   id: string;
   amount: number;
   category: string;
+  categoryOther?: string | null;
   description?: string;
   status: string;
   createdAt: string;

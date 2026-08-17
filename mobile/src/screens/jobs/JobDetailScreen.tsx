@@ -17,7 +17,7 @@ import { StatusBadge } from '../../components/StatusBadge';
 import type { Job } from '../../types/api';
 import { useAuth } from '../../context/AuthContext';
 import { PERMISSIONS } from '../../utils/permissions';
-import { getEtaTextColor, getEtaUrgency } from '../../utils/etaUrgency';
+import { getEtaTextColor, getEtaUrgency, formatEtaDate } from '../../utils/etaUrgency';
 
 interface JobDetailResponse {
   job: Job & {
@@ -53,21 +53,6 @@ function formatSubmittedDate(value?: string | null): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
-}
-
-/** e.g. 31/07/2026 */
-function formatEta(value?: string | null): string {
-  if (!value) return '—';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) {
-    const datePart = value.slice(0, 10);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
-      const [y, m, day] = datePart.split('-');
-      return `${day}/${m}/${y}`;
-    }
-    return value;
-  }
-  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
 function formatStatusLabel(status?: string): string {
@@ -154,7 +139,7 @@ export const JobDetailContent: React.FC<JobDetailContentProps> = ({
       key: 'eta',
       icon: 'time-outline',
       label: 'ETA',
-      value: formatEta(job.eta),
+      value: formatEtaDate(job.eta) || '—',
       valueColor:
         getEtaUrgency(job.eta) === 'critical' || getEtaUrgency(job.eta) === 'warning'
           ? getEtaTextColor(job.eta)

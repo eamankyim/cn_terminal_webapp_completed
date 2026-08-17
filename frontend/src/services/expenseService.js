@@ -140,8 +140,20 @@ export const expenseService = {
       { value: 'FUEL', label: 'Fuel', description: 'Vehicle fuel, gas, diesel' },
       { value: 'MATERIALS', label: 'Materials', description: 'Supplies, equipment, tools' },
       { value: 'OPERATIONS', label: 'Operations', description: 'Operational costs, maintenance' },
-      { value: 'MISCELLANEOUS', label: 'Miscellaneous', description: 'Other business expenses' }
+      { value: 'MISCELLANEOUS', label: 'Miscellaneous', description: 'General business expenses' },
+      { value: 'OTHER', label: 'Other', description: 'Specify a custom category' }
     ];
+  },
+
+  formatExpenseCategory: (record) => {
+    if (!record) return '';
+    if (record.category === 'OTHER' && record.categoryOther) {
+      return record.categoryOther;
+    }
+    const categoryConfig = expenseService.getExpenseCategories().find(
+      (c) => c.value === record.category
+    );
+    return categoryConfig?.label || record.category || '';
   },
 
   getExpenseStatuses: () => {
