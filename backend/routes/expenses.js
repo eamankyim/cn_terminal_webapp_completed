@@ -1,12 +1,36 @@
 const express = require('express');
 const { prisma } = require('../config/database');
-const { authenticateToken, requirePermission } = require('../middleware/auth');
+const { authenticateToken, requirePermission, checkUserPermission } = require('../middleware/auth');
 const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 const { PERMISSIONS } = require('../utils/permissions');
 const NotificationService = require('../services/notificationService');
 const RealtimeNotificationService = require('../services/realtimeNotificationService');
 
 const router = express.Router();
+
+const EXPENSE_CATEGORIES = ['FUEL', 'MATERIALS', 'OPERATIONS', 'MISCELLANEOUS', 'OTHER'];
+
+const normalizeExpenseCategory = (category, categoryOther) => {
+  if (!EXPENSE_CATEGORIES.includes(category)) {
+    return { error: 'Invalid category' };
+  }
+  if (category === 'OTHER') {
+    const custom = typeof categoryOther === 'string' ? categoryOther.trim() : '';
+    if (!custom) {
+      return { error: 'Please specify the category' };
+    }
+    if (custom.length > 80) {
+      return { error: 'Custom category must be 80 characters or fewer' };
+    }
+    return { category, categoryOther: custom };
+  }
+  return { category, categoryOther: null };
+};
+
+const canApproveExpenses = async (user) => {
+  if (['ADMIN', 'ACCOUNTANT', 'IT_CONSULTANT'].includes(user.role)) return true;
+  return checkUserPermission(user.id, PERMISSIONS.EXPENSE_APPROVE);
+};
 
 // Get user's own expense requests (no special permission required)
 router.get('/my-requests', authenticateToken, async (req, res) => {
@@ -228,6 +252,7 @@ router.post('/record', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_
     const {
       amount,
       category,
+      categoryOther,
       description,
       expenseDate,
       jobId,
@@ -244,20 +269,20 @@ router.post('/record', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_
       return res.status(400).json({ error: 'Amount must be greater than 0' });
     }
 
-    // Validate category
-    const validCategories = ['FUEL', 'MATERIALS', 'OPERATIONS', 'MISCELLANEOUS'];
-    if (!validCategories.includes(category)) {
-      return res.status(400).json({ error: 'Invalid category' });
+    const categoryResult = normalizeExpenseCategory(category, categoryOther);
+    if (categoryResult.error) {
+      return res.status(400).json({ error: categoryResult.error });
     }
 
     // Create expense request with APPROVED status (no approval needed)
     const expenseRequest = await prisma.expenseRequest.create({
       data: {
         amount: parseFloat(amount),
-        category,
+        category: categoryResult.category,
+        categoryOther: categoryResult.categoryOther,
         description,
         expenseDate: new Date(expenseDate),
-        jobId: jobId || null,
+        jobId: jobId && String(jobId).trim() ? String(jobId).trim() : null,
         receiptUrl: receiptUrl || null,
         requestedById: req.user.id,
         status: 'APPROVED',  // Direct recording - auto-approved
@@ -285,6 +310,7 @@ router.post('/record', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_
         requestId: expenseRequest.id,
         amount: expenseRequest.amount,
         category: expenseRequest.category,
+        categoryOther: expenseRequest.categoryOther,
         description: expenseRequest.description,
         expenseDate: expenseRequest.expenseDate,
         jobId: expenseRequest.jobId,
@@ -306,42 +332,50 @@ router.post('/record', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_
   }
 });
 
-// Create new expense request (for employees)
-router.post('/requests', authenticateToken, requirePermission(PERMISSIONS.EXPENSE_REQUEST), async (req, res) => {
+// Create new expense request (any authenticated staff member)
+router.post('/requests', authenticateToken, async (req, res) => {
   try {
     const {
       amount,
       category,
+      categoryOther,
       description,
       expenseDate,
       jobId,
       receiptUrl
     } = req.body;
 
+    const parsedAmount = parseFloat(amount);
+
     // Validate required fields
-    if (!amount || !category || !description || !expenseDate) {
+    if (!parsedAmount || !category || !description || !expenseDate) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     // Validate amount
-    if (amount <= 0) {
+    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
       return res.status(400).json({ error: 'Amount must be greater than 0' });
     }
 
-    // Validate category
-    const validCategories = ['FUEL', 'MATERIALS', 'OPERATIONS', 'MISCELLANEOUS'];
-    if (!validCategories.includes(category)) {
-      return res.status(400).json({ error: 'Invalid category' });
+    const categoryResult = normalizeExpenseCategory(category, categoryOther);
+    if (categoryResult.error) {
+      return res.status(400).json({ error: categoryResult.error });
     }
+
+    const linkedJobId = jobId && String(jobId).trim() ? String(jobId).trim() : null;
+    const categoryLabel = categoryResult.category === 'OTHER'
+      ? categoryResult.categoryOther
+      : categoryResult.category;
 
     // Create expense request
     const expenseRequest = await prisma.expenseRequest.create({
       data: {
-        amount: parseFloat(amount),
-        category,
+        amount: parsedAmount,
+        category: categoryResult.category,
+        categoryOther: categoryResult.categoryOther,
         description,
         expenseDate: new Date(expenseDate),
-        jobId: jobId || null,
+        jobId: linkedJobId,
         receiptUrl: receiptUrl || null,
         requestedById: req.user.id,
         status: 'PENDING'
@@ -358,10 +392,6 @@ router.post('/requests', authenticateToken, requirePermission(PERMISSIONS.EXPENS
 
     // Create notification for accounting staff
     try {
-      console.log('🔔 Creating expense request notifications...');
-      console.log('🔍 Global.io available:', !!global.io);
-      
-      // Get all accounting staff (ACCOUNTANT, ADMIN roles)
       const accountingStaff = await prisma.user.findMany({
         where: {
           OR: [
@@ -373,16 +403,11 @@ router.post('/requests', authenticateToken, requirePermission(PERMISSIONS.EXPENS
         select: { id: true, name: true }
       });
 
-      console.log('👥 Accounting staff found:', accountingStaff.length);
-      accountingStaff.forEach(staff => console.log(`  - ${staff.name} (${staff.id})`));
-
-      // Create notifications for all accounting staff
-      const notifications = await Promise.all(
-        accountingStaff.map(staff => {
-          console.log(`📤 Sending notification to ${staff.name}...`);
-          return RealtimeNotificationService.sendRealtimeNotification(staff.id, {
+      await Promise.all(
+        accountingStaff.map(staff =>
+          RealtimeNotificationService.sendRealtimeNotification(staff.id, {
             title: 'New Expense Request',
-            message: `${req.user.name} submitted an expense request for GH₵${amount.toFixed(2)} - ${category}`,
+            message: `${req.user.name} submitted an expense request for GH₵${parsedAmount.toFixed(2)} - ${categoryLabel}`,
             type: 'INFO',
             category: 'EXPENSE_REQUEST',
             metadata: {
@@ -392,27 +417,28 @@ router.post('/requests', authenticateToken, requirePermission(PERMISSIONS.EXPENS
               requestedBy: req.user.name,
               requestedById: req.user.id
             }
-          });
-        })
+          })
+        )
       );
-      
-      console.log('✅ Notifications sent:', notifications.length);
     } catch (notificationError) {
       console.error('❌ Failed to send expense request notifications:', notificationError);
     }
 
     res.status(201).json(expenseRequest);
   } catch (error) {
-
-    res.status(500).json({ error: 'Failed to create expense request' });
+    console.error('Failed to create expense request:', error);
+    res.status(500).json({
+      error: 'Failed to create expense request',
+      details: error.message
+    });
   }
 });
 
 // Approve expense request (Admin can approve, Accountant can also approve)
 router.patch('/requests/:id/approve', authenticateToken, async (req, res) => {
-  // Check if user is ADMIN or has EXPENSE_APPROVE permission
-  if (req.user.role !== 'ADMIN' && !req.user.permissions?.some(p => p.permission === PERMISSIONS.EXPENSE_APPROVE)) {
-    return res.status(403).json({ error: 'Only Admin or users with expense approval permission can approve requests' });
+  const allowed = await canApproveExpenses(req.user);
+  if (!allowed) {
+    return res.status(403).json({ error: 'Only Admin, Accountant, or users with expense approval permission can approve requests' });
   }
   try {
     const { id } = req.params;
@@ -493,6 +519,7 @@ router.patch('/requests/:id/approve', authenticateToken, async (req, res) => {
           requestId: id,
           amount: request.amount,
           category: request.category,
+          categoryOther: request.categoryOther,
           description: request.description,
           expenseDate: request.expenseDate,
           jobId: request.jobId,

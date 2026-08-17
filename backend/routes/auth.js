@@ -312,6 +312,18 @@ router.post('/register', authenticateToken, requireAdminOrIT, async (req, res) =
       }
     });
 
+    await prisma.invitation.updateMany({
+      where: {
+        email,
+        status: { in: ['PENDING', 'EXPIRED'] }
+      },
+      data: {
+        status: 'ACCEPTED',
+        acceptedAt: new Date()
+      }
+    });
+
+
     res.status(201).json({
       message: 'User created successfully',
       user

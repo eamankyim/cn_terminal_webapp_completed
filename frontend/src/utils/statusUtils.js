@@ -164,6 +164,24 @@ export const getDaysUntilEta = (eta) => {
   return Math.round((etaDay.getTime() - today.getTime()) / 86400000);
 };
 
+const ETA_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Display ETA as "15 Aug 2026" */
+export const formatEtaDate = (eta) => {
+  if (!eta) return '';
+  const raw = typeof eta === 'string' ? eta.slice(0, 10) : null;
+  let etaDay;
+  if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [y, m, d] = raw.split('-').map(Number);
+    etaDay = new Date(y, m - 1, d);
+  } else {
+    const parsed = new Date(eta);
+    if (Number.isNaN(parsed.getTime())) return '';
+    etaDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  }
+  return `${etaDay.getDate()} ${ETA_MONTHS[etaDay.getMonth()]} ${etaDay.getFullYear()}`;
+};
+
 /** 'critical' (≤3 days / overdue), 'warning' (≤7), 'normal', or 'none' */
 export const getEtaUrgency = (eta) => {
   const days = getDaysUntilEta(eta);

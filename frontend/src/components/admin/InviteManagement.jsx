@@ -183,6 +183,9 @@ CN Terminal Team`;
       case 'expired':
       case 'EXPIRED':
         return 'error';
+      case 'cancelled':
+      case 'CANCELLED':
+        return 'default';
       default:
         return 'default';
     }
@@ -205,7 +208,33 @@ CN Terminal Team`;
   };
 
   const isExpired = (expiresAt) => {
-    return new Date(expiresAt) < new Date();
+    return Boolean(expiresAt) && new Date(expiresAt) < new Date();
+  };
+
+  const getEffectiveStatus = (record) => {
+    if (record.status === 'ACCEPTED' || record.acceptedAt) return 'ACCEPTED';
+    if (record.status === 'CANCELLED') return 'CANCELLED';
+    if (record.status === 'EXPIRED') return 'EXPIRED';
+    if (record.status === 'PENDING' && isExpired(record.expiresAt)) return 'EXPIRED';
+    if (record.status === 'PENDING' || record.status === 'pending') return 'PENDING';
+    if (isExpired(record.expiresAt) && record.status !== 'ACCEPTED') return 'EXPIRED';
+    return record.status || 'PENDING';
+  };
+
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case 'ACCEPTED':
+      case 'accepted':
+        return 'Accepted';
+      case 'EXPIRED':
+      case 'expired':
+        return 'Expired';
+      case 'CANCELLED':
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return 'Pending';
+    }
   };
 
   const handleViewLogs = async () => {
@@ -273,6 +302,10 @@ CN Terminal Team`;
       key: 'expiresAt',
       render: (_, record) => {
         const expired = isExpired(record.expiresAt);
+        const status = getEffectiveStatus(record);
+        if (status === 'ACCEPTED') {
+          return <Tag color="success">Accepted</Tag>;
+        }
         return (
           <Tag color={expired ? 'error' : 'processing'}>
             {expired ? 'Expired' : new Date(record.expiresAt).toLocaleDateString()}
@@ -284,14 +317,10 @@ CN Terminal Team`;
       title: 'Status',
       key: 'status',
       render: (_, record) => {
-        const expired = isExpired(record.expiresAt);
-        const status = expired ? 'expired' : record.status;
+        const status = getEffectiveStatus(record);
         return (
           <Tag color={getStatusColor(status)} icon={getStatusIcon(status)}>
-            {status === 'PENDING' && !expired ? 'Pending' : 
-             status === 'ACCEPTED' ? 'Accepted' : 
-             status === 'EXPIRED' ? 'Expired' :
-             expired ? 'Expired' : 'Pending'}
+            {getStatusLabel(status)}
           </Tag>
         );
       },
@@ -300,9 +329,11 @@ CN Terminal Team`;
       title: 'Actions',
       key: 'actions',
       render: (_, record) => {
-        const expired = isExpired(record.expiresAt);
+        const status = getEffectiveStatus(record);
+        const canManage = status === 'PENDING' || status === 'EXPIRED';
         return (
           <Space>
+            {status === 'PENDING' ? (
             <Tooltip title="Share invitation link">
               <Button 
                 size="small" 
@@ -312,16 +343,19 @@ CN Terminal Team`;
                 Share
               </Button>
             </Tooltip>
+            ) : null}
+            {canManage ? (
             <Tooltip title="Resend invitation">
               <Button 
                 size="small" 
                 icon={<MailOutlined />}
-                disabled={expired}
                 onClick={() => handleResendInvite(record)}
               >
                 Resend
               </Button>
             </Tooltip>
+            ) : null}
+            {canManage ? (
             <Tooltip title="Cancel invitation">
               <Button 
                 size="small" 
@@ -331,6 +365,7 @@ CN Terminal Team`;
                 Cancel
               </Button>
             </Tooltip>
+            ) : null}
           </Space>
         );
       },
@@ -386,8 +421,9 @@ CN Terminal Team`;
 
   // Calculate statistics
   const totalInvites = pendingInvites.length;
-  const pendingInvitesCount = pendingInvites.filter(inv => !isExpired(inv.expiresAt)).length;
-  const expiredInvitesCount = pendingInvites.filter(inv => isExpired(inv.expiresAt)).length;
+  const pendingInvitesCount = pendingInvites.filter(inv => getEffectiveStatus(inv) === 'PENDING').length;
+  const acceptedInvitesCount = pendingInvites.filter(inv => getEffectiveStatus(inv) === 'ACCEPTED').length;
+  const expiredInvitesCount = pendingInvites.filter(inv => getEffectiveStatus(inv) === 'EXPIRED').length;
 
   return (
     <div>
@@ -397,7 +433,7 @@ CN Terminal Team`;
 
       {/* Statistics */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        <Col xs={12} sm={8}>
+        <Col xs={12} sm={6}>
           <Card>
             <Statistic
               title="Total Invites"
@@ -407,7 +443,7 @@ CN Terminal Team`;
             />
           </Card>
         </Col>
-        <Col xs={12} sm={8}>
+        <Col xs={12} sm={6}>
           <Card>
             <Statistic
               title="Pending Invites"
@@ -417,7 +453,17 @@ CN Terminal Team`;
             />
           </Card>
         </Col>
-        <Col xs={12} sm={8}>
+        <Col xs={12} sm={6}>
+          <Card>
+            <Statistic
+              title="Accepted Invites"
+              value={acceptedInvitesCount}
+              prefix={<CheckCircleOutlined />}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
           <Card>
             <Statistic
               title="Expired Invites"
@@ -514,7 +560,7 @@ CN Terminal Team`;
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <Title level={4} style={{ margin: 0 }}>
-              Pending Invitations
+              Invitations
             </Title>
           </div>
           <Space>

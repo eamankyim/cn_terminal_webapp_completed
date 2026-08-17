@@ -44,7 +44,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../services/api';
-import { getJobStatusColor, getEtaUrgency, getEtaAntColor, ETA_FILTER, ETA_FILTER_OPTIONS } from '../utils/statusUtils';
+import { getJobStatusColor, getEtaUrgency, getEtaAntColor, formatEtaDate, ETA_FILTER, ETA_FILTER_OPTIONS } from '../utils/statusUtils';
 import { getDefaultEtaFilter, setDefaultEtaFilter } from '../utils/userPreferences';
 
 const { Title, Text } = Typography;
@@ -357,7 +357,7 @@ const DashboardPage = () => {
                   key: 'eta',
                   render: (eta) => {
                     if (!eta) return <Text type="secondary">Not set</Text>;
-                    const label = new Date(eta).toLocaleDateString();
+                    const label = formatEtaDate(eta);
                     const urgency = getEtaUrgency(eta);
                     if (urgency === 'normal' || urgency === 'none') {
                       return label;

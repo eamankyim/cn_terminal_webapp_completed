@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import moment from 'moment';
+import dayjs from 'dayjs';
 import {
   Modal,
   Form,
@@ -39,6 +39,7 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
   const [jobs, setJobs] = useState([]);
   const [fileList, setFileList] = useState([]);
   const { currentUser } = useAuth();
+  const selectedCategory = Form.useWatch('category', form);
 
   const expenseCategories = expenseService.getExpenseCategories();
 
@@ -48,7 +49,7 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
       if (initialData) {
         form.setFieldsValue({
           ...initialData,
-          expenseDate: initialData.expenseDate ? moment(initialData.expenseDate) : null
+          expenseDate: initialData.expenseDate ? dayjs(initialData.expenseDate) : null
         });
       } else {
         form.resetFields();
@@ -59,11 +60,10 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
 
   const loadJobs = async () => {
     try {
-      const response = await jobService.getJobs({ status: 'INVOICED,RELEASED,CLEARED' });
+      const response = await jobService.getJobs({ limit: 100 });
       setJobs(response.jobs || []);
     } catch (error) {
-
-      message.error('Failed to load jobs');
+      setJobs([]);
     }
   };
 
@@ -75,8 +75,11 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
       const formData = {
         amount: values.amount,
         category: values.category,
+        categoryOther: values.category === 'OTHER' ? (values.categoryOther || '').trim() : null,
         description: values.description,
-        expenseDate: values.expenseDate ? values.expenseDate.toISOString() : new Date().toISOString(),
+        expenseDate: values.expenseDate
+          ? values.expenseDate.toISOString()
+          : new Date().toISOString(),
         jobId: values.jobId || null,
         receiptUrl: null
       };
@@ -118,7 +121,7 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
       onCancel();
     } catch (error) {
 
-      message.error(error.response?.data?.error || 'Failed to submit expense request');
+      message.error(error.response?.data?.error || error.message || 'Failed to submit expense request');
     } finally {
       setLoading(false);
     }
@@ -169,7 +172,7 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
           layout="vertical"
           onFinish={handleSubmit}
           initialValues={{
-            expenseDate: moment(),
+            expenseDate: dayjs(),
             category: 'MISCELLANEOUS'
           }}
         >
@@ -212,6 +215,19 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
               </Form.Item>
             </Col>
           </Row>
+
+          {selectedCategory === 'OTHER' && (
+            <Form.Item
+              label="Specify category"
+              name="categoryOther"
+              rules={[
+                { required: true, message: 'Please specify the category' },
+                { max: 80, message: 'Category must be 80 characters or fewer' }
+              ]}
+            >
+              <Input placeholder="e.g. Parking, Toll, Courier" maxLength={80} />
+            </Form.Item>
+          )}
 
           <Row gutter={16}>
             <Col span={12}>

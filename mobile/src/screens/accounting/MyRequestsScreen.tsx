@@ -12,12 +12,32 @@ import { ScreenHeader } from '../../components/ScreenHeader';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
 import { StatusBadge } from '../../components/StatusBadge';
+import { SelectField } from '../../components/SelectField';
 import { useTheme } from '../../context/ThemeContext';
+
+const EXPENSE_CATEGORIES = [
+  { value: 'FUEL', label: 'Fuel' },
+  { value: 'MATERIALS', label: 'Materials' },
+  { value: 'OPERATIONS', label: 'Operations' },
+  { value: 'MISCELLANEOUS', label: 'Miscellaneous' },
+  { value: 'OTHER', label: 'Other' },
+] as const;
+
+function expenseCategoryLabel(item: {
+  category: string;
+  categoryOther?: string | null;
+}) {
+  if (item.category === 'OTHER' && item.categoryOther?.trim()) {
+    return item.categoryOther.trim();
+  }
+  return EXPENSE_CATEGORIES.find((c) => c.value === item.category)?.label ?? item.category;
+}
 
 interface Request {
   id: string;
   amount: number;
   category: string;
+  categoryOther?: string | null;
   status: string;
   createdAt: string;
   description?: string;
@@ -77,7 +97,7 @@ export const MyRequestsScreen: React.FC = () => {
                 <Text className="font-semibold text-sm">GHS {item.amount.toFixed(2)}</Text>
                 <StatusBadge label={item.status} />
               </View>
-              <Text className="text-xs text-gray-500">{item.category}</Text>
+              <Text className="text-xs text-gray-500">{expenseCategoryLabel(item)}</Text>
               {item.description ? (
                 <Text className="text-xs text-gray-600 mt-1">{item.description}</Text>
               ) : null}
@@ -110,6 +130,7 @@ function NewRequestSheet({
   const { accent } = useTheme();
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('MISCELLANEOUS');
+  const [categoryOther, setCategoryOther] = useState('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,10 +146,13 @@ function NewRequestSheet({
       setError('Description is required');
       return;
     }
-    const validCategories = ['FUEL', 'MATERIALS', 'OPERATIONS', 'MISCELLANEOUS'];
-    const cat = category.trim().toUpperCase();
-    if (!validCategories.includes(cat)) {
-      setError('Category must be FUEL, MATERIALS, OPERATIONS, or MISCELLANEOUS');
+    if (!EXPENSE_CATEGORIES.some((c) => c.value === category)) {
+      setError('Select a category');
+      return;
+    }
+    const custom = categoryOther.trim();
+    if (category === 'OTHER' && !custom) {
+      setError('Please specify the category');
       return;
     }
     setSubmitting(true);
@@ -136,7 +160,8 @@ function NewRequestSheet({
     try {
       await api.post('/expenses/requests', {
         amount: num,
-        category: cat,
+        category,
+        categoryOther: category === 'OTHER' ? custom : null,
         description: desc,
         expenseDate: new Date().toISOString().slice(0, 10),
       });
@@ -170,13 +195,28 @@ function NewRequestSheet({
           />
         </View>
         <View className="mb-3">
-          <Text className="text-xs font-medium text-gray-600 mb-1">Category</Text>
-          <Input
+          <SelectField
+            label="Category"
+            placeholder="Select category"
             value={category}
-            onChangeText={setCategory}
-            placeholder="FUEL, MATERIALS, OPERATIONS, MISCELLANEOUS"
+            onChange={(value) => {
+              setCategory(value);
+              if (value !== 'OTHER') setCategoryOther('');
+            }}
+            options={EXPENSE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
           />
         </View>
+        {category === 'OTHER' ? (
+          <View className="mb-3">
+            <Text className="text-xs font-medium text-gray-600 mb-1">Specify category</Text>
+            <Input
+              value={categoryOther}
+              onChangeText={setCategoryOther}
+              placeholder="e.g. Parking, Toll, Courier"
+              maxLength={80}
+            />
+          </View>
+        ) : null}
         <View className="mb-4">
           <Text className="text-xs font-medium text-gray-600 mb-1">Description *</Text>
           <Input

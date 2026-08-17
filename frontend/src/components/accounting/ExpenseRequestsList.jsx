@@ -208,10 +208,7 @@ const ExpenseRequestsList = () => {
     return statusConfig?.color || 'default';
   };
 
-  const getCategoryLabel = (category) => {
-    const categoryConfig = expenseCategories.find(c => c.value === category);
-    return categoryConfig?.label || category;
-  };
+  const getCategoryLabel = (record) => expenseService.formatExpenseCategory(record);
 
   const columns = [
     {
@@ -222,7 +219,7 @@ const ExpenseRequestsList = () => {
         <Space direction="vertical" size={0}>
           <Text strong>{expenseService.formatExpenseAmount(record.amount)}</Text>
           <Text type="secondary" style={{ fontSize: '12px' }}>
-            {getCategoryLabel(record.category)}
+            {getCategoryLabel(record)}
           </Text>
           <Text ellipsis style={{ maxWidth: 200 }}>
             {record.description}
@@ -472,7 +469,7 @@ const ExpenseRequestsList = () => {
               
               <div style={{ marginBottom: '16px', display: 'flex' }}>
                 <div style={{ width: '140px', fontWeight: 'bold' }}>Category:</div>
-                <div>{getCategoryLabel(selectedRequest.category)}</div>
+                <div>{getCategoryLabel(selectedRequest)}</div>
               </div>
               
               <div style={{ marginBottom: '16px', display: 'flex' }}>

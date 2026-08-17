@@ -65,7 +65,7 @@ import jobService from '../services/jobService';
 import { fileService } from '../services/fileService';
 import apiService from '../services/api';
 import configurationService from '../services/configurationService';
-import { getJobStatusColor, getJobStatusIcon as getStatusIconUtil, getEtaUrgency, getEtaAntColor, ETA_FILTER, ETA_FILTER_OPTIONS, jobMatchesEtaFilter } from '../utils/statusUtils';
+import { getJobStatusColor, getJobStatusIcon as getStatusIconUtil, getEtaUrgency, getEtaAntColor, formatEtaDate, ETA_FILTER, ETA_FILTER_OPTIONS, jobMatchesEtaFilter } from '../utils/statusUtils';
 import { getDefaultEtaFilter, setDefaultEtaFilter } from '../utils/userPreferences';
 import { useJobSocket } from '../hooks/useJobSocket.js';
 
@@ -692,7 +692,7 @@ const JobsPage = () => {
       key: 'eta',
       render: (eta) => {
         if (!eta) return <Text type="secondary">-</Text>;
-        const label = new Date(eta).toLocaleDateString();
+        const label = formatEtaDate(eta);
         const urgency = getEtaUrgency(eta);
         if (urgency === 'normal' || urgency === 'none') {
           return label;
@@ -3138,7 +3138,7 @@ const JobsPage = () => {
                   <div>
                     {selectedJob.eta ? (
                       <Tag color={getEtaAntColor(selectedJob.eta)}>
-                        {new Date(selectedJob.eta).toLocaleDateString()}
+                        {formatEtaDate(selectedJob.eta)}
                       </Tag>
                     ) : (
                       <Text type="secondary">Not set</Text>
