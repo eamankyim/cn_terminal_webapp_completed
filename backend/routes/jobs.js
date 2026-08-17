@@ -846,8 +846,56 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
       return res.status(400).json({ error: 'Status is required' });
     }
 
-    // Validate BoE number is required for ENTRY_COMPLETED status
-    if (status === 'ENTRY_COMPLETED') {
+    const STATUS_HIERARCHY = {
+      'NEW': 1,
+      'PREINVOICED': 2,
+      'INVOICED': 3,
+      'VETTED': 4,
+      'ENTRY_COMPLETED': 5,
+      'DUTY_PAID': 6,
+      'READY_FOR_RELEASE': 7,
+      'RELEASED': 8,
+      'CLEARED': 9,
+      'DELIVERED': 10
+    };
+
+    const canRevertStatus = ['ADMIN', 'IT_CONSULTANT'].includes(req.user.role);
+
+    // Check if job exists (needed to know if this is a revert)
+    const existingJob = await prisma.job.findUnique({
+      where: { id }
+    });
+
+    if (!existingJob) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    const currentLevel = STATUS_HIERARCHY[existingJob.status];
+    const newLevel = STATUS_HIERARCHY[status];
+
+    if (!currentLevel || !newLevel) {
+      return res.status(400).json({
+        error: 'Invalid status provided'
+      });
+    }
+
+    const isRevert = newLevel < currentLevel;
+
+    if (isRevert) {
+      if (!canRevertStatus) {
+        return res.status(400).json({
+          error: 'Jobs can only progress forward in the workflow. Cannot move to previous or same status.'
+        });
+      }
+      if (!comment || String(comment).trim() === '') {
+        return res.status(400).json({
+          error: 'A comment is required when reverting job status'
+        });
+      }
+    }
+
+    // Validate BoE number is required for ENTRY_COMPLETED status (forward only)
+    if (!isRevert && status === 'ENTRY_COMPLETED') {
       if (!boeNumber || boeNumber.trim() === '') {
         return res.status(400).json({ 
           error: 'BoE number is required when status is ENTRY_COMPLETED' 
@@ -872,7 +920,7 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
     }
 
     // Validate demurrage/free days and release money are required for RELEASED status
-    if (status === 'RELEASED') {
+    if (!isRevert && status === 'RELEASED') {
       if (demurrageFreeDays === undefined || demurrageFreeDays === null || demurrageFreeDays === '') {
         return res.status(400).json({ 
           error: 'Demurrage/Free days is required when status is RELEASED' 
@@ -891,7 +939,7 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
     }
 
     // Validate shipper name and invoice number are required for VETTED status
-    if (status === 'VETTED') {
+    if (!isRevert && status === 'VETTED') {
       if (!shipperName || shipperName.trim() === '') {
         return res.status(400).json({ 
           error: 'Shipper name is required when status is VETTED' 
@@ -905,7 +953,7 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
     }
 
     // Validate RELEASED status fields are required
-    if (status === 'RELEASED') {
+    if (!isRevert && status === 'RELEASED') {
       if (!terminalName || terminalName.trim() === '') {
         return res.status(400).json({ 
           error: 'Terminal name is required when status is RELEASED' 
@@ -938,63 +986,30 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
       }
     }
 
-    // Check if job exists
-    const existingJob = await prisma.job.findUnique({
-      where: { id }
-    });
-
-    if (!existingJob) {
-      return res.status(404).json({ error: 'Job not found' });
-    }
-
-    // Status hierarchy validation - jobs can only progress forward
-    const STATUS_HIERARCHY = {
-      'NEW': 1,
-      'PREINVOICED': 2,
-      'INVOICED': 3,            // Invoice officer stage after pre-invoice
-      'VETTED': 4,              // Job has been vetted/reviewed
-      'ENTRY_COMPLETED': 5,
-      'DUTY_PAID': 6,           // Duty has been paid
-      'READY_FOR_RELEASE': 7,  // Transport coordinator assigns and uploads docs
-      'RELEASED': 8,
-      'CLEARED': 9,
-      'DELIVERED': 10          // Final status - no further changes
-    };
-
-    const currentLevel = STATUS_HIERARCHY[existingJob.status];
-    const newLevel = STATUS_HIERARCHY[status];
-
-    // Validate status exists in hierarchy
-    if (!currentLevel || !newLevel) {
-      return res.status(400).json({ 
-        error: 'Invalid status provided' 
+    if (newLevel === currentLevel) {
+      return res.status(400).json({
+        error: 'Job is already at this status'
       });
     }
 
-    // DELIVERED can only be set from CLEARED status (final stage)
-    if (status === 'DELIVERED') {
-      if (existingJob.status !== 'CLEARED') {
-        return res.status(400).json({ 
-          error: 'DELIVERED status can only be set from CLEARED status' 
+    if (!isRevert) {
+      // DELIVERED can only be set from CLEARED status (final stage)
+      if (status === 'DELIVERED' && existingJob.status !== 'CLEARED') {
+        return res.status(400).json({
+          error: 'DELIVERED status can only be set from CLEARED status'
         });
       }
-    } else {
-      // Validate forward progression only (for all other statuses)
-      if (newLevel <= currentLevel) {
-        return res.status(400).json({ 
-          error: 'Jobs can only progress forward in the workflow. Cannot move to previous or same status.' 
+
+      if (existingJob.status === 'DELIVERED') {
+        return res.status(400).json({
+          error: 'Cannot update status of delivered jobs'
         });
       }
     }
 
-    // VETTED is now a regular status that can be set manually
-
-    // DELIVERED is final status - no further changes allowed
-    if (existingJob.status === 'DELIVERED') {
-      return res.status(400).json({ 
-        error: 'Cannot update status of delivered jobs' 
-      });
-    }
+    const historyComment = isRevert
+      ? `Status reverted from ${existingJob.status} to ${status}: ${String(comment).trim()}`
+      : comment;
 
     // Prepare update data
     const updateData = {
@@ -1076,7 +1091,7 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
       data: {
         jobId: id,
         status,
-        comment,
+        comment: historyComment,
         updatedById: req.user.id
       }
     });

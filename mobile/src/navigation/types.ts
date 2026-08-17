@@ -2,7 +2,7 @@ export type JobsStackParamList = {
   JobsList: { status?: string } | undefined;
   JobDetail: { jobId: string };
   JobComments: { jobId: string };
-  JobStatusUpdate: { jobId: string };
+  JobStatusUpdate: { jobId: string; currentStatus?: string };
   JobCreate: undefined;
   JobEdit: { jobId: string };
   JobReassign: { jobId: string };

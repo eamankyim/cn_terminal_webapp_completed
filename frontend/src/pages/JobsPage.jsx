@@ -138,39 +138,56 @@ const STATUS_LABELS = {
 };
 
 // Get available next statuses for a given current status
-const getAvailableStatuses = (currentStatus) => {
+const getAvailableStatuses = (currentStatus, { allowRevert = false } = {}) => {
   const currentLevel = STATUS_HIERARCHY[currentStatus];
   if (!currentLevel) return [];
-  
-  return Object.entries(STATUS_HIERARCHY)
+
+  const entries = Object.entries(STATUS_HIERARCHY);
+  const forward = entries
     .filter(([status, level]) => {
-      // Only allow forward progression
-      // Allow DELIVERED only if current status is CLEARED (it's the final stage)
-      if (status === 'DELIVERED') {
-        return currentStatus === 'CLEARED';
-      }
-      // For all other statuses, allow forward progression
+      if (status === currentStatus) return false;
+      if (status === 'DELIVERED') return currentStatus === 'CLEARED';
       return level > currentLevel;
     })
+    .sort((a, b) => a[1] - b[1])
     .map(([status]) => status);
+
+  if (!allowRevert) return forward;
+
+  const backward = entries
+    .filter(([, level]) => level < currentLevel)
+    .sort((a, b) => b[1] - a[1])
+    .map(([status]) => status);
+
+  return [...forward, ...backward];
+};
+
+const isRevertTransition = (currentStatus, newStatus) => {
+  const currentLevel = STATUS_HIERARCHY[currentStatus];
+  const newLevel = STATUS_HIERARCHY[newStatus];
+  return Boolean(currentLevel && newLevel && newLevel < currentLevel);
 };
 
 // Check if status transition is valid
-const isValidStatusTransition = (currentStatus, newStatus) => {
+const isValidStatusTransition = (currentStatus, newStatus, { allowRevert = false } = {}) => {
   const currentLevel = STATUS_HIERARCHY[currentStatus];
   const newLevel = STATUS_HIERARCHY[newStatus];
   
   if (!currentLevel || !newLevel) return false;
+  if (newStatus === currentStatus) return false;
+
+  if (allowRevert && newLevel < currentLevel) return true;
   
   // DELIVERED can only be set from CLEARED status (final stage)
   if (newStatus === 'DELIVERED') {
     return currentStatus === 'CLEARED';
   }
+
+  if (currentStatus === 'DELIVERED') return false;
   
   // Must be forward progression
   if (newLevel <= currentLevel) return false;
   
-  // VETTED is now a regular status option that can be set manually
   return true;
 };
 
@@ -183,6 +200,7 @@ const JobsPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currentUser, hasPermission } = useAuth();
+  const canRevertStatus = currentUser?.role === 'ADMIN' || currentUser?.role === 'IT_CONSULTANT';
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
   const [form] = Form.useForm();
@@ -636,19 +654,24 @@ const JobsPage = () => {
       title: 'Goods',
       dataIndex: 'goodsTypes',
       key: 'goodsTypes',
-      render: (goodsTypes) => (
-        <div>
-          {goodsTypes && goodsTypes.length > 0 ? (
-            goodsTypes.map((type, index) => (
-              <Tag key={index} color="blue" style={{ marginBottom: '2px' }}>
-                {type}
-              </Tag>
-            ))
-          ) : (
-            <Tag color="default">No goods types</Tag>
-          )}
-        </div>
-      )
+      width: 180,
+      ellipsis: true,
+      render: (goodsTypes) => {
+        if (!goodsTypes || goodsTypes.length === 0) {
+          return <Tag color="default">No goods types</Tag>;
+        }
+        const extraCount = goodsTypes.length - 1;
+        const summary = extraCount > 0
+          ? `${goodsTypes[0]} + ${extraCount}`
+          : goodsTypes[0];
+        return (
+          <Tooltip title={goodsTypes.join(', ')}>
+            <Tag color="blue" style={{ marginInlineEnd: 0, maxWidth: '100%' }}>
+              {summary}
+            </Tag>
+          </Tooltip>
+        );
+      }
     },
     {
       title: 'Status',
@@ -1390,10 +1413,20 @@ const JobsPage = () => {
     setLoading(true);
     try {
       // Validate status transition
-      if (currentJobForStatusUpdate && !isValidStatusTransition(currentJobForStatusUpdate.status, values.status)) {
-        message.error('Invalid status transition. Jobs can only progress forward in the workflow.');
+      if (currentJobForStatusUpdate && !isValidStatusTransition(currentJobForStatusUpdate.status, values.status, { allowRevert: canRevertStatus })) {
+        message.error(canRevertStatus
+          ? 'Invalid status transition.'
+          : 'Invalid status transition. Jobs can only progress forward in the workflow.');
         setLoading(false);
         return;
+      }
+
+      if (currentJobForStatusUpdate && isRevertTransition(currentJobForStatusUpdate.status, values.status)) {
+        if (!values.comment || !String(values.comment).trim()) {
+          message.error('A comment is required when reverting job status.');
+          setLoading(false);
+          return;
+        }
       }
       
       // Extract documents from form values
@@ -2401,12 +2434,14 @@ const JobsPage = () => {
                   >
                     {STATUS_LABELS[currentJobForStatusUpdate.status]} (Current)
                   </Option>
-                  {/* Show available next statuses */}
-                  {getAvailableStatuses(currentJobForStatusUpdate.status).map(status => (
-                    <Option key={status} value={status}>
-                      {STATUS_LABELS[status]}
-                    </Option>
-                  ))}
+                  {getAvailableStatuses(currentJobForStatusUpdate.status, { allowRevert: canRevertStatus }).map(status => {
+                    const reverting = isRevertTransition(currentJobForStatusUpdate.status, status);
+                    return (
+                      <Option key={status} value={status}>
+                        {STATUS_LABELS[status]}{reverting ? ' (Revert)' : ''}
+                      </Option>
+                    );
+                  })}
                 </>
               )}
             </Select>
@@ -2447,6 +2482,11 @@ const JobsPage = () => {
           >
             {({ getFieldValue }) => {
               const status = getFieldValue('status');
+              const reverting = currentJobForStatusUpdate
+                && isRevertTransition(currentJobForStatusUpdate.status, status);
+              if (reverting) {
+                return null;
+              }
               if (status === 'ENTRY_COMPLETED') {
                 return (
                   <Form.Item
@@ -2692,11 +2732,28 @@ const JobsPage = () => {
           </Form.Item>
 
           <Form.Item
-            name="comment"
-            label="Comment"
-            rules={[{ required: true, message: 'Please add a comment for this status update' }]}
+            noStyle
+            shouldUpdate={(prevValues, currentValues) =>
+              prevValues.status !== currentValues.status
+            }
           >
-            <TextArea rows={4} placeholder="Describe why the status is being updated..." />
+            {({ getFieldValue }) => {
+              const status = getFieldValue('status');
+              const reverting = currentJobForStatusUpdate
+                && isRevertTransition(currentJobForStatusUpdate.status, status);
+              return (
+          <Form.Item
+            name="comment"
+            label={reverting ? 'Reason for revert' : 'Comment'}
+            rules={[{ required: true, message: reverting ? 'Please explain why this status is being reverted' : 'Please add a comment for this status update' }]}
+          >
+            <TextArea
+              rows={4}
+              placeholder={reverting ? 'Explain why this job is being moved back...' : 'Describe why the status is being updated...'}
+            />
+          </Form.Item>
+              );
+            }}
           </Form.Item>
 
           <Form.Item
@@ -2826,7 +2883,7 @@ const JobsPage = () => {
               onClick={() => {
                 setCurrentJobForStatusUpdate(selectedJob);
                 // Get the first available next status as default, or leave empty
-                const availableStatuses = getAvailableStatuses(selectedJob.status);
+                const availableStatuses = getAvailableStatuses(selectedJob.status, { allowRevert: canRevertStatus });
                 statusUpdateForm.setFieldsValue({ 
                   status: availableStatuses.length > 0 ? availableStatuses[0] : undefined,
                   assignedToId: selectedJob.assignedToId,

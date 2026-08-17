@@ -92,7 +92,7 @@ type InfoRow = {
 export type JobDetailContentProps = {
   jobId: string;
   onClose: () => void;
-  onNavigate: (screen: string, params?: { jobId: string }) => void;
+  onNavigate: (screen: string, params?: { jobId: string; currentStatus?: string }) => void;
   /** Sheet mode skips top safe-area (parent sheet handles chrome). */
   presentation?: 'sheet' | 'screen';
 };
@@ -228,7 +228,7 @@ export const JobDetailContent: React.FC<JobDetailContentProps> = ({
 
   const openAction = (screen: string) => {
     setMenuOpen(false);
-    onNavigate(screen, { jobId });
+    onNavigate(screen, { jobId, currentStatus: job.status });
   };
 
   return (

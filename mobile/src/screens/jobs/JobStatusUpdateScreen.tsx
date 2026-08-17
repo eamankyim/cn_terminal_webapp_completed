@@ -19,6 +19,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
+import { useAuth } from '../../context/AuthContext';
 import {
   addToStringList,
   loadStringList,
@@ -26,19 +27,46 @@ import {
 } from '../../api/configLists';
 import { controlHeight } from '../../theme/inputs';
 
-const STATUS_OPTIONS = [
-  'PREINVOICED',
-  'INVOICED',
-  'VETTED',
-  'ENTRY_COMPLETED',
-  'DUTY_PAID',
-  'READY_FOR_RELEASE',
-  'RELEASED',
-  'CLEARED',
-  'DELIVERED',
-] as const;
+const STATUS_HIERARCHY: Record<string, number> = {
+  NEW: 1,
+  PREINVOICED: 2,
+  INVOICED: 3,
+  VETTED: 4,
+  ENTRY_COMPLETED: 5,
+  DUTY_PAID: 6,
+  READY_FOR_RELEASE: 7,
+  RELEASED: 8,
+  CLEARED: 9,
+  DELIVERED: 10,
+};
 
-type StatusOption = (typeof STATUS_OPTIONS)[number];
+const ALL_STATUSES = Object.keys(STATUS_HIERARCHY);
+
+type StatusOption = string;
+
+function isRevertTransition(currentStatus: string | undefined, next: string) {
+  if (!currentStatus) return false;
+  const currentLevel = STATUS_HIERARCHY[currentStatus];
+  const nextLevel = STATUS_HIERARCHY[next];
+  return Boolean(currentLevel && nextLevel && nextLevel < currentLevel);
+}
+
+function getAvailableStatuses(currentStatus: string | undefined, allowRevert: boolean) {
+  if (!currentStatus || !STATUS_HIERARCHY[currentStatus]) {
+    return ALL_STATUSES.filter((s) => s !== 'NEW');
+  }
+  const currentLevel = STATUS_HIERARCHY[currentStatus];
+  const forward = ALL_STATUSES.filter((status) => {
+    if (status === currentStatus) return false;
+    if (status === 'DELIVERED') return currentStatus === 'CLEARED';
+    return STATUS_HIERARCHY[status] > currentLevel;
+  });
+  if (!allowRevert) return forward;
+  const backward = ALL_STATUSES
+    .filter((status) => STATUS_HIERARCHY[status] < currentLevel)
+    .sort((a, b) => STATUS_HIERARCHY[b] - STATUS_HIERARCHY[a]);
+  return [...forward, ...backward];
+}
 
 const DEFAULT_TERMINALS = ['Golden Jubilee', 'MPS', 'TBT', 'Terminal 2'];
 const TERMINAL_META = {
@@ -50,8 +78,13 @@ export const JobStatusUpdateScreen: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const jobId = route.params?.jobId;
+  const { hasRole } = useAuth();
+  const canRevertStatus = hasRole(['ADMIN', 'IT_CONSULTANT']);
   const queryClient = useQueryClient();
   const { accent } = useTheme();
+  const [currentStatus, setCurrentStatus] = useState<string | undefined>(
+    route.params?.currentStatus,
+  );
   const [status, setStatus] = useState<StatusOption | ''>('');
   const [comment, setComment] = useState('');
   // VETTED
@@ -92,6 +125,30 @@ export const JobStatusUpdateScreen: React.FC = () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!jobId || currentStatus) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api.get<{ job: { status?: string } }>(`/jobs/${jobId}`);
+        if (!cancelled && data?.job?.status) {
+          setCurrentStatus(data.job.status);
+        }
+      } catch {
+        // keep route param / empty
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId, currentStatus]);
+
+  const availableStatuses = useMemo(
+    () => getAvailableStatuses(currentStatus, canRevertStatus),
+    [currentStatus, canRevertStatus],
+  );
+  const reverting = Boolean(status && isRevertTransition(currentStatus, status));
 
   const terminalSelectOptions = useMemo(
     () => [
@@ -144,20 +201,25 @@ export const JobStatusUpdateScreen: React.FC = () => {
       return;
     }
 
-    if (status === 'VETTED') {
+    if (reverting && !comment.trim()) {
+      setError('A comment is required when reverting job status.');
+      return;
+    }
+
+    if (!reverting && status === 'VETTED') {
       if (!shipperName.trim() || !invoiceNumber.trim()) {
         setError('Shipper name and invoice number are required for VETTED.');
         return;
       }
     }
-    if (status === 'ENTRY_COMPLETED') {
+    if (!reverting && status === 'ENTRY_COMPLETED') {
       const boe = boeNumber.trim();
       if (!/^\d{11}$/.test(boe)) {
         setError('BoE number must be exactly 11 digits for ENTRY_COMPLETED.');
         return;
       }
     }
-    if (status === 'RELEASED') {
+    if (!reverting && status === 'RELEASED') {
       const days = parseInt(demurrageFreeDays, 10);
       if (
         Number.isNaN(days) ||
@@ -182,14 +244,14 @@ export const JobStatusUpdateScreen: React.FC = () => {
         status,
         ...(comment.trim() && { comment: comment.trim() }),
       };
-      if (status === 'VETTED') {
+      if (!reverting && status === 'VETTED') {
         payload.shipperName = shipperName.trim();
         payload.invoiceNumber = invoiceNumber.trim();
       }
-      if (status === 'ENTRY_COMPLETED') {
+      if (!reverting && status === 'ENTRY_COMPLETED') {
         payload.boeNumber = boeNumber.trim();
       }
-      if (status === 'RELEASED') {
+      if (!reverting && status === 'RELEASED') {
         payload.demurrageFreeDays = parseInt(demurrageFreeDays, 10);
         payload.releaseMoneyReceived = releaseMoneyReceived;
         payload.terminalName = terminalName!.trim();
@@ -234,7 +296,14 @@ export const JobStatusUpdateScreen: React.FC = () => {
       <ScreenHeader title="Update status" />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
         <Text className="text-base font-semibold mb-2">New status</Text>
-        {STATUS_OPTIONS.map((s) => (
+        {currentStatus ? (
+          <Text className="text-sm text-gray-500 mb-3">
+            Current: {currentStatus.replace(/_/g, ' ')}
+          </Text>
+        ) : null}
+        {availableStatuses.map((s) => {
+          const isBack = isRevertTransition(currentStatus, s);
+          return (
           <TouchableOpacity
             key={s}
             onPress={() => setStatus(s)}
@@ -248,12 +317,13 @@ export const JobStatusUpdateScreen: React.FC = () => {
             }
           >
             <Text className={status === s ? 'text-white font-semibold' : 'text-gray-800'}>
-              {s}
+              {s.replace(/_/g, ' ')}{isBack ? ' (Revert)' : ''}
             </Text>
           </TouchableOpacity>
-        ))}
+          );
+        })}
 
-        {status === 'VETTED' && (
+        {!reverting && status === 'VETTED' && (
           <View className="mt-4 mb-2">
             <Text className="text-sm font-semibold mb-2">Required for VETTED</Text>
             <Text className="text-xs text-gray-600 mb-1">Shipper name *</Text>
@@ -272,7 +342,7 @@ export const JobStatusUpdateScreen: React.FC = () => {
           </View>
         )}
 
-        {status === 'ENTRY_COMPLETED' && (
+        {!reverting && status === 'ENTRY_COMPLETED' && (
           <View className="mt-4 mb-2">
             <Text className="text-sm font-semibold mb-2">Required for ENTRY_COMPLETED</Text>
             <Text className="text-xs text-gray-600 mb-1">BoE number (11 digits) *</Text>
@@ -286,7 +356,7 @@ export const JobStatusUpdateScreen: React.FC = () => {
           </View>
         )}
 
-        {status === 'RELEASED' && (
+        {!reverting && status === 'RELEASED' && (
           <View className="mt-4 mb-2">
             <Text className="text-sm font-semibold mb-2">Required for RELEASED</Text>
             <SelectField
@@ -374,11 +444,17 @@ export const JobStatusUpdateScreen: React.FC = () => {
           </View>
         )}
 
-        <Text className="text-xs text-gray-600 mb-1 mt-4">Comment (optional)</Text>
+        <Text className="text-xs text-gray-600 mb-1 mt-4">
+          {reverting ? 'Reason for revert *' : 'Comment (optional)'}
+        </Text>
         <Input
           value={comment}
           onChangeText={setComment}
-          placeholder="Status comment"
+          placeholder={
+            reverting
+              ? 'Explain why this job is being moved back'
+              : 'Status comment'
+          }
           multiline
           className="mb-4"
         />
