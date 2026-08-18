@@ -132,10 +132,16 @@ function NewRequestSheet({
   const [category, setCategory] = useState('MISCELLANEOUS');
   const [categoryOther, setCategoryOther] = useState('');
   const [description, setDescription] = useState('');
+  const [step, setStep] = useState<'form' | 'preview'>('form');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = async () => {
+  const categoryLabel = expenseCategoryLabel({
+    category,
+    categoryOther: category === 'OTHER' ? categoryOther : null,
+  });
+
+  const review = () => {
     const num = parseFloat(amount);
     if (!num || num <= 0) {
       setError('Enter a valid amount');
@@ -155,6 +161,14 @@ function NewRequestSheet({
       setError('Please specify the category');
       return;
     }
+    setError(null);
+    setStep('preview');
+  };
+
+  const submit = async () => {
+    const num = parseFloat(amount);
+    const desc = description.trim();
+    const custom = categoryOther.trim();
     setSubmitting(true);
     setError(null);
     try {
@@ -179,59 +193,107 @@ function NewRequestSheet({
     <View className="absolute inset-0 bg-black/50 justify-end">
       <View className="bg-white rounded-t-3xl p-6 pb-10">
         <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-lg font-semibold">New expense request</Text>
-          <TouchableOpacity onPress={onClose}>
+          <Text className="text-lg font-semibold">
+            {step === 'preview' ? 'Review request' : 'New expense request'}
+          </Text>
+          <TouchableOpacity onPress={onClose} disabled={submitting}>
             <Text className="text-gray-500">Cancel</Text>
           </TouchableOpacity>
         </View>
         {error ? <Text className="text-red-600 text-sm mb-2">{error}</Text> : null}
-        <View className="mb-3">
-          <Text className="text-xs font-medium text-gray-600 mb-1">Amount (GHS)</Text>
-          <Input
-            value={amount}
-            onChangeText={setAmount}
-            keyboardType="decimal-pad"
-            placeholder="0.00"
-          />
-        </View>
-        <View className="mb-3">
-          <SelectField
-            label="Category"
-            placeholder="Select category"
-            value={category}
-            onChange={(value) => {
-              setCategory(value);
-              if (value !== 'OTHER') setCategoryOther('');
-            }}
-            options={EXPENSE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
-          />
-        </View>
-        {category === 'OTHER' ? (
-          <View className="mb-3">
-            <Text className="text-xs font-medium text-gray-600 mb-1">Specify category</Text>
-            <Input
-              value={categoryOther}
-              onChangeText={setCategoryOther}
-              placeholder="e.g. Parking, Toll, Courier"
-              maxLength={80}
-            />
-          </View>
-        ) : null}
-        <View className="mb-4">
-          <Text className="text-xs font-medium text-gray-600 mb-1">Description *</Text>
-          <Input
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Brief description"
-          />
-        </View>
-        <TouchableOpacity
-          disabled={submitting}
-          onPress={submit}
-          className="rounded-xl h-[52px] items-center justify-center"
-        style={{ backgroundColor: accent }}>
-          <Text className="text-white font-semibold text-[17px]">{submitting ? 'Submitting…' : 'Submit'}</Text>
-        </TouchableOpacity>
+
+        {step === 'preview' ? (
+          <>
+            <Text className="text-sm text-gray-500 mb-3">
+              Confirm these details before submitting.
+            </Text>
+            <View className="rounded-2xl border border-gray-200 px-4 py-3 mb-4">
+              <View className="mb-3">
+                <Text className="text-xs text-gray-500">Amount</Text>
+                <Text className="text-base font-semibold">
+                  GHS {parseFloat(amount).toFixed(2)}
+                </Text>
+              </View>
+              <View className="mb-3">
+                <Text className="text-xs text-gray-500">Category</Text>
+                <Text className="text-sm text-black">{categoryLabel}</Text>
+              </View>
+              <View>
+                <Text className="text-xs text-gray-500">Description</Text>
+                <Text className="text-sm text-black">{description.trim()}</Text>
+              </View>
+            </View>
+            <View className="flex-row gap-2">
+              <TouchableOpacity
+                disabled={submitting}
+                onPress={() => setStep('form')}
+                className="flex-1 rounded-xl h-[52px] items-center justify-center border border-gray-300"
+              >
+                <Text className="text-black font-semibold text-[17px]">Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                disabled={submitting}
+                onPress={submit}
+                className="flex-1 rounded-xl h-[52px] items-center justify-center"
+                style={{ backgroundColor: accent }}
+              >
+                <Text className="text-white font-semibold text-[17px]">
+                  {submitting ? 'Submitting…' : 'Confirm'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <>
+            <View className="mb-3">
+              <Text className="text-xs font-medium text-gray-600 mb-1">Amount (GHS)</Text>
+              <Input
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+              />
+            </View>
+            <View className="mb-3">
+              <SelectField
+                label="Category"
+                placeholder="Select category"
+                value={category}
+                onChange={(value) => {
+                  setCategory(value);
+                  if (value !== 'OTHER') setCategoryOther('');
+                }}
+                options={EXPENSE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+              />
+            </View>
+            {category === 'OTHER' ? (
+              <View className="mb-3">
+                <Text className="text-xs font-medium text-gray-600 mb-1">Specify category</Text>
+                <Input
+                  value={categoryOther}
+                  onChangeText={setCategoryOther}
+                  placeholder="e.g. Parking, Toll, Courier"
+                  maxLength={80}
+                />
+              </View>
+            ) : null}
+            <View className="mb-4">
+              <Text className="text-xs font-medium text-gray-600 mb-1">Description *</Text>
+              <Input
+                value={description}
+                onChangeText={setDescription}
+                placeholder="Brief description"
+              />
+            </View>
+            <TouchableOpacity
+              onPress={review}
+              className="rounded-xl h-[52px] items-center justify-center"
+              style={{ backgroundColor: accent }}
+            >
+              <Text className="text-white font-semibold text-[17px]">Review</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </View>
   );
