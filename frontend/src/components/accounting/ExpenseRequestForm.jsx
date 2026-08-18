@@ -14,22 +14,22 @@ import {
   Card,
   Typography,
   Row,
-  Col
+  Col,
+  Descriptions
 } from 'antd';
 import './ExpenseRequestForm.css';
 import {
   PlusOutlined,
   UploadOutlined,
   DollarOutlined,
-  CalendarOutlined,
-  FileTextOutlined
+  EyeOutlined
 } from '@ant-design/icons';
 import expenseService from '../../services/expenseService';
 import jobService from '../../services/jobService';
 import { useAuth } from '../../contexts/AuthContext';
 import { fileService } from '../../services/fileService';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 
@@ -38,6 +38,7 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState([]);
   const [fileList, setFileList] = useState([]);
+  const [step, setStep] = useState('form');
   const { currentUser } = useAuth();
   const selectedCategory = Form.useWatch('category', form);
 
@@ -45,6 +46,7 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
 
   useEffect(() => {
     if (visible) {
+      setStep('form');
       loadJobs();
       if (initialData) {
         form.setFieldsValue({
@@ -65,6 +67,10 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
     } catch (error) {
       setJobs([]);
     }
+  };
+
+  const handleReview = () => {
+    setStep('preview');
   };
 
   const handleSubmit = async (values) => {
@@ -117,6 +123,7 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
       }
       form.resetFields();
       setFileList([]);
+      setStep('form');
       onSuccess && onSuccess();
       onCancel();
     } catch (error) {
@@ -149,15 +156,24 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
     return false; // Prevent auto upload
   };
 
+  const previewValues = form.getFieldsValue();
+  const previewJob = jobs.find((job) => job.id === previewValues.jobId);
+  const previewCategory = expenseService.formatExpenseCategory({
+    category: previewValues.category,
+    categoryOther: previewValues.categoryOther
+  });
+  const isRequest = mode !== 'record';
+
+  const formTitle = initialData
+    ? `Edit Expense ${isRequest ? 'Request' : 'Record'}`
+    : `${isRequest ? 'New Expense Request' : 'Record Expense'}`;
+
   return (
     <Modal
       title={
         <Space>
-          <DollarOutlined />
-          {initialData 
-            ? `Edit Expense ${mode === 'record' ? 'Record' : 'Request'}` 
-            : `${mode === 'record' ? 'Record Expense' : 'New Expense Request'}`
-          }
+          {step === 'preview' ? <EyeOutlined /> : <DollarOutlined />}
+          {step === 'preview' ? 'Review before submitting' : formTitle}
         </Space>
       }
       open={visible}
@@ -167,14 +183,62 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
       destroyOnClose
     >
       <Card>
+        {step === 'preview' && (
+          <div>
+            <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+              Confirm the details below before {isRequest ? 'sending this request' : 'saving this expense'}.
+            </Text>
+            <Descriptions column={1} bordered size="small">
+              <Descriptions.Item label="Amount">
+                <Text strong>{expenseService.formatExpenseAmount(previewValues.amount)}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Category">
+                {previewCategory || '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Expense Date">
+                {previewValues.expenseDate
+                  ? dayjs(previewValues.expenseDate).format('DD/MM/YYYY')
+                  : '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Related Job">
+                {previewJob
+                  ? `${previewJob.trackingId}${previewJob.customer?.name ? ` • ${previewJob.customer.name}` : ''}`
+                  : 'None'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Description">
+                {previewValues.description || '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Invoice/Receipt">
+                {fileList[0]?.name || 'None'}
+              </Descriptions.Item>
+            </Descriptions>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
+              <Space>
+                <Button onClick={() => setStep('form')} disabled={loading}>
+                  Edit
+                </Button>
+                <Button
+                  type="primary"
+                  loading={loading}
+                  onClick={() => handleSubmit(form.getFieldsValue())}
+                >
+                  <PlusOutlined />
+                  {isRequest ? 'Confirm & Submit' : 'Confirm & Save'}
+                </Button>
+              </Space>
+            </div>
+          </div>
+        )}
+
         <Form
           form={form}
           layout="vertical"
-          onFinish={handleSubmit}
+          onFinish={handleReview}
           initialValues={{
             expenseDate: dayjs(),
             category: 'MISCELLANEOUS'
           }}
+          style={{ display: step === 'form' ? 'block' : 'none' }}
         >
           <Row gutter={16}>
             <Col span={12}>
@@ -318,9 +382,9 @@ const ExpenseRequestForm = ({ visible, onCancel, onSuccess, initialData = null, 
                 <Button onClick={onCancel}>
                   Cancel
                 </Button>
-                <Button type="primary" htmlType="submit" loading={loading}>
-                  <PlusOutlined />
-                  {mode === 'record' ? 'Save' : 'Submit Request'}
+                <Button type="primary" htmlType="submit">
+                  <EyeOutlined />
+                  Review
                 </Button>
               </Space>
             </div>

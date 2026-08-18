@@ -639,7 +639,7 @@ const JobsPage = () => {
       render: (text) => <Text strong>{text}</Text>
     },
     {
-      title: 'Client',
+      title: 'Client Name',
       key: 'clientName',
       render: (_, record) => (
         <Space direction="vertical" size="small">
@@ -649,6 +649,39 @@ const JobsPage = () => {
           </Text>
         </Space>
       )
+    },
+    {
+      title: 'Container Number',
+      dataIndex: 'containerNumber',
+      key: 'containerNumber',
+      render: (text) => <Text style={{ fontSize: '12px' }}>{text || '-'}</Text>
+    },
+    {
+      title: 'ETA',
+      dataIndex: 'eta',
+      key: 'eta',
+      render: (eta) => {
+        if (!eta) return <Text type="secondary">-</Text>;
+        const label = formatEtaDate(eta);
+        const urgency = getEtaUrgency(eta);
+        if (urgency === 'normal' || urgency === 'none') {
+          return label;
+        }
+        return <Tag color={getEtaAntColor(eta)}>{label}</Tag>;
+      }
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status, record) => {
+        const displayStatus = record.isDraft ? 'DRAFT' : status;
+        return (
+          <Tag color={getJobStatusColor(status, record.isDraft)} icon={getStatusIcon(status, record.isDraft)}>
+            {displayStatus}
+          </Tag>
+        );
+      }
     },
     {
       title: 'Goods',
@@ -674,34 +707,7 @@ const JobsPage = () => {
       }
     },
     {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status, record) => {
-        const displayStatus = record.isDraft ? 'DRAFT' : status;
-        return (
-          <Tag color={getJobStatusColor(status, record.isDraft)} icon={getStatusIcon(status, record.isDraft)}>
-            {displayStatus}
-          </Tag>
-        );
-      }
-    },
-    {
-      title: 'ETA',
-      dataIndex: 'eta',
-      key: 'eta',
-      render: (eta) => {
-        if (!eta) return <Text type="secondary">-</Text>;
-        const label = formatEtaDate(eta);
-        const urgency = getEtaUrgency(eta);
-        if (urgency === 'normal' || urgency === 'none') {
-          return label;
-        }
-        return <Tag color={getEtaAntColor(eta)}>{label}</Tag>;
-      }
-    },
-    {
-      title: 'Created',
+      title: 'Created At',
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (date) => date ? new Date(date).toLocaleDateString() : 'N/A'
@@ -718,50 +724,6 @@ const JobsPage = () => {
           {assignedTo?.name || assignedTo || 'Unassigned'}
         </Tag>
       )
-    },
-    {
-      title: 'Documents Brought',
-      dataIndex: 'documentsBrought',
-      key: 'documentsBrought',
-      render: (documentsBrought, record) => {
-        const docs = Array.isArray(documentsBrought) ? documentsBrought : [];
-        const resolvedTags = docs.map((doc) => {
-          if (doc === 'Container No') {
-            // Backwards compatibility for older rows that stored the label.
-            return record?.containerNumber || doc;
-          }
-          return doc;
-        });
-
-        return (
-          <div>
-            {resolvedTags.length > 0 ? (
-              resolvedTags.slice(0, 2).map((tag, index) => (
-                <Tag
-                  key={index}
-                  color="green"
-                  style={{ marginBottom: '2px', fontSize: '11px' }}
-                >
-                  {tag}
-                </Tag>
-              ))
-            ) : (
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                None
-              </Text>
-            )}
-            {resolvedTags.length > 2 && (
-              <Tag style={{ fontSize: '11px' }}>+{resolvedTags.length - 2}</Tag>
-            )}
-          </div>
-        );
-      }
-    },
-    {
-      title: 'Container No.',
-      dataIndex: 'containerNumber',
-      key: 'containerNumber',
-      render: (text) => <Text style={{ fontSize: '12px' }}>{text || '-'}</Text>
     },
     {
       title: 'Vessel Name',
