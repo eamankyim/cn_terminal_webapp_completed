@@ -208,6 +208,10 @@ export const AuthProvider = ({ children }) => {
       'ui:edit_job': ['job:edit'],
       'expense:request': ['ui:requests'],
       'ui:requests': ['expense:request'],
+      'estimate:create': ['ui:create_estimate'],
+      'ui:create_estimate': ['estimate:create'],
+      'cashflow:create': ['ui:create_cashflow'],
+      'ui:create_cashflow': ['cashflow:create'],
     };
 
     const candidates = [permission, ...(aliases[permission] || [])];

@@ -24,6 +24,7 @@ import {
 import moment from 'moment';
 import ExpenseRequestForm from '../components/accounting/ExpenseRequestForm';
 import ExpenseRequestsList from '../components/accounting/ExpenseRequestsList';
+import CashInForm from '../components/accounting/CashInForm';
 import { useAuth } from '../contexts/AuthContext';
 import PermissionGate from '../components/common/PermissionGate';
 import { PERMISSIONS } from '../utils/permissions';
@@ -39,6 +40,7 @@ const { Option } = Select;
 const AccountingPage = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [expenseRequestModalVisible, setExpenseRequestModalVisible] = useState(false);
+  const [cashInModalVisible, setCashInModalVisible] = useState(false);
   const [cashflowData, setCashflowData] = useState({});
   const [expenseStats, setExpenseStats] = useState({});
   const [payoutStats, setPayoutStats] = useState({});
@@ -47,19 +49,31 @@ const AccountingPage = () => {
   const [period, setPeriod] = useState('month');
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const canAccessAccounting = ['ADMIN', 'IT_CONSULTANT', 'ACCOUNTANT', 'INVOICE_OFFICER'].includes(currentUser?.role)
+    || currentUser?.permissions?.includes(PERMISSIONS.EXPENSE_ENDORSE);
+  const endorseOnly = !!currentUser
+    && currentUser.permissions?.includes(PERMISSIONS.EXPENSE_ENDORSE)
+    && !['ADMIN', 'IT_CONSULTANT', 'ACCOUNTANT', 'INVOICE_OFFICER'].includes(currentUser.role);
   
-  // Route guard: Only ADMIN, IT_CONSULTANT, and ACCOUNTANT can access this page
+  // Route guard: accounting staff, invoice officers, or users granted expense endorsement
   useEffect(() => {
-    const allowedRoles = ['ADMIN', 'IT_CONSULTANT', 'ACCOUNTANT'];
-    if (currentUser && !allowedRoles.includes(currentUser.role)) {
+    if (currentUser && !canAccessAccounting) {
       message.warning('Access denied. Accounting is only accessible to administrators and accountants.');
       navigate('/dashboard');
     }
-  }, [currentUser, navigate]);
+  }, [currentUser, canAccessAccounting, navigate]);
 
   useEffect(() => {
-    loadDashboardData();
-  }, [dateRange, period]);
+    if (endorseOnly) {
+      setActiveTab('expenses');
+    }
+  }, [endorseOnly]);
+
+  useEffect(() => {
+    if (!endorseOnly) {
+      loadDashboardData();
+    }
+  }, [dateRange, period, endorseOnly]);
 
   const loadDashboardData = async () => {
     try {
@@ -332,23 +346,39 @@ const AccountingPage = () => {
             <Title level={2}>
               <DollarOutlined /> Accounting & Finance
             </Title>
-            <p>Manage expenses, payouts, and track cashflow</p>
+            <p>
+              {endorseOnly
+                ? 'Review, endorse, or reject expense requests'
+                : 'Manage expenses, payouts, and track cashflow'}
+            </p>
           </div>
           
           <div style={{ marginTop: 8 }}>
-            <PermissionGate 
-              userRole={currentUser?.role} 
-              userPermissions={currentUser?.permissions}
-              permissions={PERMISSIONS.EXPENSE_CREATE}
-            >
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => setExpenseRequestModalVisible(true)}
+            <Space>
+              {!endorseOnly && ['ACCOUNTANT', 'ADMIN', 'IT_CONSULTANT'].includes(currentUser?.role) && (
+                <Button
+                  icon={<ArrowDownOutlined />}
+                  onClick={() => setCashInModalVisible(true)}
+                >
+                  Cash In
+                </Button>
+              )}
+              {!endorseOnly && (
+              <PermissionGate 
+                userRole={currentUser?.role} 
+                userPermissions={currentUser?.permissions}
+                permissions={PERMISSIONS.EXPENSE_CREATE}
               >
-                Record Expense
-              </Button>
-            </PermissionGate>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => setExpenseRequestModalVisible(true)}
+                >
+                  Record Expense
+                </Button>
+              </PermissionGate>
+              )}
+            </Space>
           </div>
         </div>
       </div>
@@ -357,7 +387,7 @@ const AccountingPage = () => {
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}
-          items={tabItems}
+          items={endorseOnly ? tabItems.filter((item) => item.key === 'expenses') : tabItems}
         />
       </Card>
 
@@ -367,6 +397,12 @@ const AccountingPage = () => {
         onCancel={() => setExpenseRequestModalVisible(false)}
         onSuccess={handleExpenseRequestSuccess}
         mode="record"
+      />
+
+      <CashInForm
+        visible={cashInModalVisible}
+        onCancel={() => setCashInModalVisible(false)}
+        onSuccess={loadDashboardData}
       />
 
     </div>

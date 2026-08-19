@@ -71,11 +71,17 @@ export const expenseService = {
       const response = await api.patch(`${EXPENSE_API_BASE}/requests/${id}/approve`, {
         approvalComment: comment
       });
-      return response; // API service returns data directly, not wrapped in .data
+      return response;
     } catch (error) {
-
       throw error;
     }
+  },
+
+  endorseExpenseRequest: async (id, comment) => {
+    const response = await api.patch(`${EXPENSE_API_BASE}/requests/${id}/endorse`, {
+      endorsementComment: comment
+    });
+    return response;
   },
 
   rejectExpenseRequest: async (id, rejectionReason) => {
@@ -159,6 +165,7 @@ export const expenseService = {
   getExpenseStatuses: () => {
     return [
       { value: 'PENDING', label: 'Pending', color: 'orange' },
+      { value: 'ENDORSED', label: 'Endorsed', color: 'cyan' },
       { value: 'APPROVED', label: 'Approved', color: 'green' },
       { value: 'REJECTED', label: 'Rejected', color: 'red' },
       { value: 'PAID', label: 'Paid', color: 'blue' }

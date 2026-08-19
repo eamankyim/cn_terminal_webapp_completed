@@ -79,6 +79,7 @@ export const PERMISSIONS = {
   EXPENSE_VIEW: 'expense:view',
   EXPENSE_CREATE: 'expense:create',        // For recording expenses directly (admins/accountants)
   EXPENSE_REQUEST: 'expense:request',      // For requesting expenses (employees)
+  EXPENSE_ENDORSE: 'expense:endorse',      // Per-user extra: view/endorse/reject requests
   EXPENSE_APPROVE: 'expense:approve',
   EXPENSE_EDIT: 'expense:edit',
   EXPENSE_DELETE: 'expense:delete',
@@ -251,10 +252,18 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.JOB_VIEW_ALL,
     
     PERMISSIONS.CUSTOMER_VIEW,
+    PERMISSIONS.CUSTOMER_CREATE,
+    PERMISSIONS.CUSTOMER_EDIT,
     PERMISSIONS.CUSTOMER_VIEW_ALL,
     
     PERMISSIONS.INVOICE_VIEW,
     PERMISSIONS.INVOICE_VIEW_ALL,
+
+    PERMISSIONS.ESTIMATE_VIEW,
+    PERMISSIONS.ESTIMATE_VIEW_ALL,
+    PERMISSIONS.ESTIMATE_CREATE,
+    PERMISSIONS.ESTIMATE_EDIT,
+    PERMISSIONS.ESTIMATE_SEND,
     
     PERMISSIONS.REPORTS_VIEW,
     PERMISSIONS.REPORTS_EXPORT,
@@ -611,6 +620,7 @@ export const PERMISSION_DESCRIPTIONS = {
   [PERMISSIONS.EXPENSE_VIEW]: 'View expense requests and expenses',
   [PERMISSIONS.EXPENSE_CREATE]: 'Record expenses directly (no approval needed)',
   [PERMISSIONS.EXPENSE_REQUEST]: 'Request expenses (requires approval)',
+  [PERMISSIONS.EXPENSE_ENDORSE]: 'View, endorse, or reject expense requests',
   [PERMISSIONS.EXPENSE_APPROVE]: 'Approve or reject expense requests',
   [PERMISSIONS.EXPENSE_EDIT]: 'Edit expense requests',
   [PERMISSIONS.EXPENSE_DELETE]: 'Delete expense requests',

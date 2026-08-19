@@ -63,6 +63,7 @@ const PERMISSIONS = {
   EXPENSE_VIEW: 'expense:view',
   EXPENSE_CREATE: 'expense:create',        // For recording expenses directly (admins/accountants)
   EXPENSE_REQUEST: 'expense:request',      // For requesting expenses (employees)
+  EXPENSE_ENDORSE: 'expense:endorse',      // Per-user extra: view/endorse/reject requests
   EXPENSE_APPROVE: 'expense:approve',
   EXPENSE_EDIT: 'expense:edit',
   EXPENSE_DELETE: 'expense:delete',
@@ -232,6 +233,9 @@ const ROLE_PERMISSIONS = {
     
     PERMISSIONS.ESTIMATE_VIEW,
     PERMISSIONS.ESTIMATE_VIEW_ALL,
+    PERMISSIONS.ESTIMATE_CREATE,
+    PERMISSIONS.ESTIMATE_EDIT,
+    PERMISSIONS.ESTIMATE_SEND,
     
     PERMISSIONS.REPORTS_VIEW,
     PERMISSIONS.REPORTS_EXPORT,
@@ -286,10 +290,19 @@ const hasAllPermissions = (userRole, requiredPermissions) => {
   return requiredPermissions.every(permission => hasPermission(userRole, permission));
 };
 
+const { ROLE_UI_PERMISSIONS } = require('./uiPermissions');
+
+const mergeUserPermissions = (role, dbPermissions = []) => {
+  const fromRole = ROLE_PERMISSIONS[role] || [];
+  const fromUi = ROLE_UI_PERMISSIONS[role] || [];
+  return [...new Set([...dbPermissions, ...fromRole, ...fromUi])];
+};
+
 module.exports = {
   PERMISSIONS,
   ROLE_PERMISSIONS,
   hasPermission,
   hasAnyPermission,
-  hasAllPermissions
+  hasAllPermissions,
+  mergeUserPermissions
 };

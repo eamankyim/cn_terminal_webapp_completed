@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { prisma } = require('../config/database');
-const { hasPermission, hasAnyPermission, hasAllPermissions, PERMISSIONS } = require('../utils/permissions');
+const { hasPermission, hasAnyPermission, hasAllPermissions, PERMISSIONS, ROLE_PERMISSIONS } = require('../utils/permissions');
+const { ROLE_UI_PERMISSIONS } = require('../utils/uiPermissions');
 
 /**
  * Check if user has a specific permission through role or direct assignment
@@ -27,6 +28,13 @@ async function checkUserPermission(userId, permissionName) {
     if (!user) {
       console.error(`❌ [Permission Check] User ${userId} not found`);
       return false;
+    }
+
+    if (ROLE_PERMISSIONS[user.role]?.includes(permissionName)) {
+      return true;
+    }
+    if (ROLE_UI_PERMISSIONS[user.role]?.includes(permissionName)) {
+      return true;
     }
 
     // ADMIN and IT_CONSULTANT have access to all UI permissions
@@ -85,7 +93,12 @@ async function checkUserPermission(userId, permissionName) {
     const userPermission = await prisma.userPermission.findFirst({
       where: {
         userId: userId,
-        permissionId: permission.id
+        permissionId: permission.id,
+        isActive: true,
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: new Date() } }
+        ]
       }
     });
 

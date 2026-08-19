@@ -26,6 +26,7 @@ export const getJobStatusColor = (status, isDraft = false) => {
 export const getInvoiceStatusColor = (status) => {
   const statusColors = {
     'PENDING': 'orange',     // Waiting for payment
+    'PARTIALLY_PAID': 'blue',
     'PAID': 'green',         // Payment received
     'OVERDUE': 'red',        // Payment overdue
     'CANCELLED': 'default',  // Cancelled invoice

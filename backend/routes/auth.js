@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { prisma } = require('../config/database');
 const { authenticateToken, requireAdmin, requireAdminOrIT, PERMISSIONS } = require('../middleware/auth');
+const { mergeUserPermissions } = require('../utils/permissions');
+const { getDirectUserPermissionNames } = require('../utils/databasePermissions');
 const { validatePassword } = require('../utils/passwordValidation');
 
 const router = express.Router();
@@ -156,8 +158,14 @@ router.post('/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    // Extract permissions from the role
-    const permissions = user.assignedRole?.rolePermissions?.map(rp => rp.permission.name) || [];
+    const extraPermissions = await getDirectUserPermissionNames(user.id);
+    const permissions = mergeUserPermissions(
+      user.role,
+      [
+        ...(user.assignedRole?.rolePermissions?.map(rp => rp.permission.name) || []),
+        ...extraPermissions
+      ]
+    );
     
     console.log('✅ Login successful!');
     console.log('  - Permissions count:', permissions.length);
@@ -553,7 +561,14 @@ router.get('/me', authenticateToken, async (req, res) => {
       }
     });
 
-    const permissions = userWithRole?.assignedRole?.rolePermissions?.map(rp => rp.permission.name) || [];
+    const extraPermissions = await getDirectUserPermissionNames(user.id);
+    const permissions = mergeUserPermissions(
+      user.role,
+      [
+        ...(userWithRole?.assignedRole?.rolePermissions?.map(rp => rp.permission.name) || []),
+        ...extraPermissions
+      ]
+    );
 
     res.json({
       user: {

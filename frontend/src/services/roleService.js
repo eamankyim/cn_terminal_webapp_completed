@@ -61,6 +61,14 @@ const roleService = {
 
       throw error;
     }
+  },
+
+  async getExpenseEndorsement(userId) {
+    return apiService.get(`/roles/users/${userId}/expense-endorsement`);
+  },
+
+  async setExpenseEndorsement(userId, enabled) {
+    return apiService.patch(`/roles/users/${userId}/expense-endorsement`, { enabled });
   }
 };
 

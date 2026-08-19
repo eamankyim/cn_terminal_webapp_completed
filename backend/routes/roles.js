@@ -719,4 +719,112 @@ router.delete('/users/:userId/permissions/:permissionId', authenticateToken, req
   }
 });
 
+const EXPENSE_ENDORSE_ROLES = ['ADMIN', 'ACCOUNTANT', 'INVOICE_OFFICER'];
+
+async function ensureExpenseEndorsePermission() {
+  return prisma.permission.upsert({
+    where: { name: PERMISSIONS.EXPENSE_ENDORSE },
+    update: {
+      description: 'View, endorse, or reject expense requests',
+      module: 'Expense'
+    },
+    create: {
+      name: PERMISSIONS.EXPENSE_ENDORSE,
+      description: 'View, endorse, or reject expense requests',
+      module: 'Expense'
+    }
+  });
+}
+
+router.get('/users/:userId/expense-endorsement', authenticateToken, requireAdminOrIT, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, role: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const fromRole = EXPENSE_ENDORSE_ROLES.includes(user.role);
+    const permission = await prisma.permission.findUnique({
+      where: { name: PERMISSIONS.EXPENSE_ENDORSE }
+    });
+
+    let extra = false;
+    if (permission) {
+      const grant = await prisma.userPermission.findFirst({
+        where: {
+          userId,
+          permissionId: permission.id,
+          isActive: true,
+          OR: [
+            { expiresAt: null },
+            { expiresAt: { gt: new Date() } }
+          ]
+        }
+      });
+      extra = !!grant;
+    }
+
+    res.json({
+      success: true,
+      user,
+      enabled: fromRole || extra,
+      fromRole,
+      extra
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch expense endorsement access' });
+  }
+});
+
+router.patch('/users/:userId/expense-endorsement', authenticateToken, requireAdminOrIT, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const enabled = !!req.body?.enabled;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, role: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (EXPENSE_ENDORSE_ROLES.includes(user.role)) {
+      return res.json({
+        success: true,
+        enabled: true,
+        fromRole: true,
+        extra: false,
+        message: 'This role already includes expense endorsement'
+      });
+    }
+
+    const permission = await ensureExpenseEndorsePermission();
+
+    if (enabled) {
+      await grantUserPermission(userId, permission.id, req.user.id);
+    } else {
+      await revokeUserPermission(userId, permission.id);
+    }
+
+    res.json({
+      success: true,
+      enabled,
+      fromRole: false,
+      extra: enabled,
+      message: enabled
+        ? 'Expense endorsement access granted'
+        : 'Expense endorsement access revoked'
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update expense endorsement access' });
+  }
+});
+
 module.exports = router;

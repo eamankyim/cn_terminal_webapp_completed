@@ -26,6 +26,7 @@ import {
 } from 'antd';
 import { useAuth } from '../contexts/AuthContext';
 import userService from '../services/userService';
+import roleService from '../services/roleService';
 import { getCustomerStatusColor } from '../utils/statusUtils';
 import { ROLE_INFO, PERMISSIONS } from '../utils/permissions';
 import { UI_PERMISSIONS } from '../utils/uiPermissions';
@@ -65,6 +66,9 @@ const SettingsPage = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
+  const [expenseEndorsementEnabled, setExpenseEndorsementEnabled] = useState(false);
+  const [expenseEndorsementFromRole, setExpenseEndorsementFromRole] = useState(false);
+  const [expenseEndorsementLoading, setExpenseEndorsementLoading] = useState(false);
   const [form] = Form.useForm();
   const [profileForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
@@ -85,6 +89,38 @@ const SettingsPage = () => {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!selectedUser || !isDetailsDrawerVisible) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const loadEndorsement = async () => {
+      setExpenseEndorsementLoading(true);
+      try {
+        const response = await roleService.getExpenseEndorsement(selectedUser.id);
+        if (!cancelled) {
+          setExpenseEndorsementEnabled(!!response.enabled);
+          setExpenseEndorsementFromRole(!!response.fromRole);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setExpenseEndorsementEnabled(false);
+          setExpenseEndorsementFromRole(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setExpenseEndorsementLoading(false);
+        }
+      }
+    };
+
+    loadEndorsement();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedUser, isDetailsDrawerVisible]);
 
   // Note: Permission refresh is now manual via the "Refresh Permissions" button
   // to avoid causing re-render issues when switching tabs
@@ -1499,6 +1535,50 @@ const SettingsPage = () => {
                 )}
               </Space>
             </Card>
+
+            {['ADMIN', 'IT_CONSULTANT'].includes(currentUser?.role) && (
+            <Card
+              title="Extra Access"
+              size="small"
+              style={{ marginTop: 16 }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+                <div>
+                  <Text strong>Expense request endorsement</Text>
+                  <br />
+                  <Text type="secondary">
+                    Lets this person view all expense requests and endorse or reject them. They keep their current role.
+                  </Text>
+                </div>
+                <Switch
+                  checked={expenseEndorsementEnabled}
+                  loading={expenseEndorsementLoading}
+                  disabled={expenseEndorsementFromRole}
+                  onChange={async (checked) => {
+                    setExpenseEndorsementLoading(true);
+                    try {
+                      const response = await roleService.setExpenseEndorsement(selectedUser.id, checked);
+                      setExpenseEndorsementEnabled(!!response.enabled);
+                      setExpenseEndorsementFromRole(!!response.fromRole);
+                      message.success(response.message || (checked ? 'Access granted' : 'Access revoked'));
+                    } catch (error) {
+                      message.error(error.response?.data?.error || 'Failed to update access');
+                    } finally {
+                      setExpenseEndorsementLoading(false);
+                    }
+                  }}
+                />
+              </div>
+              {expenseEndorsementFromRole && (
+                <Alert
+                  type="info"
+                  showIcon
+                  style={{ marginTop: 12 }}
+                  message="This role already includes expense endorsement"
+                />
+              )}
+            </Card>
+            )}
 
             {/* Quick Actions */}
             <Card 
