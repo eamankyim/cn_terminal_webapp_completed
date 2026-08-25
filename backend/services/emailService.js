@@ -471,7 +471,6 @@ CN Terminal Team
       case 'INVOICE_OFFICER': return 'Invoice Officer';
       case 'SUPERVISOR': return 'Supervisor';
       case 'REVIEW_OFFICER': return 'Review Officer';
-      case 'VETTING_OFFICER': return 'Vetting Officer';
       case 'CLEARING_OFFICER': return 'Clearing Officer';
       case 'admin': return 'Administrator';
       case 'staff1': return 'Staff Level 1';

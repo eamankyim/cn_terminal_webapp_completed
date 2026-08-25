@@ -54,11 +54,6 @@ const ROLE_INFO = {
     description: 'Reviews and preinvoices jobs',
     isSystem: true
   },
-  VETTING_OFFICER: {
-    displayName: 'Vetting Officer',
-    description: 'Vets jobs and prepares them for invoicing',
-    isSystem: true
-  },
   CLEARING_OFFICER: {
     displayName: 'Clearing Officer',
     description: 'Can create jobs, customers, invoices, and clear shipments',

@@ -241,6 +241,8 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.SETTINGS_VIEW,
   ],
   REVIEW_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
+  // RETIRED ROLE (vetting removed): kept so legacy VETTING_OFFICER accounts
+  // retain standard employee permissions; new assignment is blocked elsewhere.
   VETTING_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
   CLEARING_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
   STAFF: COMMON_EMPLOYEE_PERMISSIONS,
@@ -564,10 +566,14 @@ export const canManageRole = (currentUserRole, targetRole) => {
   return currentLevel > targetLevel;
 };
 
+// Retired roles (vetting removed): kept in ROLE_INFO for legacy display only,
+// but never offered for new assignments or invitations.
+export const RETIRED_ROLES = ['VETTING_OFFICER'];
+
 export const getAvailableRoles = (currentUserRole) => {
   const currentLevel = ROLE_INFO[currentUserRole]?.level || 0;
-  return Object.keys(ROLE_INFO).filter(role => 
-    ROLE_INFO[role].level < currentLevel
+  return Object.keys(ROLE_INFO).filter(role =>
+    ROLE_INFO[role].level < currentLevel && !RETIRED_ROLES.includes(role)
   );
 };
 

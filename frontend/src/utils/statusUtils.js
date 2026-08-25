@@ -10,7 +10,7 @@ export const getJobStatusColor = (status, isDraft = false) => {
     'NEW': 'blue',                  // Fresh start - blue for new beginnings
     'PREINVOICED': 'cyan',          // Preparation phase - cyan for preparation
     'INVOICED': 'processing',       // Invoice created - processing blue
-    'VETTED': 'purple',             // Job vetted/reviewed - purple for review
+    'VETTED': 'purple',             // RETIRED (vetting removed): kept for legacy jobs
     'ENTRY_COMPLETED': 'orange',    // Entry completed - orange for active work
     'DUTY_PAID': 'gold',            // Duty paid - gold for payment
     'READY_FOR_RELEASE': 'geekblue', // Ready for release - geekblue for coordination
@@ -81,7 +81,7 @@ export const getJobStatusIcon = (status, isDraft = false) => {
     'NEW': '➕',                     // Plus for new
     'PREINVOICED': '📋',            // Clipboard for preparation
     'INVOICED': '🧾',               // Receipt for invoiced
-    'VETTED': '✅',                 // Checkmark for vetted
+    'VETTED': '✅',                 // RETIRED (vetting removed): kept for legacy jobs
     'ENTRY_COMPLETED': '📦',        // Package for entry completed
     'DUTY_PAID': '💰',              // Money for duty paid
     'READY_FOR_RELEASE': '🚗',     // Car for transport coordination
@@ -99,7 +99,7 @@ export const getJobStatusPriority = (status) => {
     'NEW': 1,
     'PREINVOICED': 2,
     'INVOICED': 3,
-    'VETTED': 4,
+    'VETTED': 4,               // RETIRED rank (vetting removed): legacy jobs only
     'ENTRY_COMPLETED': 5,
     'DUTY_PAID': 6,
     'READY_FOR_RELEASE': 7,
@@ -117,7 +117,7 @@ export const getJobStatusDescription = (status) => {
     'NEW': 'New job created',
     'PREINVOICED': 'Ready for invoicing',
     'INVOICED': 'Invoice issued for the job',
-    'VETTED': 'Job has been vetted and reviewed',
+    'VETTED': 'Job has been vetted and reviewed', // RETIRED: legacy jobs only
     'ENTRY_COMPLETED': 'Customs entry completed',
     'DUTY_PAID': 'Duty payment completed',
     'READY_FOR_RELEASE': 'Assigned to release officer with documentation',
@@ -131,7 +131,8 @@ export const getJobStatusDescription = (status) => {
 
 // Get all job statuses in order
 export const getJobStatusesInOrder = () => {
-  return ['NEW', 'PREINVOICED', 'INVOICED', 'VETTED', 'ENTRY_COMPLETED', 'DUTY_PAID', 'READY_FOR_RELEASE', 'RELEASED', 'CLEARED', 'DELIVERED'];
+  // VETTED is retired (vetting removed): excluded from the active workflow order.
+  return ['NEW', 'PREINVOICED', 'INVOICED', 'ENTRY_COMPLETED', 'DUTY_PAID', 'READY_FOR_RELEASE', 'RELEASED', 'CLEARED', 'DELIVERED'];
 };
 
 // Check if status is terminal (final state)

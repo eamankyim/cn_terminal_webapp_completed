@@ -850,6 +850,8 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
       'NEW': 1,
       'PREINVOICED': 2,
       'INVOICED': 3,
+      // VETTED is retired (vetting removed): rank kept only so legacy jobs
+      // already at VETTED can still progress or be reverted.
       'VETTED': 4,
       'ENTRY_COMPLETED': 5,
       'DUTY_PAID': 6,
@@ -880,6 +882,14 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
     }
 
     const isRevert = newLevel < currentLevel;
+
+    // Vetting has been retired: jobs can no longer move INTO VETTED.
+    // Legacy jobs already at VETTED may still progress or be reverted.
+    if (!isRevert && status === 'VETTED') {
+      return res.status(400).json({
+        error: 'The vetting step has been removed. Progress from INVOICED directly to ENTRY_COMPLETED.'
+      });
+    }
 
     if (isRevert) {
       if (!canRevertStatus) {
@@ -934,20 +944,6 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
       if (releaseMoneyReceived === undefined || releaseMoneyReceived === null) {
         return res.status(400).json({ 
           error: 'Release money status is required when status is RELEASED' 
-        });
-      }
-    }
-
-    // Validate shipper name and invoice number are required for VETTED status
-    if (!isRevert && status === 'VETTED') {
-      if (!shipperName || shipperName.trim() === '') {
-        return res.status(400).json({ 
-          error: 'Shipper name is required when status is VETTED' 
-        });
-      }
-      if (!invoiceNumber || invoiceNumber.trim() === '') {
-        return res.status(400).json({ 
-          error: 'Invoice number is required when status is VETTED' 
         });
       }
     }
@@ -1039,7 +1035,7 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
       updateData.releaseMoneyReceived = releaseMoneyReceived;
     }
 
-    // Add shipper name and invoice number if provided (for VETTED status)
+    // Add shipper name and invoice number if provided (legacy VETTED data)
     if (shipperName !== undefined && shipperName !== null) {
       const trimmedShipperName = shipperName.trim();
       if (trimmedShipperName !== '') {

@@ -211,6 +211,8 @@ export const ROLE_UI_PERMISSIONS = {
     ...Object.values(UI_PERMISSIONS)
   ],
   
+  // RETIRED ROLE (vetting removed): kept so legacy VETTING_OFFICER accounts
+  // retain peer-equivalent UI access; new assignment is blocked elsewhere.
   VETTING_OFFICER: [
     // Full access to everything
     ...Object.values(UI_PERMISSIONS)

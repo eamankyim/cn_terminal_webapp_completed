@@ -101,6 +101,8 @@ const FULL_ACCESS_ROLES = [
   'PREINVOICE_OFFICER',
   'INVOICE_OFFICER',
   'REVIEW_OFFICER',
+  // RETIRED ROLE (vetting removed): kept only so legacy VETTING_OFFICER accounts
+  // retain peer-equivalent UI access; creating new ones is blocked elsewhere.
   'VETTING_OFFICER',
   'CLEARING_OFFICER',
   'DRIVER',

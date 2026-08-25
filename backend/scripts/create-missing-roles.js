@@ -59,12 +59,6 @@ const ROLES_TO_CREATE = [
     isSystem: true
   },
   {
-    name: 'VETTING_OFFICER',
-    displayName: 'Vetting Officer',
-    description: 'Vets jobs and prepares them for invoicing',
-    isSystem: true
-  },
-  {
     name: 'CLEARING_OFFICER',
     displayName: 'Clearing Officer',
     description: 'Sets jobs to cleared status',

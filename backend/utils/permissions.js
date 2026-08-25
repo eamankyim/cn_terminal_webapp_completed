@@ -213,6 +213,8 @@ const ROLE_PERMISSIONS = {
     PERMISSIONS.SETTINGS_VIEW,
   ],
   REVIEW_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
+  // RETIRED ROLE (vetting removed): kept only so legacy VETTING_OFFICER accounts
+  // retain standard employee permissions; creating new ones is blocked elsewhere.
   VETTING_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
   CLEARING_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
   STAFF: COMMON_EMPLOYEE_PERMISSIONS,
