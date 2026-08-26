@@ -94,7 +94,6 @@ export const JobDetailContent: React.FC<JobDetailContentProps> = ({
   const { hasPermission } = useAuth();
   const canEditJob = hasPermission(PERMISSIONS.JOB_EDIT);
   const canUpdateStatus = hasPermission(PERMISSIONS.JOB_UPDATE_STATUS);
-  const canAssignJob = hasPermission(PERMISSIONS.JOB_ASSIGN);
 
   const { data, isLoading } = useQuery({
     queryKey: ['job', jobId],
@@ -376,15 +375,14 @@ export const JobDetailContent: React.FC<JobDetailContentProps> = ({
                 <Text className="text-base text-black">Edit job</Text>
               </TouchableOpacity>
             ) : null}
-            {canAssignJob ? (
-              <TouchableOpacity
-                onPress={() => openAction('JobReassign')}
-                className="px-4 py-3.5 border-b border-gray-100"
-                activeOpacity={0.7}
-              >
-                <Text className="text-base text-black">Reassign</Text>
-              </TouchableOpacity>
-            ) : null}
+            {/* Reassign is available to everyone — it never changes job status */}
+            <TouchableOpacity
+              onPress={() => openAction('JobReassign')}
+              className="px-4 py-3.5 border-b border-gray-100"
+              activeOpacity={0.7}
+            >
+              <Text className="text-base text-black">Reassign</Text>
+            </TouchableOpacity>
             {canUpdateStatus ? (
               <TouchableOpacity
                 onPress={() => openAction('JobStatusUpdate')}

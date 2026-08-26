@@ -42,6 +42,7 @@ const PAGE_SIZE = 20;
 
 const FILTER_STATUSES = [
   'IN_PROGRESS',
+  'ASSIGNED_TO_ME',
   'NEW',
   'PREINVOICED',
   'INVOICED',
@@ -89,6 +90,8 @@ function formatJobDate(value?: string | null): string {
 
 function formatStatusLabel(status?: string): string {
   if (!status) return '—';
+  // Virtual filter, not a real job status
+  if (status === 'ASSIGNED_TO_ME') return 'Assigned to Me';
   return status.replace(/_/g, ' ').toUpperCase();
 }
 

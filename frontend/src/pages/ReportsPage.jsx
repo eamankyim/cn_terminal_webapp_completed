@@ -41,9 +41,10 @@ import {
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import reportService from '../services/reportService';
+import apiService from '../services/api';
 import DashboardWidgets from '../components/analytics/DashboardWidgets';
 import RealTimeAnalytics from '../components/analytics/RealTimeAnalytics';
-import { getJobStatusColor, getInvoiceStatusColor } from '../utils/statusUtils';
+import { getJobStatusColor, getJobStatusHexColor, getInvoiceStatusColor, formatJobStatusLabel } from '../utils/statusUtils';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 import useResponsive from '../hooks/useResponsive';
 
@@ -203,15 +204,21 @@ const ReportsPage = () => {
 
   const loadFinancialData = async () => {
     try {
+      // Expenses / payouts / cashflow endpoints live on their own routes and
+      // return { <resource>, pagination } envelopes via apiService.
+      const params = {
+        startDate: dateRange[0].format('YYYY-MM-DD'),
+        endDate: dateRange[1].format('YYYY-MM-DD')
+      };
       const [expensesResponse, payoutsResponse, cashflowResponse] = await Promise.all([
-        reportService.get('/expenses'),
-        reportService.get('/payouts'),
-        reportService.get('/cashflow/transactions')
+        apiService.get('/expenses', { params }),
+        apiService.get('/payouts', { params }),
+        apiService.get('/cashflow/transactions', { params })
       ]);
 
-      const expenses = expensesResponse.data?.expenses || [];
-      const payouts = payoutsResponse.data?.payouts || [];
-      const cashflow = cashflowResponse.data?.transactions || [];
+      const expenses = expensesResponse?.expenses || [];
+      const payouts = payoutsResponse?.payouts || [];
+      const cashflow = cashflowResponse?.transactions || [];
 
       setFinancialData({
         expenses,
@@ -230,16 +237,12 @@ const ReportsPage = () => {
   const prepareJobStatusChartData = () => {
     const data = Array.isArray(jobStatusData) ? jobStatusData : [];
     return {
-      labels: data.map(item => item.status),
+      labels: data.map(item => formatJobStatusLabel(item.status)),
       datasets: [{
         label: 'Job Count',
         data: data.map(item => item.count),
-        backgroundColor: [
-          '#ff7875', '#40a9ff', '#73d13d', '#ffa940', '#9254de'
-        ],
-        borderColor: [
-          '#ff4d4f', '#1890ff', '#52c41a', '#fa8c16', '#722ed1'
-        ],
+        backgroundColor: data.map((item, i) => getJobStatusHexColor(item.status, i)),
+        borderColor: data.map((item, i) => getJobStatusHexColor(item.status, i)),
         borderWidth: 2
       }]
     };
@@ -959,7 +962,7 @@ const ReportsPage = () => {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (status) => <Tag color={getJobStatusColor(status)}>{status}</Tag>
+      render: (status) => <Tag color={getJobStatusColor(status)}>{formatJobStatusLabel(status)}</Tag>
     },
     {
       title: 'Count',
@@ -1007,6 +1010,19 @@ const ReportsPage = () => {
     }] : [])
   ];
 
+  // Friendly labels for invoice statuses (reports table + exports)
+  const INVOICE_STATUS_LABELS = {
+    'PENDING': 'Pending',
+    'PARTIALLY_PAID': 'Partially Paid',
+    'PAID': 'Paid',
+    'OVERDUE': 'Overdue',
+    'CANCELLED': 'Cancelled',
+    'DRAFT': 'Draft'
+  };
+  const formatInvoiceStatusLabel = (status) =>
+    INVOICE_STATUS_LABELS[status]
+    || String(status || '').toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
   const invoiceColumns = [
     {
       title: 'Invoice ID',
@@ -1029,7 +1045,7 @@ const ReportsPage = () => {
                 title: 'Status',
                 dataIndex: 'status',
                 key: 'status',
-      render: (status) => <Tag color={getJobStatusColor(status)}>{status}</Tag>
+      render: (status) => <Tag color={getInvoiceStatusColor(status)}>{formatInvoiceStatusLabel(status)}</Tag>
     },
     {
       title: 'Date',
