@@ -1862,7 +1862,11 @@ const JobsPage = () => {
                       onChange={(value) => setStatusFilter(value)}
                       style={{ width: '200px' }}
                     >
-                      {Object.entries(STATUS_LABELS).map(([status, label]) => (
+                      {/* VETTED is retired (vetting removed): kept in STATUS_LABELS
+                          for legacy job badges but never offered as a filter */}
+                      {Object.entries(STATUS_LABELS)
+                        .filter(([status]) => status !== 'VETTED')
+                        .map(([status, label]) => (
                         <Option key={status} value={status}>
                           {label}
                         </Option>

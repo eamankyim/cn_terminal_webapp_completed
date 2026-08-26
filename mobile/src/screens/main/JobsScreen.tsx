@@ -45,7 +45,7 @@ const FILTER_STATUSES = [
   'NEW',
   'PREINVOICED',
   'INVOICED',
-  'VETTED',
+  // VETTED is retired (vetting removed): excluded from the status filter.
   'ENTRY',
   'ENTRY_COMPLETED',
   'DUTY_PAID',
