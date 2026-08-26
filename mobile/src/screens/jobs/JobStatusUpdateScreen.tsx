@@ -69,6 +69,8 @@ function getAvailableStatuses(currentStatus: string | undefined, allowRevert: bo
   if (!allowRevert) return forward;
   const backward = ALL_STATUSES
     .filter((status) => STATUS_HIERARCHY[status] < currentLevel)
+    // VETTED is retired: never offered as a revert target either.
+    .filter((status) => !RETIRED_STATUSES.includes(status))
     .sort((a, b) => STATUS_HIERARCHY[b] - STATUS_HIERARCHY[a]);
   return [...forward, ...backward];
 }
@@ -93,7 +95,6 @@ export const JobStatusUpdateScreen: React.FC = () => {
   const [status, setStatus] = useState<StatusOption | ''>('');
   const [comment, setComment] = useState('');
   // ENTRY_COMPLETED
-  const [shipperName, setShipperName] = useState(''); // legacy VETTED data only
   const [boeNumber, setBoeNumber] = useState('');
   // RELEASED
   const [demurrageFreeDays, setDemurrageFreeDays] = useState('');
@@ -209,12 +210,6 @@ export const JobStatusUpdateScreen: React.FC = () => {
       return;
     }
 
-    if (!reverting && status === 'VETTED') {
-      if (!shipperName.trim() || !invoiceNumber.trim()) {
-        setError('Shipper name and invoice number are required for VETTED.');
-        return;
-      }
-    }
     if (!reverting && status === 'ENTRY_COMPLETED') {
       const boe = boeNumber.trim();
       if (!/^\d{11}$/.test(boe)) {
@@ -247,10 +242,6 @@ export const JobStatusUpdateScreen: React.FC = () => {
         status,
         ...(comment.trim() && { comment: comment.trim() }),
       };
-      if (!reverting && status === 'VETTED') {
-        payload.shipperName = shipperName.trim();
-        payload.invoiceNumber = invoiceNumber.trim();
-      }
       if (!reverting && status === 'ENTRY_COMPLETED') {
         payload.boeNumber = boeNumber.trim();
       }
@@ -325,25 +316,6 @@ export const JobStatusUpdateScreen: React.FC = () => {
           </TouchableOpacity>
           );
         })}
-
-        {!reverting && status === 'VETTED' && (
-          <View className="mt-4 mb-2">
-            <Text className="text-sm font-semibold mb-2">Required for VETTED</Text>
-            <Text className="text-xs text-gray-600 mb-1">Shipper name *</Text>
-            <Input
-              value={shipperName}
-              onChangeText={setShipperName}
-              placeholder="Shipper name"
-              className="mb-3"
-            />
-            <Text className="text-xs text-gray-600 mb-1">Invoice number *</Text>
-            <Input
-              value={invoiceNumber}
-              onChangeText={setInvoiceNumber}
-              placeholder="Invoice number"
-            />
-          </View>
-        )}
 
         {!reverting && status === 'ENTRY_COMPLETED' && (
           <View className="mt-4 mb-2">
