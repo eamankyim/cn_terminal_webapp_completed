@@ -4,6 +4,7 @@ const { authenticateToken, requirePermission } = require('../middleware/auth');
 const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 const NotificationService = require('../services/notificationService');
 const RealtimeNotificationService = require('../services/realtimeNotificationService');
+const { recordInvoicePayment } = require('../utils/invoicePayments');
 
 const router = express.Router();
 
@@ -206,6 +207,9 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), a
             id: true,
             name: true
           }
+        },
+        payments: {
+          select: { id: true, amount: true, status: true }
         },
         _count: {
           select: {
@@ -655,89 +659,36 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.IN
 router.post('/:id/payments', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), async (req, res) => {
   try {
     const { id } = req.params;
-    const { amount, paymentMethod, gatewayRef, receiptUrl, payer } = req.body;
+    const { amount, paymentMethod, gatewayRef, receiptUrl, payer, accountName } = req.body;
 
-    // Validate required fields
-    if (!amount || !paymentMethod || !payer) {
-      return res.status(400).json({ 
-        error: 'Amount, payment method, and payer are required' 
-      });
-    }
-
-    // Check if invoice exists
-    const invoice = await prisma.invoice.findUnique({
-      where: { id },
-      include: {
-        customer: {
-          select: {
-            name: true,
-            email: true
-          }
-        },
-        job: {
-          select: {
-            trackingId: true
-          }
-        }
-      }
+    const result = await recordInvoicePayment({
+      invoiceId: id,
+      amount,
+      paymentMethod,
+      accountName,
+      payer,
+      createdById: req.user.id,
+      receiptUrl,
+      gatewayRef
     });
 
-    if (!invoice) {
-      return res.status(404).json({ error: 'Invoice not found' });
+    if (result.error) {
+      return res.status(result.status || 400).json({ error: result.error, remaining: result.remaining });
     }
 
-    // Create payment
-    const payment = await prisma.payment.create({
-      data: {
-        invoiceId: id,
-        amount: parseFloat(amount),
-        paymentMethod,
-        gatewayRef,
-        receiptUrl,
-        payer,
-        createdById: req.user.id
-      }
-    });
-
-    // Update invoice status to PAID if payment amount matches or exceeds invoice amount
-    if (parseFloat(amount) >= invoice.amount) {
-      await prisma.invoice.update({
-        where: { id },
-        data: {
-          status: 'PAID',
-          paymentDate: new Date(),
-          paymentMethod
-        }
-      });
-
-      // Create cashflow INFLOW transaction for paid invoice
-      await prisma.cashflowTransaction.create({
-        data: {
-          type: 'INFLOW',
-          amount: invoice.amount,
-          description: `Invoice Payment: ${invoice.invoiceNumber}`,
-          sourceType: 'INVOICE',
-          sourceId: invoice.id,
-          jobId: invoice.jobId
-        }
-      });
-    }
-
-    // Create notification for payment received with real-time updates
     try {
-      await RealtimeNotificationService.notifyPaymentReceivedRealtime(payment.id, req.user.id);
-
+      await RealtimeNotificationService.notifyPaymentReceivedRealtime(result.payment.id, req.user.id);
     } catch (notificationError) {
-
       // Don't fail the payment creation if notification fails
     }
 
     res.status(201).json({
       message: 'Payment created successfully',
-      payment
+      payment: result.payment,
+      remaining: result.remaining,
+      paymentType: result.paymentType
     });
   } catch (error) {
-
     res.status(500).json({ error: 'Internal server error' });
   }
 });

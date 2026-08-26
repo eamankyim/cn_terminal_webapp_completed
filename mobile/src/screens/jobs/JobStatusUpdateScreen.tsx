@@ -44,6 +44,10 @@ const ALL_STATUSES = Object.keys(STATUS_HIERARCHY);
 
 type StatusOption = string;
 
+// VETTED is retired (vetting removed): kept in the hierarchy only so legacy
+// jobs already at VETTED can progress or be reverted — never offered forward.
+const RETIRED_STATUSES = ['VETTED'];
+
 function isRevertTransition(currentStatus: string | undefined, next: string) {
   if (!currentStatus) return false;
   const currentLevel = STATUS_HIERARCHY[currentStatus];
@@ -53,11 +57,12 @@ function isRevertTransition(currentStatus: string | undefined, next: string) {
 
 function getAvailableStatuses(currentStatus: string | undefined, allowRevert: boolean) {
   if (!currentStatus || !STATUS_HIERARCHY[currentStatus]) {
-    return ALL_STATUSES.filter((s) => s !== 'NEW');
+    return ALL_STATUSES.filter((s) => s !== 'NEW' && !RETIRED_STATUSES.includes(s));
   }
   const currentLevel = STATUS_HIERARCHY[currentStatus];
   const forward = ALL_STATUSES.filter((status) => {
     if (status === currentStatus) return false;
+    if (RETIRED_STATUSES.includes(status)) return false;
     if (status === 'DELIVERED') return currentStatus === 'CLEARED';
     return STATUS_HIERARCHY[status] > currentLevel;
   });
@@ -87,10 +92,8 @@ export const JobStatusUpdateScreen: React.FC = () => {
   );
   const [status, setStatus] = useState<StatusOption | ''>('');
   const [comment, setComment] = useState('');
-  // VETTED
-  const [shipperName, setShipperName] = useState('');
-  const [invoiceNumber, setInvoiceNumber] = useState('');
   // ENTRY_COMPLETED
+  const [shipperName, setShipperName] = useState(''); // legacy VETTED data only
   const [boeNumber, setBoeNumber] = useState('');
   // RELEASED
   const [demurrageFreeDays, setDemurrageFreeDays] = useState('');

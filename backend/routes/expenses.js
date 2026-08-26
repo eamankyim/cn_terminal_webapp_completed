@@ -27,9 +27,41 @@ const normalizeExpenseCategory = (category, categoryOther) => {
   return { category, categoryOther: null };
 };
 
+const ENDORSE_ROLES = ['ADMIN', 'ACCOUNTANT', 'INVOICE_OFFICER'];
+
+const canEndorseExpenses = async (user) => {
+  if (ENDORSE_ROLES.includes(user.role)) return true;
+  return checkUserPermission(user.id, PERMISSIONS.EXPENSE_ENDORSE);
+};
+
 const canApproveExpenses = async (user) => {
-  if (['ADMIN', 'ACCOUNTANT', 'IT_CONSULTANT'].includes(user.role)) return true;
+  if (user.role === 'ACCOUNTANT') return true;
   return checkUserPermission(user.id, PERMISSIONS.EXPENSE_APPROVE);
+};
+
+const requireExpenseQueueAccess = async (req, res, next) => {
+  try {
+    if (await canEndorseExpenses(req.user)) return next();
+    if (await checkUserPermission(req.user.id, UI_PERMISSIONS.ACCOUNTING)) return next();
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  } catch (error) {
+    return res.status(500).json({ error: 'Permission check failed' });
+  }
+};
+
+const expenseRequestInclude = {
+  requestedBy: {
+    select: { id: true, name: true, email: true, role: true }
+  },
+  approvedBy: {
+    select: { id: true, name: true, email: true, role: true }
+  },
+  endorsedBy: {
+    select: { id: true, name: true, email: true, role: true }
+  },
+  job: {
+    select: { id: true, trackingId: true, status: true }
+  }
 };
 
 // Get user's own expense requests (no special permission required)
@@ -166,7 +198,7 @@ router.get('/my-stats', authenticateToken, async (req, res) => {
 });
 
 // Get all expense requests (with filtering and pagination)
-router.get('/requests', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
+router.get('/requests', authenticateToken, requireExpenseQueueAccess, async (req, res) => {
   try {
     const { page = 1, limit = 10, status, category, userId, jobId } = req.query;
     const skip = (page - 1) * limit;
@@ -183,17 +215,7 @@ router.get('/requests', authenticateToken, requirePermission(UI_PERMISSIONS.ACCO
         where,
         skip: parseInt(skip),
         take: parseInt(limit),
-        include: {
-          requestedBy: {
-            select: { id: true, name: true, email: true, role: true }
-          },
-          approvedBy: {
-            select: { id: true, name: true, email: true, role: true }
-          },
-          job: {
-            select: { id: true, trackingId: true, status: true }
-          }
-        },
+        include: expenseRequestInclude,
         orderBy: { createdAt: 'desc' }
       }),
       prisma.expenseRequest.count({ where })
@@ -215,19 +237,14 @@ router.get('/requests', authenticateToken, requirePermission(UI_PERMISSIONS.ACCO
 });
 
 // Get expense request by ID
-router.get('/requests/:id', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
+router.get('/requests/:id', authenticateToken, requireExpenseQueueAccess, async (req, res) => {
   try {
     const { id } = req.params;
 
     const request = await prisma.expenseRequest.findUnique({
       where: { id },
       include: {
-        requestedBy: {
-          select: { id: true, name: true, email: true, role: true }
-        },
-        approvedBy: {
-          select: { id: true, name: true, email: true, role: true }
-        },
+        ...expenseRequestInclude,
         job: {
           select: { id: true, trackingId: true, status: true, customer: { select: { name: true } } }
         },
@@ -390,13 +407,27 @@ router.post('/requests', authenticateToken, async (req, res) => {
       }
     });
 
-    // Create notification for accounting staff
+    // Create notification for accounting staff and extra endorsers
     try {
+      const extraEndorsers = await prisma.userPermission.findMany({
+        where: {
+          isActive: true,
+          permission: { name: PERMISSIONS.EXPENSE_ENDORSE },
+          user: { isActive: true },
+          OR: [
+            { expiresAt: null },
+            { expiresAt: { gt: new Date() } }
+          ]
+        },
+        select: { userId: true }
+      });
+
       const accountingStaff = await prisma.user.findMany({
         where: {
           OR: [
             { role: 'ACCOUNTANT' },
-            { role: 'ADMIN' }
+            { role: 'ADMIN' },
+            { id: { in: extraEndorsers.map((row) => row.userId) } }
           ],
           isActive: true
         },
@@ -434,11 +465,69 @@ router.post('/requests', authenticateToken, async (req, res) => {
   }
 });
 
-// Approve expense request (Admin can approve, Accountant can also approve)
+// Endorse expense request (Admin, Accountant, Invoice Officer, or extra grant)
+router.patch('/requests/:id/endorse', authenticateToken, async (req, res) => {
+  if (!(await canEndorseExpenses(req.user))) {
+    return res.status(403).json({ error: 'You cannot endorse expense requests' });
+  }
+  try {
+    const { id } = req.params;
+    const { endorsementComment } = req.body;
+
+    const request = await prisma.expenseRequest.findUnique({ where: { id } });
+    if (!request) {
+      return res.status(404).json({ error: 'Expense request not found' });
+    }
+    if (request.status === 'ENDORSED') {
+      const existing = await prisma.expenseRequest.findUnique({
+        where: { id },
+        include: { ...expenseRequestInclude, expense: true }
+      });
+      return res.json(existing);
+    }
+    if (request.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Only pending requests can be endorsed' });
+    }
+
+    const updatedRequest = await prisma.expenseRequest.update({
+      where: { id },
+      data: {
+        status: 'ENDORSED',
+        endorsedById: req.user.id,
+        endorsedAt: new Date(),
+        endorsementComment: endorsementComment || null
+      },
+      include: { ...expenseRequestInclude, expense: true }
+    });
+
+    try {
+      await RealtimeNotificationService.sendRealtimeNotification(request.requestedById, {
+        title: 'Expense Request Endorsed',
+        message: `Your expense request for GH₵${request.amount.toFixed(2)} has been endorsed and is awaiting accountant approval`,
+        type: 'INFO',
+        category: 'EXPENSE_REQUEST',
+        metadata: {
+          expenseRequestId: id,
+          amount: request.amount,
+          endorsedBy: req.user.name
+        }
+      });
+    } catch (notificationError) {
+      console.error('Failed to send expense endorsement notification:', notificationError);
+    }
+
+    res.json(updatedRequest);
+  } catch (error) {
+    console.error('Error endorsing expense request:', error);
+    res.status(500).json({ error: 'Failed to endorse expense request', details: error.message });
+  }
+});
+
+// Approve expense request (Accountant only, after endorsement)
 router.patch('/requests/:id/approve', authenticateToken, async (req, res) => {
   const allowed = await canApproveExpenses(req.user);
   if (!allowed) {
-    return res.status(403).json({ error: 'Only Admin, Accountant, or users with expense approval permission can approve requests' });
+    return res.status(403).json({ error: 'Only the accountant can approve endorsed expense requests' });
   }
   try {
     const { id } = req.params;
@@ -459,8 +548,8 @@ router.patch('/requests/:id/approve', authenticateToken, async (req, res) => {
 
     console.log('📋 Found expense request:', { status: request.status, amount: request.amount });
 
-    if (request.status !== 'PENDING') {
-      console.log('❌ Request is not pending, current status:', request.status);
+    if (request.status !== 'ENDORSED') {
+      console.log('❌ Request is not endorsed, current status:', request.status);
       
       // If already approved, return the existing request
       if (request.status === 'APPROVED') {
@@ -483,7 +572,7 @@ router.patch('/requests/:id/approve', authenticateToken, async (req, res) => {
         return res.json(existingRequest);
       }
       
-      return res.status(400).json({ error: 'Request is not pending' });
+      return res.status(400).json({ error: 'Request must be endorsed before it can be approved' });
     }
 
     // Update request status
@@ -668,8 +757,12 @@ router.patch('/requests/:id/mark-paid', authenticateToken, async (req, res) => {
 });
 
 // Reject expense request
-router.patch('/requests/:id/reject', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
+router.patch('/requests/:id/reject', authenticateToken, async (req, res) => {
   try {
+    const canReject = await canEndorseExpenses(req.user) || await canApproveExpenses(req.user);
+    if (!canReject) {
+      return res.status(403).json({ error: 'You cannot reject expense requests' });
+    }
     const { id } = req.params;
     const { rejectionReason } = req.body;
 
@@ -683,8 +776,8 @@ router.patch('/requests/:id/reject', authenticateToken, requirePermission(UI_PER
       return res.status(404).json({ error: 'Expense request not found' });
     }
 
-    if (request.status !== 'PENDING') {
-      return res.status(400).json({ error: 'Request is not pending' });
+    if (!['PENDING', 'ENDORSED'].includes(request.status)) {
+      return res.status(400).json({ error: 'Only pending or endorsed requests can be rejected' });
     }
 
     // Update request status
@@ -835,7 +928,7 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING),
  *         description: Internal server error
  */
 // Get expense statistics (MUST come before /:id route)
-router.get('/stats/summary', authenticateToken, requirePermission(UI_PERMISSIONS.ACCOUNTING), async (req, res) => {
+router.get('/stats/summary', authenticateToken, requireExpenseQueueAccess, async (req, res) => {
   try {
 
     const { startDate, endDate } = req.query;

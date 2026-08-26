@@ -17,6 +17,7 @@ import { api } from '../../api/http';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useTheme } from '../../context/ThemeContext';
 import type { ExpenseRequest } from '../../types/api';
+import { useAuth } from '../../context/AuthContext';
 
 function expenseCategoryLabel(item: ExpenseRequest) {
   if (item.category === 'OTHER' && item.categoryOther?.trim()) {
@@ -32,6 +33,10 @@ interface ExpenseRequestsResponse {
 
 export const ExpenseRequestsScreen: React.FC = () => {
   const { accent } = useTheme();
+  const { user } = useAuth();
+  const canEndorse = ['ADMIN', 'ACCOUNTANT', 'INVOICE_OFFICER'].includes(user?.role || '')
+    || (user?.permissions || []).includes('expense:endorse');
+  const canApprove = user?.role === 'ACCOUNTANT';
   const queryClient = useQueryClient();
   const [page] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
@@ -39,7 +44,7 @@ export const ExpenseRequestsScreen: React.FC = () => {
   const [search, setSearch] = useState('');
   const [actionModal, setActionModal] = useState<{
     request: ExpenseRequest;
-    action: 'approve' | 'reject';
+    action: 'endorse' | 'approve' | 'reject';
   } | null>(null);
   const [comment, setComment] = useState('');
 
@@ -58,6 +63,20 @@ export const ExpenseRequestsScreen: React.FC = () => {
       return api.get<ExpenseRequestsResponse>(
         `/expenses/requests?${params.toString()}`
       );
+    },
+  });
+
+  const endorseMutation = useMutation({
+    mutationFn: ({ id, endorsementComment }: { id: string; endorsementComment?: string }) =>
+      api.patch(`/expenses/requests/${id}/endorse`, { endorsementComment }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['expense-requests'] });
+      setActionModal(null);
+      setComment('');
+      Alert.alert('Success', 'Request endorsed.');
+    },
+    onError: (err: any) => {
+      Alert.alert('Error', err?.message ?? 'Failed to endorse.');
     },
   });
 
@@ -142,6 +161,7 @@ export const ExpenseRequestsScreen: React.FC = () => {
           [
             { key: undefined, label: 'All' },
             { key: 'PENDING', label: 'Pending' },
+            { key: 'ENDORSED', label: 'Endorsed' },
             { key: 'APPROVED', label: 'Approved' },
             { key: 'REJECTED', label: 'Rejected' },
           ] as const
@@ -191,16 +211,38 @@ export const ExpenseRequestsScreen: React.FC = () => {
                 {item.description}
               </Text>
             ) : null}
-            {item.status === 'PENDING' && (
+            {item.status === 'PENDING' && canEndorse && (
               <View className="flex-row mt-2 gap-2">
                 <TouchableOpacity
                   onPress={() =>
-                    setActionModal({ request: item, action: 'approve' })
+                    setActionModal({ request: item, action: 'endorse' })
                   }
                   className="flex-1 bg-green-600 rounded-xl h-[52px] items-center justify-center"
                 >
-                  <Text className="text-white text-[17px] font-semibold">Approve</Text>
+                  <Text className="text-white text-[17px] font-semibold">Endorse</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() =>
+                    setActionModal({ request: item, action: 'reject' })
+                  }
+                  className="flex-1 bg-red-600 rounded-xl h-[52px] items-center justify-center"
+                >
+                  <Text className="text-white text-[17px] font-semibold">Reject</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {item.status === 'ENDORSED' && (canApprove || canEndorse) && (
+              <View className="flex-row mt-2 gap-2">
+                {canApprove ? (
+                  <TouchableOpacity
+                    onPress={() =>
+                      setActionModal({ request: item, action: 'approve' })
+                    }
+                    className="flex-1 bg-green-600 rounded-xl h-[52px] items-center justify-center"
+                  >
+                    <Text className="text-white text-[17px] font-semibold">Approve</Text>
+                  </TouchableOpacity>
+                ) : null}
                 <TouchableOpacity
                   onPress={() =>
                     setActionModal({ request: item, action: 'reject' })
@@ -227,7 +269,9 @@ export const ExpenseRequestsScreen: React.FC = () => {
         <View className="flex-1 justify-center bg-black/50 px-4">
           <View className="bg-white rounded-2xl p-4">
             <Text className="text-lg font-semibold mb-2">
-              {actionModal?.action === 'approve'
+              {actionModal?.action === 'endorse'
+                ? 'Endorse request'
+                : actionModal?.action === 'approve'
                 ? 'Approve request'
                 : 'Reject request'}
             </Text>
@@ -241,9 +285,9 @@ export const ExpenseRequestsScreen: React.FC = () => {
               value={comment}
               onChangeText={setComment}
               placeholder={
-                actionModal?.action === 'approve'
-                  ? 'Comment (optional)'
-                  : 'Reason (optional)'
+                actionModal?.action === 'reject'
+                  ? 'Reason (optional)'
+                  : 'Comment (optional)'
               }
               multiline
               className="mb-4"
@@ -259,18 +303,35 @@ export const ExpenseRequestsScreen: React.FC = () => {
                 <Text className="text-gray-800 font-semibold text-[17px]">Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={
-                  actionModal?.action === 'approve' ? handleApprove : handleReject
+                onPress={() => {
+                  if (actionModal?.action === 'endorse') {
+                    endorseMutation.mutate({
+                      id: actionModal.request.id,
+                      endorsementComment: comment.trim() || undefined,
+                    });
+                    return;
+                  }
+                  if (actionModal?.action === 'approve') {
+                    handleApprove();
+                    return;
+                  }
+                  handleReject();
+                }}
+                disabled={
+                  approveMutation.isPending ||
+                  rejectMutation.isPending ||
+                  endorseMutation.isPending
                 }
-                disabled={approveMutation.isPending || rejectMutation.isPending}
                 className={`flex-1 rounded-xl h-[52px] items-center justify-center ${
-                  actionModal?.action === 'approve'
-                    ? 'bg-green-600'
-                    : 'bg-red-600'
+                  actionModal?.action === 'reject' ? 'bg-red-600' : 'bg-green-600'
                 }`}
               >
                 <Text className="text-white font-semibold text-[17px]">
-                  {actionModal?.action === 'approve' ? 'Approve' : 'Reject'}
+                  {actionModal?.action === 'endorse'
+                    ? 'Endorse'
+                    : actionModal?.action === 'approve'
+                    ? 'Approve'
+                    : 'Reject'}
                 </Text>
               </TouchableOpacity>
             </View>

@@ -79,6 +79,7 @@ export const PERMISSIONS = {
   EXPENSE_VIEW: 'expense:view',
   EXPENSE_CREATE: 'expense:create',        // For recording expenses directly (admins/accountants)
   EXPENSE_REQUEST: 'expense:request',      // For requesting expenses (employees)
+  EXPENSE_ENDORSE: 'expense:endorse',      // Per-user extra: view/endorse/reject requests
   EXPENSE_APPROVE: 'expense:approve',
   EXPENSE_EDIT: 'expense:edit',
   EXPENSE_DELETE: 'expense:delete',
@@ -240,6 +241,8 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.SETTINGS_VIEW,
   ],
   REVIEW_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
+  // RETIRED ROLE (vetting removed): kept so legacy VETTING_OFFICER accounts
+  // retain standard employee permissions; new assignment is blocked elsewhere.
   VETTING_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
   CLEARING_OFFICER: COMMON_EMPLOYEE_PERMISSIONS,
   STAFF: COMMON_EMPLOYEE_PERMISSIONS,
@@ -251,10 +254,18 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.JOB_VIEW_ALL,
     
     PERMISSIONS.CUSTOMER_VIEW,
+    PERMISSIONS.CUSTOMER_CREATE,
+    PERMISSIONS.CUSTOMER_EDIT,
     PERMISSIONS.CUSTOMER_VIEW_ALL,
     
     PERMISSIONS.INVOICE_VIEW,
     PERMISSIONS.INVOICE_VIEW_ALL,
+
+    PERMISSIONS.ESTIMATE_VIEW,
+    PERMISSIONS.ESTIMATE_VIEW_ALL,
+    PERMISSIONS.ESTIMATE_CREATE,
+    PERMISSIONS.ESTIMATE_EDIT,
+    PERMISSIONS.ESTIMATE_SEND,
     
     PERMISSIONS.REPORTS_VIEW,
     PERMISSIONS.REPORTS_EXPORT,
@@ -555,10 +566,14 @@ export const canManageRole = (currentUserRole, targetRole) => {
   return currentLevel > targetLevel;
 };
 
+// Retired roles (vetting removed): kept in ROLE_INFO for legacy display only,
+// but never offered for new assignments or invitations.
+export const RETIRED_ROLES = ['VETTING_OFFICER'];
+
 export const getAvailableRoles = (currentUserRole) => {
   const currentLevel = ROLE_INFO[currentUserRole]?.level || 0;
-  return Object.keys(ROLE_INFO).filter(role => 
-    ROLE_INFO[role].level < currentLevel
+  return Object.keys(ROLE_INFO).filter(role =>
+    ROLE_INFO[role].level < currentLevel && !RETIRED_ROLES.includes(role)
   );
 };
 
@@ -611,6 +626,7 @@ export const PERMISSION_DESCRIPTIONS = {
   [PERMISSIONS.EXPENSE_VIEW]: 'View expense requests and expenses',
   [PERMISSIONS.EXPENSE_CREATE]: 'Record expenses directly (no approval needed)',
   [PERMISSIONS.EXPENSE_REQUEST]: 'Request expenses (requires approval)',
+  [PERMISSIONS.EXPENSE_ENDORSE]: 'View, endorse, or reject expense requests',
   [PERMISSIONS.EXPENSE_APPROVE]: 'Approve or reject expense requests',
   [PERMISSIONS.EXPENSE_EDIT]: 'Edit expense requests',
   [PERMISSIONS.EXPENSE_DELETE]: 'Delete expense requests',

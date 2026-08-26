@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { prisma } = require('../config/database');
 const { authenticateToken, requireAdmin, requireAdminOrIT, PERMISSIONS } = require('../middleware/auth');
+const { mergeUserPermissions } = require('../utils/permissions');
+const { getDirectUserPermissionNames } = require('../utils/databasePermissions');
 const { validatePassword } = require('../utils/passwordValidation');
 
 const router = express.Router();
@@ -156,8 +158,14 @@ router.post('/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    // Extract permissions from the role
-    const permissions = user.assignedRole?.rolePermissions?.map(rp => rp.permission.name) || [];
+    const extraPermissions = await getDirectUserPermissionNames(user.id);
+    const permissions = mergeUserPermissions(
+      user.role,
+      [
+        ...(user.assignedRole?.rolePermissions?.map(rp => rp.permission.name) || []),
+        ...extraPermissions
+      ]
+    );
     
     console.log('✅ Login successful!');
     console.log('  - Permissions count:', permissions.length);
@@ -217,7 +225,7 @@ router.post('/login', async (req, res) => {
  *                 example: Password123
  *               role:
  *                 type: string
- *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, PREINVOICE_OFFICER, INVOICE_OFFICER, SUPERVISOR, REVIEW_OFFICER, VETTING_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, ACCOUNTANT]
+ *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, PREINVOICE_OFFICER, INVOICE_OFFICER, SUPERVISOR, REVIEW_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, ACCOUNTANT]
  *                 default: STAFF
  *                 description: User's role in the system
  *                 example: STAFF
@@ -257,7 +265,7 @@ router.post('/register', authenticateToken, requireAdminOrIT, async (req, res) =
     const { name, email, password, role = 'STAFF' } = req.body;
     
     // Validate role
-    const validRoles = ['ADMIN', 'IT_CONSULTANT', 'ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'TRANSPORT_COORDINATOR', 'RELEASE_OFFICER', 'PREINVOICE_OFFICER', 'INVOICE_OFFICER', 'SUPERVISOR', 'REVIEW_OFFICER', 'VETTING_OFFICER', 'CLEARING_OFFICER', 'STAFF', 'DRIVER', 'ACCOUNTANT'];
+    const validRoles = ['ADMIN', 'IT_CONSULTANT', 'ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'TRANSPORT_COORDINATOR', 'RELEASE_OFFICER', 'PREINVOICE_OFFICER', 'INVOICE_OFFICER', 'SUPERVISOR', 'REVIEW_OFFICER', 'CLEARING_OFFICER', 'STAFF', 'DRIVER', 'ACCOUNTANT'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ error: 'Invalid role specified' });
     }
@@ -553,7 +561,14 @@ router.get('/me', authenticateToken, async (req, res) => {
       }
     });
 
-    const permissions = userWithRole?.assignedRole?.rolePermissions?.map(rp => rp.permission.name) || [];
+    const extraPermissions = await getDirectUserPermissionNames(user.id);
+    const permissions = mergeUserPermissions(
+      user.role,
+      [
+        ...(userWithRole?.assignedRole?.rolePermissions?.map(rp => rp.permission.name) || []),
+        ...extraPermissions
+      ]
+    );
 
     res.json({
       user: {
@@ -1009,7 +1024,7 @@ router.put('/users/:id/status', authenticateToken, requireAdmin, async (req, res
  *                 example: john@example.com
  *               role:
  *                 type: string
- *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, PREINVOICE_OFFICER, INVOICE_OFFICER, SUPERVISOR, REVIEW_OFFICER, VETTING_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, ACCOUNTANT]
+ *                 enum: [ADMIN, IT_CONSULTANT, ENQUIRY_OFFICER, ENTRY_OFFICER, TRANSPORT_COORDINATOR, RELEASE_OFFICER, PREINVOICE_OFFICER, INVOICE_OFFICER, SUPERVISOR, REVIEW_OFFICER, CLEARING_OFFICER, STAFF, DRIVER, ACCOUNTANT]
  *                 description: User's role
  *                 example: STAFF
  *               isActive:

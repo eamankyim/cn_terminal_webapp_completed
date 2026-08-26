@@ -120,8 +120,13 @@ const Sidebar = ({ collapsed, onNavigate }) => {
       return false;
     }
     
-    // Hide Accounting tab for employee roles
-    if (item.key === '/accounting' && isEmployeeRole(currentUser?.role)) {
+    // Hide Accounting tab for employee roles unless they can endorse expenses
+    if (
+      item.key === '/accounting' &&
+      isEmployeeRole(currentUser?.role) &&
+      currentUser?.role !== 'INVOICE_OFFICER' &&
+      !hasPermission('expense:endorse')
+    ) {
         return false;
     }
     

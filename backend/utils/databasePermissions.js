@@ -235,6 +235,24 @@ async function revokeUserPermission(userId, permissionId) {
 }
 
 /**
+ * Direct extra permissions granted to a specific user (not via role).
+ */
+async function getDirectUserPermissionNames(userId) {
+  const userPermissions = await prisma.userPermission.findMany({
+    where: {
+      userId,
+      isActive: true,
+      OR: [
+        { expiresAt: null },
+        { expiresAt: { gt: new Date() } }
+      ]
+    },
+    include: { permission: { select: { name: true } } }
+  });
+  return userPermissions.map((up) => up.permission.name);
+}
+
+/**
  * Clear permissions cache
  */
 function clearPermissionsCache() {
@@ -252,6 +270,7 @@ module.exports = {
   updateRolePermissions,
   grantUserPermission,
   revokeUserPermission,
+  getDirectUserPermissionNames,
   clearPermissionsCache
 };
 

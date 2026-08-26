@@ -20,6 +20,7 @@ model User {
   updatedAt           DateTime             @updatedAt
   roleId              String?
   approvedExpenses    ExpenseRequest[]     @relation("ExpenseApprovedBy")
+  endorsedExpenses    ExpenseRequest[]     @relation("ExpenseEndorsedBy")
   expenseRequests     ExpenseRequest[]     @relation("ExpenseRequestedBy")
   uploadedFiles       File[]
   sentInvitations     Invitation[]
@@ -278,6 +279,7 @@ model Payment {
   amount        Float
   currency      String         @default("GHS")
   payer         String
+  accountName   String?
   paymentMethod PaymentMethod
   status        PaymentStatus  @default(PENDING)
   receiptUrl    String?
@@ -451,15 +453,19 @@ model ExpenseRequest {
   receiptUrl      String?
   requestedById   String
   status          ExpenseStatus   @default(PENDING)
-  approvedById    String?
-  approvedAt      DateTime?
-  approvalComment String?
-  rejectionReason String?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  approvedBy      User?           @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
-  job             Job?            @relation(fields: [jobId], references: [id])
-  requestedBy     User            @relation("ExpenseRequestedBy", fields: [requestedById], references: [id])
+  approvedById        String?
+  approvedAt          DateTime?
+  approvalComment     String?
+  endorsedById        String?
+  endorsedAt          DateTime?
+  endorsementComment  String?
+  rejectionReason     String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  approvedBy          User?           @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  endorsedBy          User?           @relation("ExpenseEndorsedBy", fields: [endorsedById], references: [id])
+  job                 Job?            @relation(fields: [jobId], references: [id])
+  requestedBy         User            @relation("ExpenseRequestedBy", fields: [requestedById], references: [id])
   expense         Expense?
 
   @@map("expense_requests")
@@ -612,6 +618,7 @@ enum ShipmentStatus {
 
 enum InvoiceStatus {
   PENDING
+  PARTIALLY_PAID
   PAID
   OVERDUE
   CANCELLED
@@ -702,6 +709,7 @@ enum PayoutCategory {
 
 enum ExpenseStatus {
   PENDING
+  ENDORSED
   APPROVED
   REJECTED
   PAID

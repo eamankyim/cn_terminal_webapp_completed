@@ -113,7 +113,9 @@ const STATUS_HIERARCHY = {
   'NEW': 1,
   'PREINVOICED': 2,
   'INVOICED': 3,            // Invoice officer stage after pre-invoice
-  'VETTED': 4,              // Job has been vetted/reviewed
+  // VETTED is retired (vetting removed): rank kept only so legacy jobs
+  // already at VETTED can progress or be reverted. Never offered as a target.
+  'VETTED': 4,
   'ENTRY_COMPLETED': 5,
   'DUTY_PAID': 6,           // Duty has been paid
   'READY_FOR_RELEASE': 7,  // Transport coordinator assigns and uploads docs
@@ -142,7 +144,9 @@ const getAvailableStatuses = (currentStatus, { allowRevert = false } = {}) => {
   const currentLevel = STATUS_HIERARCHY[currentStatus];
   if (!currentLevel) return [];
 
-  const entries = Object.entries(STATUS_HIERARCHY);
+  // VETTED is retired (vetting removed): never offered as a target status.
+  const entries = Object.entries(STATUS_HIERARCHY)
+    .filter(([status]) => status !== 'VETTED');
   const forward = entries
     .filter(([status, level]) => {
       if (status === currentStatus) return false;
@@ -175,6 +179,9 @@ const isValidStatusTransition = (currentStatus, newStatus, { allowRevert = false
   
   if (!currentLevel || !newLevel) return false;
   if (newStatus === currentStatus) return false;
+
+  // VETTED is retired (vetting removed): no transitions into it, even reverts
+  if (newStatus === 'VETTED') return false;
 
   if (allowRevert && newLevel < currentLevel) return true;
   
@@ -1398,7 +1405,7 @@ const JobsPage = () => {
       const driverName = updateData.driverName;
       const driverContact = updateData.driverContact;
 
-      // Handle shipper name and invoice number for VETTED status
+      // Handle shipper name and invoice number (legacy VETTED data)
       const shipperName = updateData.shipperName;
       const invoiceNumber = updateData.invoiceNumber;
 
@@ -1798,16 +1805,6 @@ const JobsPage = () => {
               value={jobs.filter(j => j.status === 'INVOICED').length}
               prefix={<DollarOutlined />}
               valueStyle={{ color: '#13c2c2' }}
-            />
-          </Card>
-          </Col>
-        <Col xs={12} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Vetted"
-              value={jobs.filter(j => j.status === 'VETTED').length}
-              prefix={<DollarOutlined />}
-              valueStyle={{ color: '#722ed1' }}
             />
           </Card>
           </Col>
@@ -2655,32 +2652,8 @@ const JobsPage = () => {
                   </>
                 );
               } else if (status === 'VETTED') {
-                return (
-                  <>
-                    <Form.Item
-                      name="shipperName"
-                      label="Shipper Name"
-                      rules={[{ required: true, message: 'Shipper name is required for Vetted status' }]}
-                      help="Enter the name of the shipper"
-                    >
-                      <Input 
-                        placeholder="Enter shipper name"
-                        style={{ width: '100%' }}
-                      />
-                    </Form.Item>
-                    <Form.Item
-                      name="invoiceNumber"
-                      label="Invoice Number"
-                      rules={[{ required: true, message: 'Invoice number is required for Vetted status' }]}
-                      help="Enter the invoice number (not auto-generated)"
-                    >
-                      <Input 
-                        placeholder="Enter invoice number"
-                        style={{ width: '100%' }}
-                      />
-                    </Form.Item>
-                  </>
-                );
+                // VETTED is retired (vetting removed): no longer reachable
+                return null;
               }
               return null;
             }}

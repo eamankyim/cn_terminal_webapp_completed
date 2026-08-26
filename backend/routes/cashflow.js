@@ -2,6 +2,7 @@ const express = require('express');
 const { prisma } = require('../config/database');
 const { authenticateToken, requirePermission } = require('../middleware/auth');
 const { UI_PERMISSIONS } = require('../utils/uiPermissions');
+const { recordInvoicePayment, OPEN_INVOICE_STATUSES } = require('../utils/invoicePayments');
 
 const router = express.Router();
 
@@ -507,6 +508,105 @@ router.post('/transactions', authenticateToken, requirePermission(UI_PERMISSIONS
   } catch (error) {
 
     res.status(500).json({ error: 'Failed to create cashflow transaction' });
+  }
+});
+
+// Accountant cash in: customer payment against an invoice (partial or full)
+router.post('/cash-in', authenticateToken, requirePermission(UI_PERMISSIONS.CREATE_CASHFLOW), async (req, res) => {
+  try {
+    if (!['ACCOUNTANT', 'ADMIN', 'IT_CONSULTANT'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Only accountants can record cash in' });
+    }
+
+    const {
+      customerId,
+      newCustomer,
+      invoiceId,
+      amount,
+      paymentMethod,
+      accountName
+    } = req.body;
+
+    if (!invoiceId || !amount || !paymentMethod || !accountName || !String(accountName).trim()) {
+      return res.status(400).json({
+        error: 'Invoice, amount, payment method, and account name are required'
+      });
+    }
+
+    let resolvedCustomerId = customerId;
+    if (!resolvedCustomerId && newCustomer) {
+      const name = newCustomer.name?.trim();
+      const phone = newCustomer.phone?.trim();
+      const address = newCustomer.address?.trim() || 'N/A';
+      if (!name || !phone) {
+        return res.status(400).json({ error: 'New customer name and phone are required' });
+      }
+      const customer = await prisma.customer.create({
+        data: {
+          name,
+          phone,
+          address,
+          email: newCustomer.email?.trim() || null,
+          customerType: newCustomer.customerType || 'INDIVIDUAL',
+          consignments: {
+            create: {
+              consigneeName: name,
+              consigneePhone: phone,
+              consigneeAddress: address,
+              date: new Date()
+            }
+          }
+        }
+      });
+      resolvedCustomerId = customer.id;
+    }
+
+    if (!resolvedCustomerId) {
+      return res.status(400).json({ error: 'Select or create a customer' });
+    }
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { id: true, customerId: true, status: true, invoiceNumber: true }
+    });
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+    if (invoice.customerId !== resolvedCustomerId) {
+      return res.status(400).json({ error: 'Invoice does not belong to the selected customer' });
+    }
+    if (!OPEN_INVOICE_STATUSES.includes(invoice.status) && invoice.status !== 'PAID') {
+      return res.status(400).json({ error: 'This invoice cannot receive payments' });
+    }
+
+    const customer = await prisma.customer.findUnique({
+      where: { id: resolvedCustomerId },
+      select: { name: true }
+    });
+
+    const result = await recordInvoicePayment({
+      invoiceId,
+      amount,
+      paymentMethod,
+      accountName: String(accountName).trim(),
+      payer: customer?.name || String(accountName).trim(),
+      createdById: req.user.id
+    });
+
+    if (result.error) {
+      return res.status(result.status || 400).json({ error: result.error, remaining: result.remaining });
+    }
+
+    res.status(201).json({
+      message: result.paymentType === 'FULL'
+        ? 'Full payment recorded'
+        : 'Partial payment recorded',
+      ...result,
+      customerId: resolvedCustomerId
+    });
+  } catch (error) {
+    console.error('Cash in error:', error);
+    res.status(500).json({ error: 'Failed to record cash in', details: error.message });
   }
 });
 

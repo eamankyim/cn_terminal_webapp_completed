@@ -58,6 +58,7 @@ export const PERMISSIONS = {
   EXPENSE_VIEW: 'expense:view',
   EXPENSE_CREATE: 'expense:create',
   EXPENSE_REQUEST: 'expense:request',
+  EXPENSE_ENDORSE: 'expense:endorse',
   EXPENSE_APPROVE: 'expense:approve',
   EXPENSE_EDIT: 'expense:edit',
   EXPENSE_DELETE: 'expense:delete',
@@ -403,7 +404,8 @@ export function getMoreMenuLinks(user: User | null | undefined): MoreMenuLink[] 
   // Approve queue: backend /expenses/requests requires ui:accounting
   if (
     hasPermission(user, UI_PERMISSIONS.ACCOUNTING) ||
-    hasPermission(user, UI_PERMISSIONS.APPROVE_EXPENSE)
+    hasPermission(user, UI_PERMISSIONS.APPROVE_EXPENSE) ||
+    hasPermission(user, PERMISSIONS.EXPENSE_ENDORSE)
   ) {
     links.push({
       key: 'expense-requests',

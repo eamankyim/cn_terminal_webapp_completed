@@ -31,6 +31,7 @@ import {
 } from '@ant-design/icons';
 import {
   ROLE_INFO,
+  RETIRED_ROLES,
   PERMISSION_CATEGORIES,
   PERMISSIONS,
   PERMISSION_DESCRIPTIONS,
@@ -171,7 +172,10 @@ const RolePermissionManager = ({ currentUserRole, onRoleUpdate }) => {
       } catch (error) {
 
         // Fallback to static roles if API fails
-        const initialRoles = Object.keys(ROLE_INFO).map(role => ({
+        // VETTING_OFFICER is retired (vetting removed): excluded from the list.
+        const initialRoles = Object.keys(ROLE_INFO)
+          .filter(role => !RETIRED_ROLES.includes(role))
+          .map(role => ({
           key: role,
           role,
           ...ROLE_INFO[role],

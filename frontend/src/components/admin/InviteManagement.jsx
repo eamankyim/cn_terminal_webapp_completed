@@ -28,7 +28,7 @@ import {
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import invitationService from '../../services/invitationService';
-import { ROLE_INFO } from '../../utils/permissions';
+import { ROLE_INFO, RETIRED_ROLES } from '../../utils/permissions';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -63,11 +63,14 @@ const InviteManagement = () => {
   }, [loadPendingInvitations]);
 
   // Use the centralized role information
-  const roleOptions = Object.entries(ROLE_INFO).map(([role, info]) => ({
-    value: role,
-    label: info.name,
-    description: info.description
-  }));
+  // VETTING_OFFICER is retired (vetting removed): never offered for new invites.
+  const roleOptions = Object.entries(ROLE_INFO)
+    .filter(([role]) => !RETIRED_ROLES.includes(role))
+    .map(([role, info]) => ({
+      value: role,
+      label: info.name,
+      description: info.description
+    }));
 
   const handleSendInvite = async (values) => {
     setLoading(true);

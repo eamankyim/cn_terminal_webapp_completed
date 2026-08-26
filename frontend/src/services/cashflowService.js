@@ -17,11 +17,15 @@ export const cashflowService = {
   createTransaction: async (data) => {
     try {
       const response = await api.post(`${CASHFLOW_API_BASE}/transactions`, data);
-      return response; // API service returns data directly, not wrapped in .data
+      return response;
     } catch (error) {
-
       throw error;
     }
+  },
+
+  recordCashIn: async (data) => {
+    const response = await api.post(`${CASHFLOW_API_BASE}/cash-in`, data);
+    return response;
   },
 
   // Summary and Dashboard

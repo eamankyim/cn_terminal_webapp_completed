@@ -69,6 +69,9 @@ const ExpenseRequestsList = () => {
 
   const expenseCategories = expenseService.getExpenseCategories();
   const expenseStatuses = expenseService.getExpenseStatuses();
+  const canEndorse = ['ADMIN', 'ACCOUNTANT', 'INVOICE_OFFICER'].includes(currentUser?.role)
+    || currentUser?.permissions?.includes(PERMISSIONS.EXPENSE_ENDORSE);
+  const canApprove = currentUser?.role === 'ACCOUNTANT';
 
   useEffect(() => {
     loadRequests();
@@ -156,7 +159,13 @@ const ExpenseRequestsList = () => {
       // Validate form before proceeding
       await approvalForm.validateFields();
       
-      if (approvalAction === 'approve') {
+      if (approvalAction === 'endorse') {
+        const updatedRequest = await expenseService.endorseExpenseRequest(selectedRequest.id, approvalComment);
+        message.success('Expense request endorsed');
+        if (updatedRequest) {
+          setSelectedRequest(updatedRequest);
+        }
+      } else if (approvalAction === 'approve') {
         const updatedRequest = await expenseService.approveExpenseRequest(selectedRequest.id, approvalComment);
         message.success('Expense request approved successfully');
         
@@ -499,6 +508,13 @@ const ExpenseRequestsList = () => {
                 <div>{moment(selectedRequest.createdAt).format('DD/MM/YYYY HH:mm')}</div>
               </div>
               
+              {selectedRequest.endorsedBy && (
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>Endorsed By:</div>
+                  <div>{selectedRequest.endorsedBy?.name} ({selectedRequest.endorsedBy?.role})</div>
+                </div>
+              )}
+
               {selectedRequest.approvedBy && (
                 <div style={{ marginBottom: '16px', display: 'flex' }}>
                   <div style={{ width: '140px', fontWeight: 'bold' }}>Approved By:</div>
@@ -531,19 +547,17 @@ const ExpenseRequestsList = () => {
             </div>
 
             {/* Action Buttons */}
-            {selectedRequest.status === 'PENDING' && (
+            {selectedRequest.status === 'PENDING' && canEndorse && (
               <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
                 <Text strong style={{ marginBottom: 16, display: 'block' }}>Actions:</Text>
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  {/* Admin can approve, or users with EXPENSE_APPROVE permission */}
-                  {(currentUser?.role === 'ADMIN' || currentUser?.permissions?.some(p => p.permission === PERMISSIONS.EXPENSE_APPROVE)) && (
                     <Space size={8}>
                       <Button
                         type="primary"
                         icon={<CheckOutlined />}
-                        onClick={() => handleApproval(selectedRequest, 'approve')}
+                        onClick={() => handleApproval(selectedRequest, 'endorse')}
                       >
-                        Approve Request
+                        Endorse Request
                       </Button>
                       <Button
                         danger
@@ -553,7 +567,32 @@ const ExpenseRequestsList = () => {
                         Reject Request
                       </Button>
                     </Space>
-                  )}
+                </div>
+              </div>
+            )}
+
+            {selectedRequest.status === 'ENDORSED' && (canApprove || canEndorse) && (
+              <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
+                <Text strong style={{ marginBottom: 16, display: 'block' }}>Actions:</Text>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <Space size={8}>
+                      {canApprove && (
+                        <Button
+                          type="primary"
+                          icon={<CheckOutlined />}
+                          onClick={() => handleApproval(selectedRequest, 'approve')}
+                        >
+                          Approve Request
+                        </Button>
+                      )}
+                      <Button
+                        danger
+                        icon={<CloseOutlined />}
+                        onClick={() => handleApproval(selectedRequest, 'reject')}
+                      >
+                        Reject Request
+                      </Button>
+                    </Space>
                 </div>
               </div>
             )}
@@ -589,13 +628,13 @@ const ExpenseRequestsList = () => {
 
       {/* Approval Confirmation Modal */}
       <Modal
-        title={`${approvalAction === 'approve' ? 'Approve' : 'Reject'} Expense Request`}
+        title={`${approvalAction === 'endorse' ? 'Endorse' : approvalAction === 'approve' ? 'Approve' : 'Reject'} Expense Request`}
         open={approvalModalVisible}
         onOk={confirmApproval}
         onCancel={() => setApprovalModalVisible(false)}
-        okText={approvalAction === 'approve' ? 'Approve' : 'Reject'}
+        okText={approvalAction === 'endorse' ? 'Endorse' : approvalAction === 'approve' ? 'Approve' : 'Reject'}
         okButtonProps={{
-          type: approvalAction === 'approve' ? 'primary' : 'danger'
+          type: approvalAction === 'reject' ? 'danger' : 'primary'
         }}
         width={500}
       >
@@ -609,14 +648,20 @@ const ExpenseRequestsList = () => {
             
             <Form form={approvalForm} layout="vertical">
               <Form.Item
-                label={`${approvalAction === 'approve' ? 'Approval' : 'Rejection'} Comment`}
+                label={
+                  approvalAction === 'endorse'
+                    ? 'Endorsement comment (optional)'
+                    : `${approvalAction === 'approve' ? 'Approval' : 'Rejection'} Comment`
+                }
                 name="comment"
-                rules={[
-                  { 
-                    required: true, 
-                    message: `Please provide a ${approvalAction === 'approve' ? 'comment for approval' : 'reason for rejection'}` 
-                  }
-                ]}
+                rules={
+                  approvalAction === 'endorse'
+                    ? []
+                    : [{
+                        required: true,
+                        message: `Please provide a ${approvalAction === 'approve' ? 'comment for approval' : 'reason for rejection'}`
+                      }]
+                }
               >
                 <TextArea
                   rows={4}
