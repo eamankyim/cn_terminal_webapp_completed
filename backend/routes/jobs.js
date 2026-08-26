@@ -220,6 +220,9 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
         where.status = {
           notIn: ['NEW', 'CLEARED', 'DELIVERED']
         };
+      } else if (status === 'ASSIGNED_TO_ME') {
+        // Virtual filter: only jobs assigned to the requesting user
+        where.assignedToId = req.user.id;
       } else {
         where.status = status;
       }

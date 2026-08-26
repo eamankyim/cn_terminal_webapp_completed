@@ -1862,10 +1862,13 @@ const JobsPage = () => {
                       onChange={(value) => setStatusFilter(value)}
                       style={{ width: '200px' }}
                     >
+                      {/* Virtual filters */}
+                      <Option key="IN_PROGRESS" value="IN_PROGRESS">In Progress</Option>
+                      <Option key="ASSIGNED_TO_ME" value="ASSIGNED_TO_ME">Assigned to Me</Option>
                       {/* VETTED is retired (vetting removed): kept in STATUS_LABELS
                           for legacy job badges but never offered as a filter */}
                       {Object.entries(STATUS_LABELS)
-                        .filter(([status]) => status !== 'VETTED')
+                        .filter(([status]) => status !== 'VETTED' && status !== 'IN_PROGRESS')
                         .map(([status, label]) => (
                         <Option key={status} value={status}>
                           {label}
@@ -1917,6 +1920,11 @@ const JobsPage = () => {
                       if (statusFilter) {
                         if (statusFilter === 'IN_PROGRESS') {
                           if (['NEW', 'CLEARED', 'DELIVERED'].includes(job.status)) {
+                            return false;
+                          }
+                        } else if (statusFilter === 'ASSIGNED_TO_ME') {
+                          // Virtual filter: only jobs assigned to the current user
+                          if (job.assignedToId !== currentUser?.id) {
                             return false;
                           }
                         } else if (job.status !== statusFilter) {
