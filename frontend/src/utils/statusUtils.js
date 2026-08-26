@@ -22,6 +22,58 @@ export const getJobStatusColor = (status, isDraft = false) => {
   return statusColors[status] || 'default';
 };
 
+// Friendly display labels for job statuses (reports, charts, exports)
+export const JOB_STATUS_LABELS = {
+  'NEW': 'New',
+  'PREINVOICED': 'Pre-invoiced',
+  'INVOICED': 'Invoiced',
+  'VETTED': 'Vetted (Legacy)',   // RETIRED: legacy jobs only
+  'ENTRY_COMPLETED': 'Entry Completed',
+  'DUTY_PAID': 'Duty Paid',
+  'READY_FOR_RELEASE': 'Ready for Release',
+  'RELEASED': 'Released',
+  'CLEARED': 'Cleared',
+  'DELIVERED': 'Delivered'
+};
+
+/** Human-friendly job status label; falls back to Title Case of the raw enum. */
+export const formatJobStatusLabel = (status) => {
+  if (!status) return 'N/A';
+  if (JOB_STATUS_LABELS[status]) return JOB_STATUS_LABELS[status];
+  return String(status)
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+// Hex colors for Chart.js canvases (AntD tag names like 'processing' are not valid CSS colors)
+const JOB_STATUS_HEX_COLORS = {
+  'NEW': '#1890ff',              // blue
+  'PREINVOICED': '#13c2c2',      // cyan
+  'INVOICED': '#1677ff',         // processing blue
+  'VETTED': '#722ed1',           // purple (legacy)
+  'ENTRY_COMPLETED': '#fa8c16',  // orange
+  'DUTY_PAID': '#faad14',        // gold
+  'READY_FOR_RELEASE': '#2f54eb',// geekblue
+  'RELEASED': '#a0d911',         // lime
+  'CLEARED': '#52c41a',          // green
+  'DELIVERED': '#389e0d'         // success green
+};
+
+const FALLBACK_CHART_PALETTE = [
+  '#1890ff', '#13c2c2', '#722ed1', '#fa8c16', '#52c41a',
+  '#eb2f96', '#2f54eb', '#a0d911', '#faad14', '#ff4d4f'
+];
+
+/**
+ * Chart.js-ready color for a job status. Known statuses use their workflow
+ * color; unknown statuses cycle through the fallback palette.
+ */
+export const getJobStatusHexColor = (status, index = 0) => {
+  if (status && JOB_STATUS_HEX_COLORS[status]) return JOB_STATUS_HEX_COLORS[status];
+  return FALLBACK_CHART_PALETTE[index % FALLBACK_CHART_PALETTE.length];
+};
+
 // Invoice Status Colors
 export const getInvoiceStatusColor = (status) => {
   const statusColors = {

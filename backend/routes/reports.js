@@ -472,10 +472,8 @@ router.get('/processing-time', authenticateToken, requirePermission(UI_PERMISSIO
       endDateTime
     );
 
-    res.json({
-      success: true,
-      data
-    });
+    // Return the bare array (consistent with the other report endpoints)
+    res.json(data);
   } catch (error) {
 
     res.status(500).json({ error: 'Failed to fetch processing time report' });
@@ -528,10 +526,8 @@ router.get('/monthly-trends', authenticateToken, requirePermission(UI_PERMISSION
       endDateTime
     );
 
-    res.json({
-      success: true,
-      data
-    });
+    // Return the bare array (consistent with the other report endpoints)
+    res.json(data);
   } catch (error) {
 
     res.status(500).json({ error: 'Failed to fetch monthly trends report' });

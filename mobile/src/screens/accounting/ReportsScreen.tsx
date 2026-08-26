@@ -1,5 +1,5 @@
-import React from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/http';
 import { ScreenHeader } from '../../components/ScreenHeader';
@@ -7,12 +7,50 @@ import { StatsRow } from '../../components/StatsRow';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useTheme } from '../../context/ThemeContext';
 
-const now = new Date();
-const endDate = now.toISOString().slice(0, 10);
-const startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+// Friendly labels for job statuses shown in reports
+const JOB_STATUS_LABELS: Record<string, string> = {
+  NEW: 'New',
+  PREINVOICED: 'Pre-invoiced',
+  INVOICED: 'Invoiced',
+  VETTED: 'Vetted (Legacy)',
+  ENTRY_COMPLETED: 'Entry Completed',
+  DUTY_PAID: 'Duty Paid',
+  READY_FOR_RELEASE: 'Ready for Release',
+  RELEASED: 'Released',
+  CLEARED: 'Cleared',
+  DELIVERED: 'Delivered',
+};
+
+const formatJobStatusLabel = (status: string) =>
+  JOB_STATUS_LABELS[status]
+    ?? status
+        .toLowerCase()
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+
+const toDateString = (d: Date) => d.toISOString().slice(0, 10);
+
+const PERIOD_OPTIONS = [
+  { label: '7D', days: 7 },
+  { label: '30D', days: 30 },
+  { label: '90D', days: 90 },
+  { label: '1Y', days: 365 },
+];
 
 export const ReportsScreen: React.FC = () => {
   const { accent } = useTheme();
+  const [days, setDays] = useState(30);
+
+  // Compute the window on every period change instead of once at module
+  // load so the report always covers a current range.
+  const { startDate, endDate } = useMemo(() => {
+    const now = new Date();
+    return {
+      startDate: toDateString(new Date(now.getTime() - days * 24 * 60 * 60 * 1000)),
+      endDate: toDateString(now),
+    };
+  }, [days]);
+
   const { data: summary, isLoading } = useQuery({
     queryKey: ['reports-summary', startDate, endDate],
     queryFn: () =>
@@ -50,9 +88,30 @@ export const ReportsScreen: React.FC = () => {
         className="flex-1"
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
       >
-        <Text className="text-gray-500 text-sm mb-4">
-          Last 30 days · {startDate} to {endDate}
+        <Text className="text-gray-500 text-sm mb-2">
+          {startDate} to {endDate}
         </Text>
+
+        {/* Date period filter */}
+        <View className="flex-row flex-wrap mb-4" style={{ gap: 8 }}>
+          {PERIOD_OPTIONS.map((option) => {
+            const active = option.days === days;
+            return (
+              <Pressable
+                key={option.days}
+                onPress={() => setDays(option.days)}
+                className="px-4 py-2 rounded-full border border-gray-300"
+                style={{ backgroundColor: active ? accent : '#fff' }}
+              >
+                <Text
+                  className={`text-sm font-semibold ${active ? 'text-white' : 'text-gray-700'}`}
+                >
+                  Last {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
         <StatsRow className="mb-4">
           <View
@@ -106,7 +165,7 @@ export const ReportsScreen: React.FC = () => {
                 key={item.status}
                 className="mb-3 rounded-xl border border-gray-300 px-4 py-3 flex-row justify-between items-center"
               >
-                <StatusBadge label={item.status} uppercase />
+                <StatusBadge label={formatJobStatusLabel(item.status)} />
                 <Text className="text-sm font-semibold">{item.count}</Text>
               </View>
             ))}
