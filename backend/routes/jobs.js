@@ -1257,19 +1257,11 @@ router.delete('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS),
   }
 });
 
-// Reassign job to another team member (no status change) with a required comment
+// Reassign job to another team member (no status change) with a required comment.
+// Anyone with jobs access may reassign — reassignment is decoupled from
+// status-update permissions.
 router.post('/:id/reassign', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async (req, res) => {
   try {
-    const canAssign =
-      ['ADMIN', 'IT_CONSULTANT'].includes(req.user.role) ||
-      (await checkUserPermission(req.user.id, PERMISSIONS.JOB_ASSIGN));
-    if (!canAssign) {
-      return res.status(403).json({
-        error: 'You do not have permission to reassign jobs',
-        required: PERMISSIONS.JOB_ASSIGN
-      });
-    }
-
     const { id } = req.params;
     const { assignedToId, comment } = req.body;
 

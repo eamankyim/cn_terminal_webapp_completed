@@ -231,6 +231,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.JOB_VIEW,
     PERMISSIONS.JOB_EDIT,
     PERMISSIONS.JOB_ASSIGN,
+    PERMISSIONS.JOB_UPDATE_STATUS,
     PERMISSIONS.JOB_VIEW_ALL,
     PERMISSIONS.CUSTOMER_VIEW,
     PERMISSIONS.CUSTOMER_VIEW_ALL,
@@ -354,7 +355,7 @@ export const ROLE_INFO = {
   },
   SUPERVISOR: {
     name: 'Supervisor',
-    description: 'Assigns/reassigns jobs, comments, and attaches documents without changing status',
+    description: 'Coordinates jobs: updates status, assigns/reassigns, comments, and attaches documents',
     color: 'orange',
     icon: <TeamOutlined />,
     level: 3

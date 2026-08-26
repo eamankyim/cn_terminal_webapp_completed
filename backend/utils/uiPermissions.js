@@ -113,13 +113,14 @@ for (const roleName of FULL_ACCESS_ROLES) {
   ROLE_UI_PERMISSIONS[roleName] = [...ALL_UI_PERMISSIONS];
 }
 
-// Supervisor: jobs coordination only — no status updates / invoicing / accounting
+// Supervisor: jobs coordination incl. status updates — no invoicing / accounting
 ROLE_UI_PERMISSIONS.SUPERVISOR = [
   UI_PERMISSIONS.JOBS,
   UI_PERMISSIONS.CLIENTS,
   UI_PERMISSIONS.SETTINGS,
   UI_PERMISSIONS.EDIT_JOB,
   UI_PERMISSIONS.ASSIGN_JOB,
+  UI_PERMISSIONS.UPDATE_JOB_STATUS,
   UI_PERMISSIONS.VIEW_ALL_JOBS,
   UI_PERMISSIONS.VIEW_ALL_CUSTOMERS,
   UI_PERMISSIONS.PROFILE_SETTINGS,

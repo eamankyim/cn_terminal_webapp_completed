@@ -2839,14 +2839,13 @@ const JobsPage = () => {
            {(() => {
              const hasEditPermission = hasPermission(PERMISSIONS.JOB_EDIT);
              const hasDeletePermission = hasPermission(PERMISSIONS.JOB_DELETE);
-             const hasAssignPermission = hasPermission(PERMISSIONS.JOB_ASSIGN);
-             const showMenu = hasEditPermission || hasDeletePermission || hasAssignPermission;
+             // Reassign is available to everyone (no status change involved)
 
-             return showMenu && (
+             return (
             <Dropdown
               menu={{
                 items: [
-                  ...(hasAssignPermission ? [{
+                  {
                     key: 'reassign',
                     label: 'Reassign',
                     icon: <SwapOutlined />,
@@ -2857,7 +2856,7 @@ const JobsPage = () => {
                       });
                       setIsReassignModalVisible(true);
                     },
-                  }] : []),
+                  },
                   ...(hasEditPermission ? [{
                     key: 'edit',
                      label: 'Edit Job',

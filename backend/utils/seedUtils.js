@@ -46,7 +46,7 @@ const ROLE_INFO = {
   },
   SUPERVISOR: {
     displayName: 'Supervisor',
-    description: 'Assigns/reassigns jobs, comments, and attaches documents without changing status',
+    description: 'Coordinates jobs: updates status, assigns/reassigns, comments, and attaches documents',
     isSystem: true
   },
   REVIEW_OFFICER: {
