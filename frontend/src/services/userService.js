@@ -122,6 +122,21 @@ class UserService {
     }
   }
 
+  async resetUserPassword(userId, newPassword) {
+    console.log('🔷 [UserService] resetUserPassword called');
+    console.log('  - User ID:', userId);
+    console.log('  - New password provided:', newPassword ? 'YES' : 'NO');
+    try {
+      const response = await apiService.put(`/auth/users/${userId}/reset-password`, { newPassword });
+      console.log('✅ [UserService] resetUserPassword response:', response);
+      return response;
+    } catch (error) {
+      console.error('❌ [UserService] resetUserPassword error:', error);
+      console.error('  - Error response:', error.response?.data);
+      throw error;
+    }
+  }
+
   // Change password
   async changePassword(values) {
     console.log('🔷 [UserService] changePassword called');

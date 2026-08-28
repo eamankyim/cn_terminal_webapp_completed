@@ -50,6 +50,7 @@ import {
   EyeOutlined,
   TeamOutlined,
   MailOutlined,
+  LockOutlined,
   // WhatsAppOutlined
 } from '@ant-design/icons';
 
@@ -66,6 +67,9 @@ const SettingsPage = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
+  const [resetPasswordModalVisible, setResetPasswordModalVisible] = useState(false);
+  const [resettingUser, setResettingUser] = useState(null);
+  const [resetPasswordForm] = Form.useForm();
   const [expenseEndorsementEnabled, setExpenseEndorsementEnabled] = useState(false);
   const [expenseEndorsementFromRole, setExpenseEndorsementFromRole] = useState(false);
   const [expenseEndorsementLoading, setExpenseEndorsementLoading] = useState(false);
@@ -194,6 +198,25 @@ const SettingsPage = () => {
         }
       }
     });
+  };
+
+  const handleResetPassword = (user) => {
+    setResettingUser(user);
+    resetPasswordForm.resetFields();
+    setResetPasswordModalVisible(true);
+  };
+
+  const handleResetPasswordSubmit = async (values) => {
+    if (!resettingUser) return;
+    try {
+      await userService.resetUserPassword(resettingUser.id, values.newPassword);
+      message.success(`Password reset successfully for ${resettingUser.name}`);
+      setResetPasswordModalVisible(false);
+      setResettingUser(null);
+      resetPasswordForm.resetFields();
+    } catch (error) {
+      message.error(error.response?.data?.error || 'Failed to reset password');
+    }
   };
 
   const handleProfileUpdate = async (values) => {
@@ -457,6 +480,14 @@ const SettingsPage = () => {
             size="small"
           >
             Delete
+          </Button>
+          <Button 
+            type="text" 
+            icon={<LockOutlined />} 
+            onClick={() => handleResetPassword(record)}
+            size="small"
+          >
+            Reset Password
           </Button>
         </Space>
       ),
@@ -1633,6 +1664,60 @@ const SettingsPage = () => {
           </div>
         )}
       </Drawer>
+
+      {/* Reset Password Modal */}
+      <Modal
+        title={`Reset Password for ${resettingUser?.name || ''}`}
+        open={resetPasswordModalVisible}
+        onCancel={() => {
+          setResetPasswordModalVisible(false);
+          setResettingUser(null);
+          resetPasswordForm.resetFields();
+        }}
+        footer={null}
+        width={500}
+      >
+        <Form
+          form={resetPasswordForm}
+          layout="vertical"
+          onFinish={handleResetPasswordSubmit}
+        >
+          <Form.Item
+            name="newPassword"
+            label="New Password"
+            rules={[
+              { required: true, message: 'Please enter new password' },
+              { min: 8, message: 'Password must be at least 8 characters' },
+              { pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, message: 'Password must contain uppercase, lowercase, and number' }
+            ]}
+          >
+            <Input.Password placeholder="Enter new password" />
+          </Form.Item>
+          <Form.Item
+            name="confirmPassword"
+            label="Confirm New Password"
+            dependencies={['newPassword']}
+            rules={[
+              { required: true, message: 'Please confirm new password' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('newPassword') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Passwords do not match'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="Confirm new password" />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" block>
+              Reset Password
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };
