@@ -482,7 +482,7 @@ const SettingsPage = () => {
             Delete
           </Button>
           <Button 
-            type="text" 
+            type="default" 
             icon={<LockOutlined />} 
             onClick={() => handleResetPassword(record)}
             size="small"
@@ -1388,18 +1388,16 @@ const SettingsPage = () => {
             </Col>
           </Row>
 
-          {!editingUser && (
-            <Form.Item
-              name="password"
-              label="Password"
-              rules={[
-                { required: true, message: 'Please enter password' },
-                { min: 8, message: 'Password must be at least 8 characters' }
-              ]}
-            >
-              <Input.Password placeholder="Enter password" />
-            </Form.Item>
-          )}
+          <Form.Item
+            name="password"
+            label={editingUser ? "New Password (leave blank to keep current)" : "Password"}
+            rules={editingUser ? [] : [
+              { required: true, message: 'Please enter password' },
+              { min: 8, message: 'Password must be at least 8 characters' }
+            ]}
+          >
+            <Input.Password placeholder={editingUser ? "Leave blank to keep current password" : "Enter password"} />
+          </Form.Item>
 
           <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>
             <Space>
