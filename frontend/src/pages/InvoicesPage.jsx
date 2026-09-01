@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import dayjs from 'dayjs';
 import { 
   Card, 
@@ -61,6 +61,7 @@ import { PERMISSIONS } from '../utils/permissions';
 import { calculateVAT, calculateTotalVAT, getVATExplanation } from '../utils/vatCalculator';
 import { getJobStatusColor, getInvoiceStatusColor } from '../utils/statusUtils';
 import ResponsiveTable from '../components/common/ResponsiveTable';
+import { fetchAllPages } from '../utils/fetchAllPages';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -168,6 +169,8 @@ const PaymentForm = React.forwardRef(({ invoice, onSuccess }, ref) => {
 const InvoicesPage = () => {
   const { hasPermission } = useAuth();
   const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState(null);
+  const [fromDate, setFromDate] = useState(null);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
@@ -202,9 +205,12 @@ const InvoicesPage = () => {
       setLoading(true);
       setError(null);
 
-      const response = await invoiceService.getInvoices({ limit: 100 });
-
-      setInvoices(response.invoices || []);
+      const all = await fetchAllPages(
+        (page, limit) => invoiceService.getInvoices({ limit, page }),
+        'invoices',
+        100
+      );
+      setInvoices(all);
     } catch (error) {
 
       // Check if it's an authentication error
@@ -227,9 +233,11 @@ const InvoicesPage = () => {
       setJobsLoading(true);
 
       // Fetch all jobs
-      const response = await jobService.getJobs({ limit: 100 });
-
-      const allJobsData = response.jobs || [];
+      const allJobsData = await fetchAllPages(
+        (page, limit) => jobService.getJobs({ limit, page }),
+        'jobs',
+        100
+      );
       
       // Set all jobs for display in table (status comes from database)
       setAllJobs(allJobsData);
@@ -359,19 +367,27 @@ const InvoicesPage = () => {
 
   const handleSearch = (value) => {
     setSearchText(value);
-    // In a real implementation, this would trigger an API call with search parameters
-    // For now, we'll do client-side filtering
-    if (value) {
-      const filtered = invoices.filter(invoice =>
-        invoice.invoiceNumber?.toLowerCase().includes(value.toLowerCase()) ||
-        invoice.customer?.name?.toLowerCase().includes(value.toLowerCase()) ||
-        invoice.customer?.email?.toLowerCase().includes(value.toLowerCase())
-      );
-      setInvoices(filtered);
-    } else {
-      loadInvoices(); // Reload all invoices
-    }
   };
+
+  const displayedInvoices = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+    return invoices.filter((invoice) => {
+      if (query) {
+        const haystack = [
+          invoice.invoiceNumber,
+          invoice.customer?.name,
+          invoice.customer?.email,
+          invoice.customer?.phone,
+          invoice.job?.trackingId,
+          invoice.job?.containerNumber
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+      if (statusFilter && invoice.status !== statusFilter) return false;
+      if (fromDate && new Date(invoice.issueDate) < dayjs(fromDate).toDate()) return false;
+      return true;
+    });
+  }, [invoices, searchText, statusFilter, fromDate]);
 
   const handleViewInvoice = async (invoice) => {
     // Open drawer immediately with basic invoice data
@@ -968,7 +984,7 @@ const InvoicesPage = () => {
           <Card>
             <Statistic
               title="Total Invoices"
-              value={invoices.length}
+              value={displayedInvoices.length}
               valueStyle={{ color: '#2FA2EE' }}
               prefix={<FileTextOutlined />}
             />
@@ -978,7 +994,7 @@ const InvoicesPage = () => {
           <Card>
             <Statistic
               title="Paid Invoices"
-              value={invoices.filter(i => i.status === 'PAID').length}
+              value={displayedInvoices.filter(i => i.status === 'PAID').length}
               valueStyle={{ color: '#52c41a' }}
               prefix={<DollarOutlined />}
             />
@@ -988,7 +1004,7 @@ const InvoicesPage = () => {
           <Card>
             <Statistic
               title="Pending Payment"
-              value={invoices.filter(i => i.status === 'PENDING').length}
+              value={displayedInvoices.filter(i => i.status === 'PENDING' || i.status === 'PARTIALLY_PAID').length}
               valueStyle={{ color: '#fa8c16' }}
               prefix={<ClockCircleOutlined />}
             />
@@ -998,7 +1014,7 @@ const InvoicesPage = () => {
           <Card>
             <Statistic
               title="Overdue"
-              value={invoices.filter(i => {
+              value={displayedInvoices.filter(i => {
                 if (i.status === 'PAID') return false;
                 const dueDate = new Date(i.dueDate);
                 const today = new Date();
@@ -1040,32 +1056,21 @@ const InvoicesPage = () => {
               placeholder="Status"
               style={{ width: '100%' }}
               allowClear
-              onChange={(value) => {
-                if (value) {
-                  setInvoices(invoices.filter(i => i.status === value));
-                } else {
-                  loadInvoices();
-                }
-              }}
+              value={statusFilter}
+              onChange={(value) => setStatusFilter(value || null)}
             >
-              <Option value="paid">Paid</Option>
-              <Option value="pending">Pending</Option>
-              <Option value="overdue">Overdue</Option>
-              <Option value="draft">Draft</Option>
+              <Option value="PAID">Paid</Option>
+              <Option value="PENDING">Pending</Option>
+              <Option value="PARTIALLY_PAID">Partially paid</Option>
+              <Option value="OVERDUE">Overdue</Option>
             </Select>
           </Col>
           <Col xs={24} md={4}>
             <DatePicker
               placeholder="From Date"
               style={{ width: '100%' }}
-              onChange={(date) => {
-                if (date) {
-                  const filtered = invoices.filter(i => new Date(i.issueDate) >= dayjs(date).toDate());
-                  setInvoices(filtered);
-                } else {
-                  loadInvoices();
-                }
-              }}
+              value={fromDate}
+              onChange={(date) => setFromDate(date)}
             />
           </Col>
         </Row>
@@ -1088,7 +1093,7 @@ const InvoicesPage = () => {
         )}
         <ResponsiveTable
           columns={columns}
-          dataSource={invoices}
+          dataSource={displayedInvoices}
           loading={loading}
           rowKey="id"
           pagination={{

@@ -3,6 +3,12 @@ const { prisma } = require('../config/database');
 const { authenticateToken, requirePermission } = require('../middleware/auth');
 const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 const { recordInvoicePayment, OPEN_INVOICE_STATUSES } = require('../utils/invoicePayments');
+const {
+  normalizeOptional,
+  findCustomerUniquenessConflicts,
+  uniquenessConflictResponse,
+  prismaUniqueConflictResponse
+} = require('../utils/customerUniqueness');
 
 const router = express.Router();
 
@@ -538,27 +544,43 @@ router.post('/cash-in', authenticateToken, requirePermission(UI_PERMISSIONS.CREA
       const name = newCustomer.name?.trim();
       const phone = newCustomer.phone?.trim();
       const address = newCustomer.address?.trim() || 'N/A';
+      const email = normalizeOptional(newCustomer.email)?.toLowerCase() ?? null;
+      const tin = normalizeOptional(newCustomer.tin) ?? null;
       if (!name || !phone) {
         return res.status(400).json({ error: 'New customer name and phone are required' });
       }
-      const customer = await prisma.customer.create({
-        data: {
-          name,
-          phone,
-          address,
-          email: newCustomer.email?.trim() || null,
-          customerType: newCustomer.customerType || 'INDIVIDUAL',
-          consignments: {
-            create: {
-              consigneeName: name,
-              consigneePhone: phone,
-              consigneeAddress: address,
-              date: new Date()
+      const conflicts = await findCustomerUniquenessConflicts({ email, phone, tin });
+      const conflictBody = uniquenessConflictResponse(conflicts);
+      if (conflictBody) {
+        return res.status(400).json(conflictBody);
+      }
+      try {
+        const customer = await prisma.customer.create({
+          data: {
+            name,
+            phone,
+            address,
+            email,
+            tin,
+            customerType: newCustomer.customerType || 'INDIVIDUAL',
+            consignments: {
+              create: {
+                consigneeName: name,
+                consigneePhone: phone,
+                consigneeAddress: address,
+                date: new Date()
+              }
             }
           }
+        });
+        resolvedCustomerId = customer.id;
+      } catch (createError) {
+        const uniqueConflict = prismaUniqueConflictResponse(createError);
+        if (uniqueConflict) {
+          return res.status(400).json(uniqueConflict);
         }
-      });
-      resolvedCustomerId = customer.id;
+        throw createError;
+      }
     }
 
     if (!resolvedCustomerId) {

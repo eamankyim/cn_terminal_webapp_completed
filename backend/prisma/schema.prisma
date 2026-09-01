@@ -49,7 +49,7 @@ model Customer {
   id            String         @id @default(cuid())
   name          String
   email         String?        @unique
-  phone         String
+  phone         String         @unique
   address       String
   city          String?
   country       String         @default("Ghana")
@@ -59,7 +59,7 @@ model Customer {
   updatedAt     DateTime       @updatedAt
   contactPerson String?
   ghanaCard     String?
-  tin           String?
+  tin           String?        @unique
   consignments  Consignment[]
   enquiries     Enquiry[]
   invoices      Invoice[]

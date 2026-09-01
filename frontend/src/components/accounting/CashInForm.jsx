@@ -16,6 +16,7 @@ import { ArrowDownOutlined } from '@ant-design/icons';
 import apiService from '../../services/api';
 import cashflowService from '../../services/cashflowService';
 import payoutService from '../../services/payoutService';
+import CustomerSelector from '../common/CustomerSelector';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -30,10 +31,7 @@ const invoicePaidTotal = (invoice) =>
 const CashInForm = ({ visible, onCancel, onSuccess }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [savingCustomer, setSavingCustomer] = useState(false);
-  const [customers, setCustomers] = useState([]);
   const [invoices, setInvoices] = useState([]);
-  const [showNewCustomer, setShowNewCustomer] = useState(false);
   const customerId = Form.useWatch('customerId', form);
   const invoiceId = Form.useWatch('invoiceId', form);
   const paymentType = Form.useWatch('paymentType', form);
@@ -41,23 +39,12 @@ const CashInForm = ({ visible, onCancel, onSuccess }) => {
   useEffect(() => {
     if (!visible) return;
     form.resetFields();
-    setShowNewCustomer(false);
     setInvoices([]);
     form.setFieldsValue({
       paymentType: 'FULL',
       paymentMethod: 'MOBILE_MONEY'
     });
-    loadCustomers();
   }, [visible, form]);
-
-  const loadCustomers = async () => {
-    try {
-      const response = await apiService.getCustomersForSelector();
-      setCustomers(response.customers || []);
-    } catch (error) {
-      setCustomers([]);
-    }
-  };
 
   useEffect(() => {
     const loadInvoices = async () => {
@@ -98,34 +85,6 @@ const CashInForm = ({ visible, onCancel, onSuccess }) => {
       form.setFieldsValue({ amount: Number(remaining.toFixed(2)) });
     }
   }, [selectedInvoice, paymentType, remaining, form]);
-
-  const handleCreateCustomer = async () => {
-    try {
-      const name = form.getFieldValue('newCustomerName')?.trim();
-      const phone = form.getFieldValue('newCustomerPhone')?.trim();
-      const address = form.getFieldValue('newCustomerAddress')?.trim() || 'N/A';
-      if (!name || !phone) {
-        message.error('Enter customer name and phone');
-        return;
-      }
-      setSavingCustomer(true);
-      const created = await apiService.createCustomer({
-        name,
-        phone,
-        address,
-        customerType: 'INDIVIDUAL'
-      });
-      const customer = created.customer || created;
-      await loadCustomers();
-      setShowNewCustomer(false);
-      form.setFieldsValue({ customerId: customer.id });
-      message.success('Customer created');
-    } catch (error) {
-      message.error(error.response?.data?.error || error.message || 'Failed to create customer');
-    } finally {
-      setSavingCustomer(false);
-    }
-  };
 
   const handleSubmit = async (values) => {
     try {
@@ -179,41 +138,8 @@ const CashInForm = ({ visible, onCancel, onSuccess }) => {
           label="Customer"
           rules={[{ required: true, message: 'Select or create a customer' }]}
         >
-          <Select
-            showSearch
-            placeholder="Select customer"
-            optionFilterProp="children"
-            filterOption={(input, option) =>
-              (option?.children ?? '').toLowerCase().includes(input.toLowerCase())
-            }
-          >
-            {customers.map((customer) => (
-              <Option key={customer.id} value={customer.id}>
-                {customer.email ? `${customer.name} (${customer.email})` : customer.name}
-              </Option>
-            ))}
-          </Select>
+          <CustomerSelector placeholder="Select or search customer" allowCreate />
         </Form.Item>
-        <Button type="link" style={{ padding: 0, marginBottom: 12 }} onClick={() => setShowNewCustomer(!showNewCustomer)}>
-          {showNewCustomer ? 'Hide new customer' : 'Create customer'}
-        </Button>
-
-        {showNewCustomer && (
-          <div style={{ background: '#fafafa', padding: 12, borderRadius: 8, marginBottom: 16 }}>
-            <Form.Item name="newCustomerName" label="Customer name">
-              <Input placeholder="Customer name" />
-            </Form.Item>
-            <Form.Item name="newCustomerPhone" label="Phone">
-              <Input placeholder="Phone number" />
-            </Form.Item>
-            <Form.Item name="newCustomerAddress" label="Address">
-              <Input placeholder="Address (optional)" />
-            </Form.Item>
-            <Button onClick={handleCreateCustomer} loading={savingCustomer}>
-              Save customer
-            </Button>
-          </div>
-        )}
 
         <Form.Item
           name="invoiceId"
