@@ -15,17 +15,31 @@ const FIELD_LABELS = {
 
 async function findCustomerUniquenessConflicts({ email, phone, tin, excludeId }) {
   const checks = [];
-  if (email) checks.push({ field: 'email', value: email });
-  if (phone) checks.push({ field: 'phone', value: phone });
-  if (tin) checks.push({ field: 'tin', value: tin });
+  const normalizedEmail = normalizeOptional(email);
+  const normalizedPhone = normalizeOptional(phone);
+  const normalizedTin = normalizeOptional(tin);
+
+  if (normalizedEmail) {
+    checks.push({ field: 'email', value: normalizedEmail, insensitive: true });
+  }
+  if (normalizedPhone) {
+    checks.push({ field: 'phone', value: normalizedPhone, insensitive: false });
+  }
+  if (normalizedTin) {
+    checks.push({ field: 'tin', value: normalizedTin, insensitive: true });
+  }
 
   const conflicts = [];
   await Promise.all(
-    checks.map(async ({ field, value }) => {
+    checks.map(async ({ field, value, insensitive }) => {
       const existing = await prisma.customer.findFirst({
         where: {
-          [field]: value,
-          ...(excludeId ? { id: { not: excludeId } } : {})
+          AND: [
+            insensitive
+              ? { [field]: { equals: value, mode: 'insensitive' } }
+              : { [field]: value },
+            ...(excludeId ? [{ id: { not: excludeId } }] : [])
+          ]
         },
         select: { id: true }
       });

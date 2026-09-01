@@ -221,14 +221,28 @@ const ClientsPage = () => {
 
   const handleEditClient = (client) => {
     setEditingClient(client);
-    form.setFieldsValue(client);
+    form.setFieldsValue({
+      name: client.name,
+      contactPerson: client.contactPerson || client.name,
+      email: client.email || undefined,
+      phone: client.phone,
+      address: client.address,
+      city: client.city,
+      tin: client.tin || undefined,
+      ghanaCard: client.ghanaCard || undefined,
+      customerType: client.customerType,
+    });
     setIsCreateModalVisible(true);
   };
 
-  const handleDeleteClient = async (clientId) => {
+  const handleDeleteClient = (client) => {
+    const clientId = typeof client === 'string' ? client : client?.id;
+    const clientName = typeof client === 'object' ? client?.name : '';
     Modal.confirm({
       title: 'Delete Client',
-      content: 'Are you sure you want to delete this client? This action cannot be undone.',
+      content: clientName
+        ? `Are you sure you want to delete ${clientName}? This action cannot be undone.`
+        : 'Are you sure you want to delete this client? This action cannot be undone.',
       okText: 'Delete',
       okType: 'danger',
       cancelText: 'Cancel',
@@ -236,8 +250,10 @@ const ClientsPage = () => {
         try {
           await deleteCustomer(clientId);
           message.success('Client deleted successfully');
+          setIsModalVisible(false);
+          setSelectedClient(null);
         } catch (error) {
-          message.error('Failed to delete client');
+          message.error(customerConflictMessage(error));
         }
       }
     });
@@ -246,7 +262,10 @@ const ClientsPage = () => {
   const handleCreateClient = async (values) => {
     try {
       if (editingClient) {
-        await updateCustomer(editingClient.id, values);
+        const updated = await updateCustomer(editingClient.id, values);
+        if (selectedClient?.id === editingClient.id) {
+          setSelectedClient(updated);
+        }
         message.success('Client updated successfully');
       } else {
         await addCustomer(values);
@@ -326,14 +345,44 @@ const ClientsPage = () => {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
-        <Button 
-          type="default" 
-          icon={<EyeOutlined />} 
-          onClick={() => handleViewClient(record)}
-          size="small"
-        >
-          View
-        </Button>
+        <Space size="small" onClick={(e) => e.stopPropagation()}>
+          <Button 
+            type="default" 
+            icon={<EyeOutlined />} 
+            onClick={(e) => {
+              e.stopPropagation();
+              handleViewClient(record);
+            }}
+            size="small"
+          >
+            View
+          </Button>
+          {hasPermission(PERMISSIONS.CUSTOMER_EDIT) && (
+            <Button
+              icon={<EditOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEditClient(record);
+              }}
+              size="small"
+            >
+              Edit
+            </Button>
+          )}
+          {hasPermission(PERMISSIONS.CUSTOMER_DELETE) && (
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteClient(record);
+              }}
+              size="small"
+            >
+              Delete
+            </Button>
+          )}
+        </Space>
       ),
     },
   ];
@@ -493,8 +542,7 @@ const ClientsPage = () => {
                          label: 'Delete Client',
                          danger: true,
                          onClick: () => {
-                           setIsModalVisible(false);
-                           handleDeleteClient(selectedClient.id);
+                           handleDeleteClient(selectedClient);
                          }
                        }] : [])
                      ]
@@ -737,7 +785,7 @@ const ClientsPage = () => {
               <Form.Item
                 name="contactPerson"
                 label="Contact Person"
-                rules={[{ required: true, message: 'Please enter contact person' }]}
+                rules={[{ required: false, message: 'Please enter contact person' }]}
               >
                 <Input placeholder="Enter contact person name" />
               </Form.Item>
@@ -821,7 +869,7 @@ const ClientsPage = () => {
               <Form.Item
                 name="city"
                 label="City"
-                rules={[{ required: true, message: 'Please enter city' }]}
+                rules={[{ required: false, message: 'Please enter city' }]}
               >
                 <Input placeholder="Enter city" />
               </Form.Item>
