@@ -35,6 +35,8 @@ export function unlockAssignmentAlarm() {
     // ignore
   }
 }
+
+export function playAssignmentAlarm() {
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
