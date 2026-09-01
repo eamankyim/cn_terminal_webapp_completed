@@ -8,6 +8,7 @@ import { useFonts, BebasNeue_400Regular } from '@expo-google-fonts/bebas-neue';
 import { AuthProvider } from './src/context/AuthContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { RootNavigator } from './src/navigation/AuthNavigator';
+import { JobAssignmentAlertListener } from './src/components/JobAssignmentAlertListener';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,6 +35,7 @@ export default function App() {
         <AuthProvider>
           <QueryClientProvider client={queryClient}>
             <StatusBar style="dark" />
+            <JobAssignmentAlertListener />
             <NavigationContainer>
               <RootNavigator />
             </NavigationContainer>

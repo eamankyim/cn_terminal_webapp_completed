@@ -236,8 +236,15 @@ export const formatEtaDate = (eta) => {
   return `${etaDay.getDate()} ${ETA_MONTHS[etaDay.getMonth()]} ${etaDay.getFullYear()}`;
 };
 
+const ETA_TERMINAL_STATUSES = ['CLEARED', 'DELIVERED'];
+
+export const isEtaTerminalStatus = (status) =>
+  Boolean(status && ETA_TERMINAL_STATUSES.includes(status));
+
 /** 'critical' (≤3 days / overdue), 'warning' (≤7), 'normal', or 'none' */
-export const getEtaUrgency = (eta) => {
+export const getEtaUrgency = (eta, status) => {
+  // Cleared/delivered jobs no longer need ETA attention
+  if (isEtaTerminalStatus(status)) return 'none';
   const days = getDaysUntilEta(eta);
   if (days == null) return 'none';
   if (days <= 3) return 'critical';
@@ -246,8 +253,9 @@ export const getEtaUrgency = (eta) => {
 };
 
 /** Ant Design Tag color for ETA urgency */
-export const getEtaAntColor = (eta) => {
-  const urgency = getEtaUrgency(eta);
+export const getEtaAntColor = (eta, status) => {
+  if (isEtaTerminalStatus(status)) return 'green';
+  const urgency = getEtaUrgency(eta, status);
   if (urgency === 'critical') return 'red';
   if (urgency === 'warning') return 'orange';
   return 'default';
@@ -268,19 +276,19 @@ export const ETA_FILTER_OPTIONS = [
   { value: ETA_FILTER.DUE_7, label: 'Due within 7 days' },
 ];
 
-const ETA_TERMINAL_STATUSES = ['CLEARED', 'DELIVERED'];
-
 export const isValidEtaFilter = (value) =>
   Object.values(ETA_FILTER).includes(value);
 
 /**
  * Whether a job matches the selected ETA urgency filter.
- * Active filters exclude missing ETA and CLEARED/DELIVERED.
+ * Missing ETA is excluded when a date window is active.
+ * CLEARED/DELIVERED always match — they are done and must stay visible
+ * in status counts and when filtering by those statuses.
  */
 export const jobMatchesEtaFilter = (job, filter) => {
   if (!filter || filter === ETA_FILTER.ALL) return true;
+  if (isEtaTerminalStatus(job?.status)) return true;
   if (!job?.eta) return false;
-  if (ETA_TERMINAL_STATUSES.includes(job.status)) return false;
 
   const days = getDaysUntilEta(job.eta);
   if (days == null) return false;

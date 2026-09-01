@@ -833,6 +833,18 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
     // Emit socket event for real-time update
     SocketService.emitJobUpdated(updatedJob);
 
+    if (assignedToId && assignedToId !== existingJob.assignedToId) {
+      try {
+        await RealtimeNotificationService.notifyJobAssignmentRealtime(
+          id,
+          assignedToId,
+          req.user.id
+        );
+      } catch (notifyError) {
+        console.error('Assignment notification failed:', notifyError);
+      }
+    }
+
     res.json({
       message: 'Job updated successfully',
       job: updatedJob
@@ -1128,6 +1140,18 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
     } catch (notificationError) {
 
       // Don't fail the status update if notification fails
+    }
+
+    if (assignedToId && assignedToId !== existingJob.assignedToId) {
+      try {
+        await RealtimeNotificationService.notifyJobAssignmentRealtime(
+          id,
+          assignedToId,
+          req.user.id
+        );
+      } catch (notifyError) {
+        console.error('Assignment notification failed:', notifyError);
+      }
     }
 
     // Send SMS to customer if job status changed and SMS is enabled
