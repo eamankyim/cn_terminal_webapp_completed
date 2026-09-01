@@ -163,6 +163,13 @@ router.get('/', authenticateToken, async (req, res) => {
       prisma.customer.findMany({
         where: searchCondition,
         include: {
+          consignments: {
+            select: {
+              id: true,
+              consigneeName: true
+            },
+            orderBy: { createdAt: 'desc' }
+          },
           _count: {
             select: {
               consignments: true,

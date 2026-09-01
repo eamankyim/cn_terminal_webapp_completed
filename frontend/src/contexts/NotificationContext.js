@@ -1,6 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { io } from 'socket.io-client';
+import { notification as antdNotification } from 'antd';
 import notificationService from '../services/notificationService';
+import {
+  playAssignmentAlarm,
+  requestAlarmNotificationPermission,
+  showAssignmentBrowserNotification,
+  isJobAssignmentNotification,
+  unlockAssignmentAlarm,
+} from '../utils/assignmentAlarm';
 
 const NotificationContext = createContext();
 
@@ -145,12 +153,17 @@ export const NotificationProvider = ({ children }) => {
       transports: ['websocket', 'polling']
     });
 
+    const unlockAudio = () => unlockAssignmentAlarm();
+    window.addEventListener('click', unlockAudio, { once: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
+
     newSocket.on('connect', () => {
       setIsConnected(true);
       const user = JSON.parse(localStorage.getItem('cn_terminal_user') || '{}');
       if (user.id) {
         newSocket.emit('authenticate', user.id);
       }
+      requestAlarmNotificationPermission();
       // Re-sync authoritative count on reconnect
       loadUnreadCount();
     });
@@ -164,12 +177,26 @@ export const NotificationProvider = ({ children }) => {
     });
 
     // List updates only — unread badge comes from unread_count_update
-    newSocket.on('new_notification', (notification) => {
-      if (!notification?.id) return;
+    newSocket.on('new_notification', (incoming) => {
+      if (!incoming?.id) return;
       setNotifications((prev) => {
-        if (prev.some((n) => n.id === notification.id)) return prev;
-        return [notification, ...prev];
+        if (prev.some((n) => n.id === incoming.id)) return prev;
+        return [incoming, ...prev];
       });
+
+      if (isJobAssignmentNotification(incoming)) {
+        playAssignmentAlarm();
+        antdNotification.warning({
+          message: incoming.title || 'Job assigned to you',
+          description: incoming.message,
+          duration: 8,
+          placement: 'topRight',
+        });
+        showAssignmentBrowserNotification(
+          incoming.title || 'Job assigned to you',
+          incoming.message
+        );
+      }
     });
 
     newSocket.on('unread_count_update', (data) => {
@@ -212,6 +239,8 @@ export const NotificationProvider = ({ children }) => {
     setSocket(newSocket);
 
     return () => {
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
       newSocket.close();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- connect once per mount

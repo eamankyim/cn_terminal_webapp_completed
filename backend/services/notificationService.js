@@ -139,9 +139,13 @@ class NotificationService {
   }
 
   /**
-   * Create job assignment notification (notifies all users)
+   * Notify the assignee that a job was assigned to them (with alarm on the client).
+   * Skips self-assignment so creating/reassigning to yourself does not ring.
    */
   static async notifyJobAssignment(jobId, assignedToUserId, assignedByUserId) {
+    if (!assignedToUserId) return;
+    if (assignedToUserId === assignedByUserId) return;
+
     const job = await prisma.job.findUnique({
       where: { id: jobId },
       include: {
@@ -152,16 +156,18 @@ class NotificationService {
 
     if (!job) return;
 
-    // Create notifications for ALL users
-    return this.createNotificationForAllUsers({
-      title: 'New Job Assignment',
-      message: `Job ${job.trackingId} for ${job.customer.name} has been assigned to ${job.assignedTo?.name || 'a team member'}`,
-      type: 'INFO',
+    return this.createNotification({
+      title: 'Job assigned to you',
+      message: `Job ${job.trackingId} for ${job.customer?.name || 'a client'} has been assigned to you`,
+      type: 'URGENT',
       category: 'JOB_ASSIGNMENT',
-      jobId: jobId,
+      userId: assignedToUserId,
+      jobId,
       metadata: {
+        playAlarm: true,
+        jobId,
         jobTrackingId: job.trackingId,
-        customerName: job.customer.name,
+        customerName: job.customer?.name,
         assignedTo: assignedToUserId,
         assignedBy: assignedByUserId
       }

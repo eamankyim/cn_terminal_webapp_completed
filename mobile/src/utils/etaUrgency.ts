@@ -53,7 +53,14 @@ export function formatEtaDate(eta?: string | null): string {
 /** 'critical' (≤3 days / overdue), 'warning' (≤7), 'normal', or 'none' */
 export type EtaUrgency = 'critical' | 'warning' | 'normal' | 'none';
 
-export function getEtaUrgency(eta?: string | null): EtaUrgency {
+const ETA_TERMINAL_STATUSES = ['CLEARED', 'DELIVERED'];
+
+function isEtaTerminalStatus(status?: string | null): boolean {
+  return Boolean(status && ETA_TERMINAL_STATUSES.includes(status));
+}
+
+export function getEtaUrgency(eta?: string | null, status?: string | null): EtaUrgency {
+  if (isEtaTerminalStatus(status)) return 'none';
   const days = getDaysUntilEta(eta);
   if (days == null) return 'none';
   if (days <= 3) return 'critical';
@@ -62,8 +69,9 @@ export function getEtaUrgency(eta?: string | null): EtaUrgency {
 }
 
 /** Text color for ETA urgency (mobile) */
-export function getEtaTextColor(eta?: string | null): string {
-  const urgency = getEtaUrgency(eta);
+export function getEtaTextColor(eta?: string | null, status?: string | null): string {
+  if (isEtaTerminalStatus(status)) return '#52c41a';
+  const urgency = getEtaUrgency(eta, status);
   if (urgency === 'critical') return '#CF1322';
   if (urgency === 'warning') return '#D46B08';
   return '#6B7280';
@@ -85,8 +93,6 @@ export const ETA_FILTER_OPTIONS: Array<{ value: EtaFilterValue; label: string }>
   { value: ETA_FILTER.DUE_7, label: 'Due within 7 days' },
 ];
 
-const ETA_TERMINAL_STATUSES = ['CLEARED', 'DELIVERED'];
-
 export function isValidEtaFilter(value: unknown): value is EtaFilterValue {
   return (
     typeof value === 'string' &&
@@ -99,8 +105,8 @@ export function jobMatchesEtaFilter(
   filter?: string | null,
 ): boolean {
   if (!filter || filter === ETA_FILTER.ALL) return true;
+  if (job?.status && ETA_TERMINAL_STATUSES.includes(job.status)) return true;
   if (!job?.eta) return false;
-  if (job.status && ETA_TERMINAL_STATUSES.includes(job.status)) return false;
 
   const days = getDaysUntilEta(job.eta);
   if (days == null) return false;

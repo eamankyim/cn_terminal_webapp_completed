@@ -183,8 +183,13 @@ const matchesJobListFilters = (job, { searchQuery, statusFilter, etaFilter, assi
 
   if (assigneeFilter === 'UNASSIGNED') {
     if (job.assignedToId) return false;
-  } else if (assigneeFilter && job.assignedToId !== assigneeFilter) {
+  } else if (assigneeFilter && assigneeFilter !== 'ALL' && job.assignedToId !== assigneeFilter) {
     return false;
+  }
+
+  // Explicit Cleared/Delivered status filter must not be hidden by ETA urgency
+  if (statusFilter === 'CLEARED' || statusFilter === 'DELIVERED') {
+    return true;
   }
 
   return jobMatchesEtaFilter(job, etaFilter);
@@ -336,7 +341,7 @@ const JobsPage = () => {
   const hasActiveFilters = !!(
     (searchQuery && searchQuery.trim()) ||
     statusFilter ||
-    assigneeFilter ||
+    (assigneeFilter && assigneeFilter !== 'ALL') ||
     (etaFilter && etaFilter !== ETA_FILTER.ALL)
   );
 
@@ -812,14 +817,14 @@ const JobsPage = () => {
       title: 'ETA',
       dataIndex: 'eta',
       key: 'eta',
-      render: (eta) => {
+      render: (eta, record) => {
         if (!eta) return <Text type="secondary">-</Text>;
         const label = formatEtaDate(eta);
-        const urgency = getEtaUrgency(eta);
+        const urgency = getEtaUrgency(eta, record.status);
         if (urgency === 'normal' || urgency === 'none') {
           return label;
         }
-        return <Tag color={getEtaAntColor(eta)}>{label}</Tag>;
+        return <Tag color={getEtaAntColor(eta, record.status)}>{label}</Tag>;
       }
     },
     {
@@ -2033,13 +2038,14 @@ const JobsPage = () => {
                     </Select>
                     <Select
                       placeholder="Filter by assignee"
-                      allowClear
+                      allowClear={!!assigneeFilter}
                       showSearch
                       optionFilterProp="label"
-                      value={assigneeFilter}
-                      onChange={(value) => setAssigneeFilter(value)}
+                      value={assigneeFilter || 'ALL'}
+                      onChange={(value) => setAssigneeFilter(!value || value === 'ALL' ? null : value)}
                       style={{ width: '220px' }}
                     >
+                      <Option value="ALL" label="All assignees">All assignees</Option>
                       <Option value="UNASSIGNED" label="Unassigned">Unassigned</Option>
                       {staffMembers.map((member) => (
                         <Option key={member.id} value={member.id} label={member.name}>
@@ -3222,7 +3228,7 @@ const JobsPage = () => {
                   <div style={{ width: '140px', fontWeight: 'bold' }}>ETA:</div>
                   <div>
                     {selectedJob.eta ? (
-                      <Tag color={getEtaAntColor(selectedJob.eta)}>
+                      <Tag color={getEtaAntColor(selectedJob.eta, selectedJob.status)}>
                         {formatEtaDate(selectedJob.eta)}
                       </Tag>
                     ) : (

@@ -1,6 +1,7 @@
 /**
  * Prisma where fragments for ETA urgency filters.
  * Aligned with frontend ETA color windows (≤3 / ≤7 days).
+ * CLEARED/DELIVERED always remain visible (they match any ETA filter).
  */
 
 const ETA_FILTER = {
@@ -10,13 +11,29 @@ const ETA_FILTER = {
   DUE_7: 'DUE_7',
 };
 
+const ETA_TERMINAL_STATUSES = ['CLEARED', 'DELIVERED'];
+
 function startOfLocalDay(date = new Date()) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
+function isTerminalStatusConstraint(statusWhere) {
+  if (!statusWhere) return false;
+  if (typeof statusWhere === 'string') {
+    return ETA_TERMINAL_STATUSES.includes(statusWhere);
+  }
+  if (statusWhere.equals && ETA_TERMINAL_STATUSES.includes(statusWhere.equals)) {
+    return true;
+  }
+  if (Array.isArray(statusWhere.in) && statusWhere.in.length > 0) {
+    return statusWhere.in.every((status) => ETA_TERMINAL_STATUSES.includes(status));
+  }
+  return false;
+}
+
 /**
  * @param {string|undefined} etaFilter
- * @returns {{ eta: object, status: object } | null}
+ * @returns {{ eta: object } | null}
  */
 function buildEtaFilterConditions(etaFilter) {
   if (!etaFilter || etaFilter === ETA_FILTER.ALL) {
@@ -24,12 +41,10 @@ function buildEtaFilterConditions(etaFilter) {
   }
 
   const startOfToday = startOfLocalDay();
-  const terminalStatus = { notIn: ['CLEARED', 'DELIVERED'] };
 
   if (etaFilter === ETA_FILTER.OVERDUE) {
     return {
       eta: { not: null, lt: startOfToday },
-      status: terminalStatus,
     };
   }
 
@@ -40,7 +55,6 @@ function buildEtaFilterConditions(etaFilter) {
     endInclusive.setHours(23, 59, 59, 999);
     return {
       eta: { not: null, lte: endInclusive },
-      status: terminalStatus,
     };
   }
 
@@ -54,16 +68,17 @@ function applyEtaFilterToWhere(where, etaFilter) {
   const conditions = buildEtaFilterConditions(etaFilter);
   if (!conditions) return where;
 
-  const extra = [{ eta: conditions.eta }];
-
-  if (where.status) {
-    // Keep caller status and also require non-terminal (AND both).
-    const existingStatus = where.status;
-    delete where.status;
-    extra.push({ status: existingStatus }, { status: conditions.status });
-  } else {
-    extra.push({ status: conditions.status });
+  // Selecting Cleared/Delivered must show those jobs regardless of ETA
+  if (isTerminalStatusConstraint(where.status)) {
+    return where;
   }
+
+  const extra = [{
+    OR: [
+      { eta: conditions.eta },
+      { status: { in: ETA_TERMINAL_STATUSES } },
+    ],
+  }];
 
   if (where.AND) {
     const existingAnd = Array.isArray(where.AND) ? where.AND : [where.AND];

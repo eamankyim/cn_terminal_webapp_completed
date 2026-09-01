@@ -140,8 +140,8 @@ export const JobDetailContent: React.FC<JobDetailContentProps> = ({
       label: 'ETA',
       value: formatEtaDate(job.eta) || '—',
       valueColor:
-        getEtaUrgency(job.eta) === 'critical' || getEtaUrgency(job.eta) === 'warning'
-          ? getEtaTextColor(job.eta)
+        getEtaUrgency(job.eta, job.status) === 'critical' || getEtaUrgency(job.eta, job.status) === 'warning'
+          ? getEtaTextColor(job.eta, job.status)
           : undefined,
     },
   ];

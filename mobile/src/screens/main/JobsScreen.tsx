@@ -495,7 +495,7 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
                 {item.customer?.name ?? 'Unknown client'}
               </Text>
               <Text className="text-sm text-gray-500 mt-1.5">
-                <Text style={{ color: getEtaTextColor(item.eta) }}>
+                <Text style={{ color: getEtaTextColor(item.eta, item.status) }}>
                   ETA {formatJobDate(item.eta)}
                 </Text>
                 {' · '}

@@ -315,6 +315,29 @@ const ClientsPage = () => {
       ),
     },
     {
+      title: 'Consignee',
+      key: 'consignee',
+      render: (_, record) => {
+        const names = (record.consignments || [])
+          .map((c) => c.consigneeName)
+          .filter(Boolean);
+        if (names.length === 0) {
+          return <Text type="secondary">—</Text>;
+        }
+        const extra = names.length - 1;
+        return (
+          <div>
+            <div>{names[0]}</div>
+            {extra > 0 && (
+              <div style={{ fontSize: '12px', color: '#666' }}>
+                +{extra} more
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       title: 'Status',
       key: 'status',
       render: (_, record) => (
@@ -345,44 +368,17 @@ const ClientsPage = () => {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
-        <Space size="small" onClick={(e) => e.stopPropagation()}>
-          <Button 
-            type="default" 
-            icon={<EyeOutlined />} 
-            onClick={(e) => {
-              e.stopPropagation();
-              handleViewClient(record);
-            }}
-            size="small"
-          >
-            View
-          </Button>
-          {hasPermission(PERMISSIONS.CUSTOMER_EDIT) && (
-            <Button
-              icon={<EditOutlined />}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleEditClient(record);
-              }}
-              size="small"
-            >
-              Edit
-            </Button>
-          )}
-          {hasPermission(PERMISSIONS.CUSTOMER_DELETE) && (
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDeleteClient(record);
-              }}
-              size="small"
-            >
-              Delete
-            </Button>
-          )}
-        </Space>
+        <Button 
+          type="default" 
+          icon={<EyeOutlined />} 
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewClient(record);
+          }}
+          size="small"
+        >
+          View
+        </Button>
       ),
     },
   ];
@@ -500,7 +496,7 @@ const ClientsPage = () => {
           }}
           mobileConfig={{
             primaryFields: ['client', 'status'],
-            secondaryFields: ['contact', 'customerType', 'location', 'createdAt']
+            secondaryFields: ['contact', 'consignee', 'customerType', 'location', 'createdAt']
           }}
           onRowClick={(record) => handleViewClient(record)}
         />

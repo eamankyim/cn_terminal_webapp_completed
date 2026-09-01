@@ -355,14 +355,14 @@ const DashboardPage = () => {
                   title: 'ETA',
                   dataIndex: 'eta',
                   key: 'eta',
-                  render: (eta) => {
+                  render: (eta, record) => {
                     if (!eta) return <Text type="secondary">Not set</Text>;
                     const label = formatEtaDate(eta);
-                    const urgency = getEtaUrgency(eta);
+                    const urgency = getEtaUrgency(eta, record.status);
                     if (urgency === 'normal' || urgency === 'none') {
                       return label;
                     }
-                    return <Tag color={getEtaAntColor(eta)}>{label}</Tag>;
+                    return <Tag color={getEtaAntColor(eta, record.status)}>{label}</Tag>;
                   }
                 },
                 {
