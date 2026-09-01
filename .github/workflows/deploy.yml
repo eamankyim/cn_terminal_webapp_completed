@@ -115,7 +115,10 @@ jobs:
 
           echo "🗄️ Setting up database..."
           docker exec cn_terminal_backend npx prisma generate
-          docker exec cn_terminal_backend npx prisma db push
+          # Unique phone/TIN indexes: rename leftover duplicates, then push schema.
+          # prisma db push treats new unique constraints as possible data loss.
+          docker exec cn_terminal_backend npx prisma db execute --file prisma/migrations/20260901140000_unique_customer_phone_tin/migration.sql
+          docker exec cn_terminal_backend npx prisma db push --accept-data-loss
 
           echo "✅ Deployment complete!"
           echo ""
