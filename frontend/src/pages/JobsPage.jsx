@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Card, 
   Row, 
@@ -67,6 +67,7 @@ import apiService from '../services/api';
 import configurationService from '../services/configurationService';
 import { getJobStatusColor, getJobStatusIcon as getStatusIconUtil, getEtaUrgency, getEtaAntColor, formatEtaDate, ETA_FILTER, ETA_FILTER_OPTIONS, jobMatchesEtaFilter } from '../utils/statusUtils';
 import { getDefaultEtaFilter, setDefaultEtaFilter } from '../utils/userPreferences';
+import { fetchAllPages } from '../utils/fetchAllPages';
 import { useJobSocket } from '../hooks/useJobSocket.js';
 
 const DEFAULT_GOODS_TYPES = [
@@ -137,6 +138,56 @@ const STATUS_LABELS = {
   'RELEASED': 'Released',
   'CLEARED': 'Cleared',
   'DELIVERED': 'Delivered'
+};
+
+const jobMatchesSearch = (job, rawQuery) => {
+  const query = (rawQuery || '').trim().toLowerCase();
+  if (!query) return true;
+  const assignedName = job.assignedTo?.name || (typeof job.assignedTo === 'string' ? job.assignedTo : '');
+  const goods = Array.isArray(job.goodsTypes) ? job.goodsTypes.join(' ') : '';
+  const haystack = [
+    job.trackingId,
+    job.id,
+    job.containerNumber,
+    job.blNumber,
+    job.vesselName,
+    job.line,
+    job.jobDescription,
+    job.boeNumber,
+    job.invoiceNumber,
+    job.driverName,
+    job.shipperName,
+    job.terminalName,
+    job.customer?.name,
+    job.customer?.email,
+    job.customer?.phone,
+    job.consignment?.consigneeName,
+    assignedName,
+    goods
+  ].filter(Boolean).join(' ').toLowerCase();
+  return haystack.includes(query);
+};
+
+const matchesJobListFilters = (job, { searchQuery, statusFilter, etaFilter, assigneeFilter, currentUserId }) => {
+  if (!jobMatchesSearch(job, searchQuery)) return false;
+
+  if (statusFilter) {
+    if (statusFilter === 'IN_PROGRESS') {
+      if (['NEW', 'CLEARED', 'DELIVERED'].includes(job.status)) return false;
+    } else if (statusFilter === 'ASSIGNED_TO_ME') {
+      if (job.assignedToId !== currentUserId) return false;
+    } else if (job.status !== statusFilter) {
+      return false;
+    }
+  }
+
+  if (assigneeFilter === 'UNASSIGNED') {
+    if (job.assignedToId) return false;
+  } else if (assigneeFilter && job.assignedToId !== assigneeFilter) {
+    return false;
+  }
+
+  return jobMatchesEtaFilter(job, etaFilter);
 };
 
 // Get available next statuses for a given current status
@@ -233,12 +284,73 @@ const JobsPage = () => {
   const [jobsLoading, setJobsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState(null);
+  const [assigneeFilter, setAssigneeFilter] = useState(null);
   const [etaFilter, setEtaFilter] = useState(ETA_FILTER.ALL);
   const [defaultEtaFilter, setDefaultEtaFilterState] = useState(ETA_FILTER.ALL);
   const [jobComments, setJobComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentForm] = Form.useForm();
   const selectedCustomerId = Form.useWatch('customerId', form);
+
+  const filterArgs = {
+    searchQuery,
+    statusFilter,
+    etaFilter,
+    assigneeFilter,
+    currentUserId: currentUser?.id
+  };
+
+  const filteredJobs = useMemo(
+    () => jobs.filter((job) => matchesJobListFilters(job, filterArgs)),
+    [jobs, searchQuery, statusFilter, etaFilter, assigneeFilter, currentUser?.id]
+  );
+
+  const statusCounts = useMemo(() => {
+    const counts = {};
+    jobs.forEach((job) => {
+      if (!matchesJobListFilters(job, { ...filterArgs, statusFilter: null })) return;
+      counts[job.status] = (counts[job.status] || 0) + 1;
+    });
+    counts.IN_PROGRESS = jobs.filter((job) =>
+      matchesJobListFilters(job, { ...filterArgs, statusFilter: 'IN_PROGRESS' })
+    ).length;
+    counts.ASSIGNED_TO_ME = jobs.filter((job) =>
+      matchesJobListFilters(job, { ...filterArgs, statusFilter: 'ASSIGNED_TO_ME' })
+    ).length;
+    return counts;
+  }, [jobs, searchQuery, etaFilter, assigneeFilter, currentUser?.id]);
+
+  const filterStats = useMemo(() => {
+    const uniqueCustomers = new Set(
+      filteredJobs.map((job) => job.customerId).filter(Boolean)
+    ).size;
+    const assigned = filteredJobs.filter((job) => job.assignedToId).length;
+    return {
+      total: filteredJobs.length,
+      uniqueCustomers,
+      assigned,
+      unassigned: filteredJobs.length - assigned
+    };
+  }, [filteredJobs]);
+
+  const hasActiveFilters = !!(
+    (searchQuery && searchQuery.trim()) ||
+    statusFilter ||
+    assigneeFilter ||
+    (etaFilter && etaFilter !== ETA_FILTER.ALL)
+  );
+
+  const filteredStatTitle = (() => {
+    if (statusFilter === 'IN_PROGRESS') return 'In Progress';
+    if (statusFilter === 'ASSIGNED_TO_ME') return 'Assigned to Me';
+    if (statusFilter && STATUS_LABELS[statusFilter]) return STATUS_LABELS[statusFilter];
+    if (assigneeFilter === 'UNASSIGNED') return 'Unassigned';
+    if (assigneeFilter) {
+      const member = staffMembers.find((s) => s.id === assigneeFilter);
+      return member?.name ? `Assigned to ${member.name}` : 'Assigned';
+    }
+    return hasActiveFilters ? 'Matching jobs' : 'Total Jobs';
+  })();
   
   // Dynamic dropdown states (persisted via configurations)
   const [goodsTypes, setGoodsTypes] = useState(DEFAULT_GOODS_TYPES);
@@ -278,6 +390,39 @@ const JobsPage = () => {
     setDefaultEtaFilterState(saved);
     message.success('ETA filter saved as your default');
   };
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2) return undefined;
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const found = await fetchAllPages(
+          (page, limit) => jobService.getJobs({ search: query, limit, page }),
+          'jobs',
+          100
+        );
+        if (cancelled) return;
+        setJobs((prev) => {
+          const byId = new Map(prev.map((job) => [job.id, job]));
+          found.forEach((job) => {
+            if (!job.isDraft) {
+              byId.set(job.id, job);
+            }
+          });
+          return Array.from(byId.values());
+        });
+      } catch (error) {
+        // Keep locally loaded jobs if search request fails
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
   // Handle jobId parameter from URL (e.g. dashboard → Jobs)
   useEffect(() => {
     const jobId = searchParams.get('jobId');
@@ -1791,8 +1936,8 @@ const JobsPage = () => {
         <Col xs={12} sm={12} lg={6}>
             <Card>
               <Statistic
-              title="Total Jobs"
-              value={jobs.length}
+              title={filteredStatTitle}
+              value={filterStats.total}
               prefix={<FileTextOutlined />}
               valueStyle={{ color: '#1890ff' }}
               />
@@ -1801,20 +1946,30 @@ const JobsPage = () => {
         <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Invoiced"
-              value={jobs.filter(j => j.status === 'INVOICED').length}
-              prefix={<DollarOutlined />}
-              valueStyle={{ color: '#13c2c2' }}
+              title="Customers in view"
+              value={filterStats.uniqueCustomers}
+              prefix={<UserOutlined />}
+              valueStyle={{ color: '#722ed1' }}
             />
           </Card>
           </Col>
         <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Cleared"
-              value={jobs.filter(j => j.status === 'CLEARED').length}
+              title="Assigned"
+              value={filterStats.assigned}
               prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: '#52c41a' }}
+              valueStyle={{ color: '#13c2c2' }}
+            />
+      </Card>
+        </Col>
+        <Col xs={12} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="Unassigned"
+              value={filterStats.unassigned}
+              prefix={<ClockCircleOutlined />}
+              valueStyle={{ color: '#faad14' }}
             />
       </Card>
         </Col>
@@ -1828,7 +1983,7 @@ const JobsPage = () => {
           items={[
             {
               key: 'all',
-              label: `All Jobs (${jobs.length})`,
+              label: `All Jobs (${hasActiveFilters ? `${filteredJobs.length} of ${jobs.length}` : jobs.length})`,
               children: (
                 <div>
                   {error && (
@@ -1847,7 +2002,7 @@ const JobsPage = () => {
                   )}
                   <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <Input.Search
-                      placeholder="Search by Job ID, Container No, or BL"
+                      placeholder="Search job ID, customer, container, BL, vessel, assignee..."
                       allowClear
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
@@ -1860,18 +2015,35 @@ const JobsPage = () => {
                       allowClear
                       value={statusFilter}
                       onChange={(value) => setStatusFilter(value)}
-                      style={{ width: '200px' }}
+                      style={{ width: '220px' }}
                     >
-                      {/* Virtual filters */}
-                      <Option key="IN_PROGRESS" value="IN_PROGRESS">In Progress</Option>
-                      <Option key="ASSIGNED_TO_ME" value="ASSIGNED_TO_ME">Assigned to Me</Option>
-                      {/* VETTED is retired (vetting removed): kept in STATUS_LABELS
-                          for legacy job badges but never offered as a filter */}
+                      <Option key="IN_PROGRESS" value="IN_PROGRESS">
+                        In Progress ({statusCounts.IN_PROGRESS || 0})
+                      </Option>
+                      <Option key="ASSIGNED_TO_ME" value="ASSIGNED_TO_ME">
+                        Assigned to Me ({statusCounts.ASSIGNED_TO_ME || 0})
+                      </Option>
                       {Object.entries(STATUS_LABELS)
                         .filter(([status]) => status !== 'VETTED' && status !== 'IN_PROGRESS')
                         .map(([status, label]) => (
                         <Option key={status} value={status}>
-                          {label}
+                          {label} ({statusCounts[status] || 0})
+                        </Option>
+                      ))}
+                    </Select>
+                    <Select
+                      placeholder="Filter by assignee"
+                      allowClear
+                      showSearch
+                      optionFilterProp="label"
+                      value={assigneeFilter}
+                      onChange={(value) => setAssigneeFilter(value)}
+                      style={{ width: '220px' }}
+                    >
+                      <Option value="UNASSIGNED" label="Unassigned">Unassigned</Option>
+                      {staffMembers.map((member) => (
+                        <Option key={member.id} value={member.id} label={member.name}>
+                          {member.name}
                         </Option>
                       ))}
                     </Select>
@@ -1903,42 +2075,7 @@ const JobsPage = () => {
                   </div>
                   <ResponsiveTable
                     columns={columns}
-                    dataSource={jobs.filter(job => {
-                      // Search filter
-                      if (searchQuery) {
-                        const query = searchQuery.toLowerCase();
-                        const matchesSearch =
-                          job.trackingId?.toLowerCase().includes(query) ||
-                          job.id?.toLowerCase().includes(query) ||
-                          job.containerNumber?.toLowerCase().includes(query) ||
-                          job.blNumber?.toLowerCase().includes(query) ||
-                          job.customer?.name?.toLowerCase().includes(query);
-                        if (!matchesSearch) return false;
-                      }
-                      
-                      // Status filter
-                      if (statusFilter) {
-                        if (statusFilter === 'IN_PROGRESS') {
-                          if (['NEW', 'CLEARED', 'DELIVERED'].includes(job.status)) {
-                            return false;
-                          }
-                        } else if (statusFilter === 'ASSIGNED_TO_ME') {
-                          // Virtual filter: only jobs assigned to the current user
-                          if (job.assignedToId !== currentUser?.id) {
-                            return false;
-                          }
-                        } else if (job.status !== statusFilter) {
-                          return false;
-                        }
-                      }
-
-                      // ETA urgency filter
-                      if (!jobMatchesEtaFilter(job, etaFilter)) {
-                        return false;
-                      }
-                      
-                      return true;
-                    })}
+                    dataSource={filteredJobs}
                     loading={jobsLoading}
                     rowKey="id"
                     scroll={{ x: 1500 }}
@@ -1960,7 +2097,9 @@ const JobsPage = () => {
                           description={
                             <div>
                               <Text type="secondary" style={{ fontSize: '16px' }}>
-                                {hasPermission(PERMISSIONS.JOB_CREATE) 
+                                {hasActiveFilters
+                                  ? 'No jobs match the current search or filters'
+                                  : hasPermission(PERMISSIONS.JOB_CREATE)
                                   ? 'No jobs found - Get started by creating your first job'
                                   : 'No jobs available to view'
                                 }
@@ -1968,7 +2107,7 @@ const JobsPage = () => {
                             </div>
                           }
                         >
-                          {hasPermission(PERMISSIONS.JOB_CREATE) && (
+                          {!hasActiveFilters && hasPermission(PERMISSIONS.JOB_CREATE) && (
                             <Button 
                               type="primary" 
                               icon={<PlusOutlined />}

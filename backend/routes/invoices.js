@@ -144,11 +144,15 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.INVOICES), a
     const where = {};
 
     if (search) {
+      const term = String(search).trim();
       where.OR = [
-        { invoiceNumber: { contains: search, mode: 'insensitive' } },
-        { customer: { name: { contains: search, mode: 'insensitive' } } }
+        { invoiceNumber: { contains: term, mode: 'insensitive' } },
+        { customer: { name: { contains: term, mode: 'insensitive' } } },
+        { customer: { email: { contains: term, mode: 'insensitive' } } },
+        { customer: { phone: { contains: term, mode: 'insensitive' } } },
+        { job: { trackingId: { contains: term, mode: 'insensitive' } } },
+        { job: { containerNumber: { contains: term, mode: 'insensitive' } } }
       ];
-
     }
 
     if (status) {

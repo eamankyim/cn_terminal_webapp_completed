@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Select, Button, Modal, Form, Row, Col, message, Checkbox, Input, Space, Divider } from 'antd';
 import { PlusOutlined, UserOutlined, PhoneOutlined, MailOutlined, SearchOutlined } from '@ant-design/icons';
 import { useCustomers } from '../../contexts/CustomerContext';
+import apiService from '../../services/api';
+import { applyCustomerConflictFields, customerConflictMessage } from '../../utils/customerErrors';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -31,12 +33,48 @@ const CustomerSelector = ({
 }) => {
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [remoteCustomers, setRemoteCustomers] = useState(null);
+  const [searching, setSearching] = useState(false);
   const [createForm] = Form.useForm();
   const { customers, addCustomer, loading } = useCustomers();
 
-  // Filter customers based on search text
-  const filteredCustomers = customers.filter(customer => {
-    if (!searchText) return true;
+  useEffect(() => {
+    const query = searchText.trim();
+    if (!query) {
+      setRemoteCustomers(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const response = await apiService.getCustomersForSelector(query);
+        if (!cancelled) {
+          setRemoteCustomers(response.customers || []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRemoteCustomers([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setSearching(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchText]);
+
+  const sourceCustomers = remoteCustomers || customers;
+
+  // Filter customers based on search text (covers loaded list before/without remote results)
+  const filteredCustomers = sourceCustomers.filter(customer => {
+    if (!searchText.trim()) return true;
     
     const searchTerm = searchText.toLowerCase().trim();
     return (
@@ -65,13 +103,13 @@ const CustomerSelector = ({
       
       if (onChange) {
         const selectedCustomers = newValues
-          .map(id => (id === customerId && customerOverride) ? customerOverride : customers.find(c => c.id === id))
+          .map(id => (id === customerId && customerOverride) ? customerOverride : (sourceCustomers.find(c => c.id === id) || customers.find(c => c.id === id)))
           .filter(Boolean);
         onChange(newValues, selectedCustomers);
       }
     } else {
       // Single select behavior
-      const selectedCustomer = customerOverride || customers.find(c => c.id === customerId);
+      const selectedCustomer = customerOverride || sourceCustomers.find(c => c.id === customerId) || customers.find(c => c.id === customerId);
       if (selectedCustomer && onChange) {
         onChange(customerId, selectedCustomer);
       }
@@ -90,6 +128,7 @@ const CustomerSelector = ({
       const newCustomer = await addCustomer({
         ...values,
         email: values.email?.trim() || null,
+        tin: values.tin?.trim() || null,
         customerType: values.customerType || 'COMPANY'
       });
       
@@ -101,17 +140,20 @@ const CustomerSelector = ({
       handleCustomerSelect(newCustomer.id, newCustomer);
       
     } catch (error) {
-
-      message.error(error.message || 'Failed to create customer');
+      if (error.errorFields) return;
+      applyCustomerConflictFields(createForm, error);
+      message.error(customerConflictMessage(error));
     }
   };
 
   const getSelectedCustomers = () => {
+    const lookup = (id) => sourceCustomers.find(c => c.id === id) || customers.find(c => c.id === id);
     if (multiple) {
       const selectedIds = Array.isArray(value) ? value : [];
-      return customers.filter(c => selectedIds.includes(c.id));
+      return selectedIds.map(lookup).filter(Boolean);
     } else {
-      return customers.find(c => c.id === value) ? [customers.find(c => c.id === value)] : [];
+      const selected = lookup(value);
+      return selected ? [selected] : [];
     }
   };
 
@@ -167,7 +209,7 @@ const CustomerSelector = ({
           onSearch={setSearchText}
           searchValue={searchText}
           allowClear
-          loading={loading}
+          loading={loading || searching}
           popupMatchSelectWidth={false}
           mode={multiple ? "multiple" : undefined}
           maxTagCount={multiple ? "responsive" : undefined}
@@ -195,7 +237,7 @@ const CustomerSelector = ({
             </>
           )}
           notFoundContent={
-            loading ? (
+            loading || searching ? (
               <div style={{ padding: '8px', textAlign: 'center' }}>
                 <span>Loading customers...</span>
               </div>
@@ -224,12 +266,14 @@ const CustomerSelector = ({
         >
           {filteredCustomers.length > 0
             ? filteredCustomers.map(renderCustomerOption)
-            : customers.length > 0
-              ? customers.map(renderCustomerOption)
-              : (
+            : (
+                !searchText && customers.length > 0
+                  ? customers.map(renderCustomerOption)
+                  : (
                 <Option disabled value="no-customers">
                   No customers available
                 </Option>
+              )
               )}
         </Select>
         {allowCreate && (
@@ -342,6 +386,17 @@ const CustomerSelector = ({
                 <Input placeholder="Enter phone number" />
               </Form.Item>
             </Col>
+            <Col span={12}>
+              <Form.Item
+                name="tin"
+                label="TIN"
+              >
+                <Input placeholder="Ghana TIN (optional)" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
             <Col span={12}>
               <Form.Item
                 name="customerType"

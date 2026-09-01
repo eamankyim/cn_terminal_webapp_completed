@@ -10,6 +10,29 @@ const { applyEtaFilterToWhere, shouldOrderByEta } = require('../utils/etaFilter'
 
 const router = express.Router();
 
+const buildJobSearchConditions = (search) => {
+  const term = typeof search === 'string' ? search.trim() : '';
+  if (!term) return [];
+  return [
+    { trackingId: { contains: term, mode: 'insensitive' } },
+    { containerNumber: { contains: term, mode: 'insensitive' } },
+    { blNumber: { contains: term, mode: 'insensitive' } },
+    { vesselName: { contains: term, mode: 'insensitive' } },
+    { line: { contains: term, mode: 'insensitive' } },
+    { jobDescription: { contains: term, mode: 'insensitive' } },
+    { boeNumber: { contains: term, mode: 'insensitive' } },
+    { invoiceNumber: { contains: term, mode: 'insensitive' } },
+    { driverName: { contains: term, mode: 'insensitive' } },
+    { shipperName: { contains: term, mode: 'insensitive' } },
+    { terminalName: { contains: term, mode: 'insensitive' } },
+    { assignedTo: { name: { contains: term, mode: 'insensitive' } } },
+    { customer: { name: { contains: term, mode: 'insensitive' } } },
+    { customer: { email: { contains: term, mode: 'insensitive' } } },
+    { customer: { phone: { contains: term, mode: 'insensitive' } } },
+    { consignment: { consigneeName: { contains: term, mode: 'insensitive' } } }
+  ];
+};
+
 /**
  * @swagger
  * /api/jobs:
@@ -143,7 +166,7 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
     console.log('  - User:', req.user?.email, 'Role:', req.user?.role);
     console.log('  - Query params:', req.query);
 
-    const { page = 1, limit = 10, search = '', status, customerId, etaFilter } = req.query;
+    const { page = 1, limit = 10, search = '', status, customerId, etaFilter, assignedToId } = req.query;
     const skip = (page - 1) * limit;
 
     // Build where condition
@@ -188,29 +211,15 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
       }
 
       if (search) {
-        const searchConditions = [
-          { trackingId: { contains: search, mode: 'insensitive' } },
-          { containerNumber: { contains: search, mode: 'insensitive' } },
-          { blNumber: { contains: search, mode: 'insensitive' } },
-          { assignedTo: { name: { contains: search, mode: 'insensitive' } } },
-          { customer: { name: { contains: search, mode: 'insensitive' } } }
-        ];
-
         where.AND = [
           { OR: visibilityConditions },
-          { OR: searchConditions }
+          { OR: buildJobSearchConditions(search) }
         ];
       } else {
         where.OR = visibilityConditions;
       }
     } else if (search) {
-      where.OR = [
-        { trackingId: { contains: search, mode: 'insensitive' } },
-        { containerNumber: { contains: search, mode: 'insensitive' } },
-        { blNumber: { contains: search, mode: 'insensitive' } },
-        { assignedTo: { name: { contains: search, mode: 'insensitive' } } },
-        { customer: { name: { contains: search, mode: 'insensitive' } } }
-      ];
+      where.OR = buildJobSearchConditions(search);
     }
 
     if (status) {
@@ -230,6 +239,12 @@ router.get('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), async
 
     if (customerId) {
       where.customerId = customerId;
+    }
+
+    if (assignedToId === 'unassigned') {
+      where.assignedToId = null;
+    } else if (assignedToId && assignedToId !== 'ASSIGNED_TO_ME') {
+      where.assignedToId = assignedToId;
     }
 
     applyEtaFilterToWhere(where, etaFilter);

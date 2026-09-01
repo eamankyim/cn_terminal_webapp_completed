@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import apiService from '../services/api';
 import { useAuth } from './AuthContext';
+import { fetchAllPages } from '../utils/fetchAllPages';
 
 const CustomerContext = createContext();
 
@@ -30,8 +31,12 @@ export const CustomerProvider = ({ children }) => {
   const loadCustomers = async () => {
     try {
       setLoading(true);
-      const response = await apiService.getCustomers();
-      setCustomers(response.customers || []);
+      const all = await fetchAllPages(
+        (page, limit) => apiService.getCustomers({ page, limit }),
+        'customers',
+        100
+      );
+      setCustomers(all);
     } catch (error) {
 
       // Set empty array if API fails

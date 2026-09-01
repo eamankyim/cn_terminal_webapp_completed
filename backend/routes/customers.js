@@ -3,6 +3,12 @@ const { prisma } = require('../config/database');
 const { authenticateToken, requirePermission } = require('../middleware/auth');
 const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 const NotificationService = require('../services/notificationService');
+const {
+  normalizeOptional,
+  findCustomerUniquenessConflicts,
+  uniquenessConflictResponse,
+  prismaUniqueConflictResponse
+} = require('../utils/customerUniqueness');
 
 const router = express.Router();
 
@@ -148,7 +154,8 @@ router.get('/', authenticateToken, async (req, res) => {
       OR: [
         { name: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search, mode: 'insensitive' } }
+        { phone: { contains: search, mode: 'insensitive' } },
+        { contactPerson: { contains: search, mode: 'insensitive' } }
       ]
     } : {};
 
@@ -248,12 +255,15 @@ router.get('/selector', authenticateToken, async (req, res) => {
   try {
     const { search = '' } = req.query;
 
+    const term = typeof search === 'string' ? search.trim() : '';
     const customers = await prisma.customer.findMany({
-      where: search
+      where: term
         ? {
             OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
+              { name: { contains: term, mode: 'insensitive' } },
+              { email: { contains: term, mode: 'insensitive' } },
+              { phone: { contains: term, mode: 'insensitive' } },
+              { contactPerson: { contains: term, mode: 'insensitive' } },
             ],
           }
         : {},
@@ -263,9 +273,10 @@ router.get('/selector', authenticateToken, async (req, res) => {
         email: true,
         phone: true,
         customerType: true,
+        contactPerson: true,
       },
       orderBy: { name: 'asc' },
-      take: 50,
+      take: term ? 100 : 200,
     });
 
     res.json({ customers });
@@ -329,24 +340,23 @@ router.post('/', authenticateToken, async (req, res) => {
       customerType = 'COMPANY'
     } = req.body;
 
-    // Normalize empty/whitespace email to null so unique constraint is not hit by ""
-    const normalizedEmail =
-      typeof email === 'string' && email.trim() ? email.trim() : null;
+    const normalizedEmail = normalizeOptional(email)?.toLowerCase() ?? null;
+    const normalizedPhone = typeof phone === 'string' ? phone.trim() : phone;
+    const normalizedTin = normalizeOptional(tin) ?? null;
 
     // Validate required fields (email is optional)
-    if (!name || !phone || !address) {
+    if (!name || !normalizedPhone || !address) {
       return res.status(400).json({ error: 'Company name, phone, and address are required' });
     }
 
-    // Check if customer with email already exists (only when email provided)
-    if (normalizedEmail) {
-      const existingCustomer = await prisma.customer.findUnique({
-        where: { email: normalizedEmail }
-      });
-
-      if (existingCustomer) {
-        return res.status(400).json({ error: 'Customer with this email already exists' });
-      }
+    const conflicts = await findCustomerUniquenessConflicts({
+      email: normalizedEmail,
+      phone: normalizedPhone,
+      tin: normalizedTin
+    });
+    const conflictBody = uniquenessConflictResponse(conflicts);
+    if (conflictBody) {
+      return res.status(400).json(conflictBody);
     }
 
     const consigneeAddress = [address, city, country].filter(Boolean).join(', ');
@@ -357,20 +367,20 @@ router.post('/', authenticateToken, async (req, res) => {
         name,
         contactPerson,
         email: normalizedEmail,
-        phone,
+        phone: normalizedPhone,
         address,
         city,
         country,
-        tin,
+        tin: normalizedTin,
         ghanaCard,
         customerType: String(customerType).toUpperCase(),
         consignments: {
           create: {
             consigneeName: name,
-            consigneePhone: phone,
+            consigneePhone: normalizedPhone,
             consigneeAddress,
             ghanaCard: ghanaCard || null,
-            tin: tin || null,
+            tin: normalizedTin,
             date: new Date(),
             status: 'PENDING'
           }
@@ -416,6 +426,10 @@ router.post('/', authenticateToken, async (req, res) => {
       customer
     });
   } catch (error) {
+    const uniqueConflict = prismaUniqueConflictResponse(error);
+    if (uniqueConflict) {
+      return res.status(400).json(uniqueConflict);
+    }
 
     res.status(500).json({ 
       error: 'Internal server error',
@@ -542,23 +556,26 @@ router.put('/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    // Normalize empty/whitespace email to null so unique constraint is not hit by ""
     const normalizedEmail =
-      email === undefined
-        ? undefined
-        : typeof email === 'string' && email.trim()
-          ? email.trim()
-          : null;
+      email === undefined ? undefined : (normalizeOptional(email)?.toLowerCase() ?? null);
+    const normalizedPhone =
+      phone === undefined ? undefined : (typeof phone === 'string' ? phone.trim() : phone);
+    const normalizedTin =
+      tin === undefined ? undefined : (normalizeOptional(tin) ?? null);
 
-    // Check if email is already taken by another customer
-    if (normalizedEmail && normalizedEmail !== existingCustomer.email) {
-      const emailExists = await prisma.customer.findUnique({
-        where: { email: normalizedEmail }
-      });
+    if (normalizedPhone === '') {
+      return res.status(400).json({ error: 'Phone is required' });
+    }
 
-      if (emailExists) {
-        return res.status(400).json({ error: 'Email already in use by another customer' });
-      }
+    const conflicts = await findCustomerUniquenessConflicts({
+      email: normalizedEmail === undefined ? existingCustomer.email : normalizedEmail,
+      phone: normalizedPhone === undefined ? existingCustomer.phone : normalizedPhone,
+      tin: normalizedTin === undefined ? existingCustomer.tin : normalizedTin,
+      excludeId: id
+    });
+    const conflictBody = uniquenessConflictResponse(conflicts);
+    if (conflictBody) {
+      return res.status(400).json(conflictBody);
     }
 
     // Update customer
@@ -568,11 +585,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
         name,
         contactPerson,
         ...(normalizedEmail !== undefined ? { email: normalizedEmail } : {}),
-        phone,
+        ...(normalizedPhone !== undefined ? { phone: normalizedPhone } : {}),
         address,
         city,
         country,
-        tin,
+        ...(normalizedTin !== undefined ? { tin: normalizedTin } : {}),
         ghanaCard,
         ...(customerType ? { customerType: String(customerType).toUpperCase() } : {}),
         status
@@ -613,6 +630,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
       customer: updatedCustomer
     });
   } catch (error) {
+    const uniqueConflict = prismaUniqueConflictResponse(error);
+    if (uniqueConflict) {
+      return res.status(400).json(uniqueConflict);
+    }
 
     res.status(500).json({ error: 'Internal server error' });
   }

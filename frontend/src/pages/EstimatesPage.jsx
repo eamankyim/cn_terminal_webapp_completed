@@ -42,7 +42,7 @@ import {
   CalculatorOutlined
 } from '@ant-design/icons';
 import estimateService from '../services/estimateService';
-import apiService from '../services/api';
+import CustomerSelector from '../components/common/CustomerSelector';
 import { useAuth } from '../contexts/AuthContext';
 import { PERMISSIONS } from '../utils/permissions';
 import PermissionGate from '../components/common/PermissionGate';
@@ -56,7 +56,6 @@ const { TextArea } = Input;
 const EstimatesPage = () => {
   const { currentUser } = useAuth();
   const [estimates, setEstimates] = useState([]);
-  const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isFormVisible, setIsFormVisible] = useState(false);
@@ -67,7 +66,6 @@ const EstimatesPage = () => {
 
   useEffect(() => {
     loadEstimates();
-    loadCustomers();
   }, []);
 
   const loadEstimates = async () => {
@@ -80,15 +78,6 @@ const EstimatesPage = () => {
       message.error('Failed to load estimates');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadCustomers = async () => {
-    try {
-      const response = await apiService.getCustomers();
-      setCustomers(response.customers || []);
-    } catch (error) {
-      console.error('Error loading customers:', error);
     }
   };
 
@@ -340,11 +329,11 @@ const EstimatesPage = () => {
   });
 
   const stats = {
-    total: estimates.length,
-    draft: estimates.filter(e => e.status === 'DRAFT').length,
-    sent: estimates.filter(e => e.status === 'SENT').length,
-    accepted: estimates.filter(e => e.status === 'ACCEPTED').length,
-    totalValue: estimates.reduce((sum, e) => sum + (e.amount || 0), 0)
+    total: filteredEstimates.length,
+    draft: filteredEstimates.filter(e => e.status === 'DRAFT').length,
+    sent: filteredEstimates.filter(e => e.status === 'SENT').length,
+    accepted: filteredEstimates.filter(e => e.status === 'ACCEPTED').length,
+    totalValue: filteredEstimates.reduce((sum, e) => sum + (e.amount || 0), 0)
   };
 
   return (
@@ -473,14 +462,9 @@ const EstimatesPage = () => {
             label="Customer"
             rules={[{ required: true, message: 'Please select a customer' }]}
           >
-            <Select
-              showSearch
-              placeholder="Select customer"
-              optionFilterProp="children"
-              filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-              }
-              options={customers.map(c => ({ value: c.id, label: c.email ? `${c.name} (${c.email})` : c.name }))}
+            <CustomerSelector
+              placeholder="Select or search customer"
+              allowCreate
             />
           </Form.Item>
 

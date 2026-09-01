@@ -47,6 +47,7 @@ import FileUpload from '../components/common/FileUpload';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 import DocumentPreviewModal from '../components/common/DocumentPreviewModal';
 import { fileService } from '../services/fileService';
+import { applyCustomerConflictFields, customerConflictMessage } from '../utils/customerErrors';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -83,7 +84,17 @@ const ClientsPage = () => {
   } = useConsignments();
   
   // Use customers from context instead of local state
-  const clients = customers;
+  const clients = customers.filter((client) => {
+    const query = searchText.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      client.name?.toLowerCase().includes(query) ||
+      client.email?.toLowerCase().includes(query) ||
+      client.phone?.toLowerCase().includes(query) ||
+      client.contactPerson?.toLowerCase().includes(query) ||
+      client.address?.toLowerCase().includes(query)
+    );
+  });
 
   // Using centralized status color utilities
 
@@ -235,11 +246,9 @@ const ClientsPage = () => {
   const handleCreateClient = async (values) => {
     try {
       if (editingClient) {
-        // Update existing client
         await updateCustomer(editingClient.id, values);
         message.success('Client updated successfully');
       } else {
-        // Create new client
         await addCustomer(values);
         message.success('Client created successfully');
       }
@@ -247,7 +256,8 @@ const ClientsPage = () => {
       setEditingClient(null);
       form.resetFields();
     } catch (error) {
-      message.error(error.message || 'Failed to save client');
+      applyCustomerConflictFields(form, error);
+      message.error(customerConflictMessage(error));
     }
   };
 
@@ -357,7 +367,7 @@ const ClientsPage = () => {
           <Card>
             <Statistic
               title="Total Clients"
-              value={clients.length}
+              value={searchText.trim() ? clients.length : customers.length}
               valueStyle={{ color: '#2FA2EE' }}
               prefix={<TeamOutlined />}
             />
