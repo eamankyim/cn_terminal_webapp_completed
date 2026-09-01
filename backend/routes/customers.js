@@ -567,10 +567,21 @@ router.put('/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Phone is required' });
     }
 
+    const nextEmail = normalizedEmail === undefined ? existingCustomer.email : normalizedEmail;
+    const nextPhone = normalizedPhone === undefined ? existingCustomer.phone : normalizedPhone;
+    const nextTin = normalizedTin === undefined ? existingCustomer.tin : normalizedTin;
+
+    const sameInsensitive = (a, b) =>
+      (a || '').toString().trim().toLowerCase() === (b || '').toString().trim().toLowerCase();
+    const sameExact = (a, b) =>
+      (a || '').toString().trim() === (b || '').toString().trim();
+
+    // Skip uniqueness checks for values that already belong to this customer so
+    // an unchanged email/phone/TIN cannot reject a valid edit of the same record.
     const conflicts = await findCustomerUniquenessConflicts({
-      email: normalizedEmail === undefined ? existingCustomer.email : normalizedEmail,
-      phone: normalizedPhone === undefined ? existingCustomer.phone : normalizedPhone,
-      tin: normalizedTin === undefined ? existingCustomer.tin : normalizedTin,
+      email: sameInsensitive(nextEmail, existingCustomer.email) ? null : nextEmail,
+      phone: sameExact(nextPhone, existingCustomer.phone) ? null : nextPhone,
+      tin: sameInsensitive(nextTin, existingCustomer.tin) ? null : nextTin,
       excludeId: id
     });
     const conflictBody = uniquenessConflictResponse(conflicts);
@@ -635,6 +646,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       return res.status(400).json(uniqueConflict);
     }
 
+    console.error('Error updating customer:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -667,7 +679,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
  *                   type: string
  *                   example: Customer deleted successfully
  *       400:
- *         description: Cannot delete customer with existing consignments, enquiries, or jobs
+ *         description: Cannot delete customer with existing jobs, invoices, estimates, or enquiries
  *       401:
  *         description: Unauthorized - Invalid or missing token
  *       404:
@@ -688,7 +700,9 @@ router.delete('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENT
           select: {
             consignments: true,
             enquiries: true,
-            jobs: true
+            jobs: true,
+            invoices: true,
+            estimates: true
           }
         }
       }
@@ -698,21 +712,43 @@ router.delete('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.CLIENT
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    // Check if customer has related data
-    if (customer._count.consignments > 0 || customer._count.enquiries > 0 || customer._count.jobs > 0) {
-      return res.status(400).json({ 
-        error: 'Cannot delete customer with existing consignments, enquiries, or jobs' 
+    // Block only when jobs/invoices/estimates/enquiries exist. Every customer is
+    // created with a default consignee, so consignments alone must not block delete
+    // (they cascade). Jobs/invoices/estimates also cascade in Prisma — do not rely
+    // on that; refuse so operational records are not silently destroyed.
+    const blockers = [];
+    if (customer._count.jobs > 0) {
+      blockers.push(`${customer._count.jobs} job${customer._count.jobs === 1 ? '' : 's'}`);
+    }
+    if (customer._count.invoices > 0) {
+      blockers.push(`${customer._count.invoices} invoice${customer._count.invoices === 1 ? '' : 's'}`);
+    }
+    if (customer._count.estimates > 0) {
+      blockers.push(`${customer._count.estimates} estimate${customer._count.estimates === 1 ? '' : 's'}`);
+    }
+    if (customer._count.enquiries > 0) {
+      blockers.push(`${customer._count.enquiries} ${customer._count.enquiries === 1 ? 'enquiry' : 'enquiries'}`);
+    }
+
+    if (blockers.length > 0) {
+      return res.status(400).json({
+        error: `Cannot delete this client because they have ${blockers.join(', ')}. Remove or reassign those records first.`
       });
     }
 
-    // Delete customer
     await prisma.customer.delete({
       where: { id }
     });
 
     res.json({ message: 'Customer deleted successfully' });
   } catch (error) {
+    if (error?.code === 'P2003' || error?.code === 'P2014') {
+      return res.status(400).json({
+        error: 'Cannot delete this client because related records still exist (jobs, invoices, or estimates).'
+      });
+    }
 
+    console.error('Error deleting customer:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

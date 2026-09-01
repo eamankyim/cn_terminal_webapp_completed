@@ -46,16 +46,48 @@ export const CustomerProvider = ({ children }) => {
     }
   };
 
+  const pickCustomerPayload = (customerData = {}) => {
+    const allowed = [
+      'name',
+      'contactPerson',
+      'email',
+      'phone',
+      'address',
+      'city',
+      'country',
+      'tin',
+      'ghanaCard',
+      'customerType',
+      'status'
+    ];
+    const payload = {};
+    allowed.forEach((key) => {
+      if (customerData[key] !== undefined) {
+        payload[key] = customerData[key];
+      }
+    });
+    if (payload.email !== undefined) {
+      payload.email =
+        typeof payload.email === 'string' && payload.email.trim()
+          ? payload.email.trim()
+          : null;
+    }
+    if (payload.tin !== undefined) {
+      payload.tin =
+        typeof payload.tin === 'string' && payload.tin.trim()
+          ? payload.tin.trim()
+          : null;
+    }
+    if (payload.phone !== undefined && typeof payload.phone === 'string') {
+      payload.phone = payload.phone.trim();
+    }
+    return payload;
+  };
+
   // Add new customer
   const addCustomer = async (customerData) => {
     try {
-      const payload = {
-        ...customerData,
-        email:
-          typeof customerData.email === 'string' && customerData.email.trim()
-            ? customerData.email.trim()
-            : null,
-      };
+      const payload = pickCustomerPayload(customerData);
       const response = await apiService.createCustomer(payload);
 
       const newCustomer = response.customer;
@@ -72,17 +104,7 @@ export const CustomerProvider = ({ children }) => {
   // Update existing customer
   const updateCustomer = async (id, customerData) => {
     try {
-      const payload = {
-        ...customerData,
-        ...(customerData.email !== undefined
-          ? {
-              email:
-                typeof customerData.email === 'string' && customerData.email.trim()
-                  ? customerData.email.trim()
-                  : null,
-            }
-          : {}),
-      };
+      const payload = pickCustomerPayload(customerData);
       const response = await apiService.updateCustomer(id, payload);
       const updatedCustomer = response.customer;
       setCustomers(prev => 
