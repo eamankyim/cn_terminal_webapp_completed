@@ -534,4 +534,120 @@ router.get('/monthly-trends', authenticateToken, requirePermission(UI_PERMISSION
   }
 });
 
+/**
+ * @swagger
+ * /api/reports/assignee-work:
+ *   get:
+ *     summary: Get team work report by person (status moves in range)
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: assigneeId
+ *         schema:
+ *           type: string
+ *         description: Limit to moves made by this user
+ *     responses:
+ *       200:
+ *         description: Assignee work report retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/assignee-work', authenticateToken, requirePermission(UI_PERMISSIONS.REPORTS), async (req, res) => {
+  try {
+    const { startDate, endDate, assigneeId } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Start date and end date are required' });
+    }
+
+    const startDateTime = new Date(startDate + 'T00:00:00.000Z');
+    const endDateTime = new Date(endDate + 'T23:59:59.999Z');
+
+    const data = await ReportService.getAssigneeWork(
+      startDateTime,
+      endDateTime,
+      assigneeId || undefined
+    );
+
+    res.json(data);
+  } catch (error) {
+
+    res.status(500).json({ error: 'Failed to fetch assignee work report' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/reports/stage-times:
+ *   get:
+ *     summary: Get time between first arrivals at live pipeline stages
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: assigneeId
+ *         schema:
+ *           type: string
+ *         description: Limit to jobs this person first moved into the `to` status
+ *     responses:
+ *       200:
+ *         description: Stage times report retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/stage-times', authenticateToken, requirePermission(UI_PERMISSIONS.REPORTS), async (req, res) => {
+  try {
+    const { startDate, endDate, assigneeId } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Start date and end date are required' });
+    }
+
+    const startDateTime = new Date(startDate + 'T00:00:00.000Z');
+    const endDateTime = new Date(endDate + 'T23:59:59.999Z');
+
+    const data = await ReportService.getStageTimes(
+      startDateTime,
+      endDateTime,
+      assigneeId || undefined
+    );
+
+    res.json(data);
+  } catch (error) {
+
+    res.status(500).json({ error: 'Failed to fetch stage times report' });
+  }
+});
+
 module.exports = router;

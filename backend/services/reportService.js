@@ -1,5 +1,42 @@
 const { prisma } = require('../config/database');
 
+const LIVE_PIPELINE = [
+  'NEW',
+  'PREINVOICED',
+  'INVOICED',
+  'ENTRY_COMPLETED',
+  'DUTY_PAID',
+  'READY_FOR_RELEASE',
+  'RELEASED',
+  'CLEARED',
+  'DELIVERED'
+];
+
+const COMPLETED_STATUSES = new Set(['CLEARED', 'DELIVERED']);
+const JOB_ID_CHUNK = 1000;
+
+function roundHours(value) {
+  return Math.round(value * 10) / 10;
+}
+
+function median(values) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
+}
+
+function chunkIds(ids, size = JOB_ID_CHUNK) {
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += size) {
+    chunks.push(ids.slice(i, i + size));
+  }
+  return chunks;
+}
+
 class ReportService {
   // Job Status Summary Report
   async getJobStatusSummary(startDate, endDate) {
@@ -487,6 +524,216 @@ class ReportService {
       });
     } catch (error) {
 
+      throw error;
+    }
+  }
+
+  // Work by person: status moves in range. Completed = they moved the job to
+  // Cleared or Delivered (not whoever is currently assigned).
+  async getAssigneeWork(startDate, endDate, assigneeId) {
+    try {
+      const historyWhere = {
+        date: {
+          gte: startDate,
+          lte: endDate
+        },
+        job: {
+          isDraft: false
+        }
+      };
+      if (assigneeId) {
+        historyWhere.updatedById = assigneeId;
+      }
+
+      const history = await prisma.jobStatusHistory.findMany({
+        where: historyWhere,
+        select: {
+          jobId: true,
+          status: true,
+          updatedById: true
+        }
+      });
+
+      if (history.length === 0) {
+        return { people: [] };
+      }
+
+      const byUser = new Map();
+      history.forEach((row) => {
+        let person = byUser.get(row.updatedById);
+        if (!person) {
+          person = {
+            moves: 0,
+            jobIds: new Set(),
+            completedJobIds: new Set(),
+            movesByStatus: {}
+          };
+          byUser.set(row.updatedById, person);
+        }
+        person.moves += 1;
+        person.jobIds.add(row.jobId);
+        person.movesByStatus[row.status] = (person.movesByStatus[row.status] || 0) + 1;
+        if (COMPLETED_STATUSES.has(row.status)) {
+          person.completedJobIds.add(row.jobId);
+        }
+      });
+
+      const userIds = [...byUser.keys()];
+      const [users, assignedCounts] = await Promise.all([
+        prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, name: true, role: true }
+        }),
+        prisma.job.groupBy({
+          by: ['assignedToId', 'status'],
+          where: {
+            isDraft: false,
+            assignedToId: { in: userIds }
+          },
+          _count: { status: true }
+        })
+      ]);
+
+      const usersById = new Map(users.map((user) => [user.id, user]));
+      const assignedByUser = new Map();
+      assignedCounts.forEach((row) => {
+        let snapshot = assignedByUser.get(row.assignedToId);
+        if (!snapshot) {
+          snapshot = { total: 0, byStatus: {} };
+          assignedByUser.set(row.assignedToId, snapshot);
+        }
+        snapshot.byStatus[row.status] = row._count.status;
+        snapshot.total += row._count.status;
+      });
+
+      const people = userIds.map((userId) => {
+        const stats = byUser.get(userId);
+        const user = usersById.get(userId);
+        return {
+          userId,
+          name: user?.name || 'Unknown',
+          role: user?.role || null,
+          moves: stats.moves,
+          jobsTouched: stats.jobIds.size,
+          completed: stats.completedJobIds.size,
+          movesByStatus: stats.movesByStatus,
+          currentlyAssigned: assignedByUser.get(userId) || { total: 0, byStatus: {} }
+        };
+      }).sort((a, b) => {
+        if (b.moves !== a.moves) return b.moves - a.moves;
+        return a.name.localeCompare(b.name);
+      });
+
+      return { people };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Time between first arrivals at live pipeline stages. A pair is included
+  // when arrival at `to` falls in the date range. assigneeId filters to jobs
+  // that person first moved into `to`. Skip pairs are included when they happen.
+  async getStageTimes(startDate, endDate, assigneeId) {
+    try {
+      const startMs = startDate.getTime();
+      const endMs = endDate.getTime();
+
+      const bWhere = {
+        date: {
+          gte: startDate,
+          lte: endDate
+        },
+        status: { in: LIVE_PIPELINE },
+        job: { isDraft: false }
+      };
+      if (assigneeId) {
+        bWhere.updatedById = assigneeId;
+      }
+
+      const candidateRows = await prisma.jobStatusHistory.findMany({
+        where: bWhere,
+        select: { jobId: true },
+        distinct: ['jobId']
+      });
+
+      const jobIds = [...new Set(candidateRows.map((row) => row.jobId))];
+      if (jobIds.length === 0) {
+        return { pipeline: LIVE_PIPELINE, pairs: [] };
+      }
+
+      const history = [];
+      for (const ids of chunkIds(jobIds)) {
+        const rows = await prisma.jobStatusHistory.findMany({
+          where: {
+            jobId: { in: ids },
+            status: { in: LIVE_PIPELINE },
+            job: { isDraft: false }
+          },
+          select: {
+            jobId: true,
+            status: true,
+            date: true,
+            updatedById: true
+          },
+          orderBy: [{ date: 'asc' }, { id: 'asc' }]
+        });
+        history.push(...rows);
+      }
+
+      const firstArrivalsByJob = new Map();
+      history.forEach((row) => {
+        let arrivals = firstArrivalsByJob.get(row.jobId);
+        if (!arrivals) {
+          arrivals = new Map();
+          firstArrivalsByJob.set(row.jobId, arrivals);
+        }
+        if (!arrivals.has(row.status)) {
+          arrivals.set(row.status, {
+            date: row.date,
+            updatedById: row.updatedById
+          });
+        }
+      });
+
+      const pairHours = new Map();
+      firstArrivalsByJob.forEach((arrivals) => {
+        const ordered = LIVE_PIPELINE
+          .filter((status) => arrivals.has(status))
+          .map((status) => ({ status, ...arrivals.get(status) }));
+
+        for (let i = 0; i < ordered.length - 1; i++) {
+          const from = ordered[i];
+          const to = ordered[i + 1];
+          const toMs = to.date.getTime();
+          if (toMs < startMs || toMs > endMs) continue;
+          if (assigneeId && to.updatedById !== assigneeId) continue;
+          const hours = (toMs - from.date.getTime()) / (1000 * 60 * 60);
+          if (hours < 0) continue;
+          const key = `${from.status}|${to.status}`;
+          if (!pairHours.has(key)) pairHours.set(key, []);
+          pairHours.get(key).push(hours);
+        }
+      });
+
+      const pairs = [...pairHours.entries()].map(([key, hours]) => {
+        const [from, to] = key.split('|');
+        return {
+          from,
+          to,
+          sampleCount: hours.length,
+          avgHours: roundHours(hours.reduce((sum, value) => sum + value, 0) / hours.length),
+          medianHours: roundHours(median(hours)),
+          minHours: roundHours(Math.min(...hours)),
+          maxHours: roundHours(Math.max(...hours))
+        };
+      }).sort((a, b) => {
+        const fromDiff = LIVE_PIPELINE.indexOf(a.from) - LIVE_PIPELINE.indexOf(b.from);
+        if (fromDiff !== 0) return fromDiff;
+        return LIVE_PIPELINE.indexOf(a.to) - LIVE_PIPELINE.indexOf(b.to);
+      });
+
+      return { pipeline: LIVE_PIPELINE, pairs };
+    } catch (error) {
       throw error;
     }
   }
