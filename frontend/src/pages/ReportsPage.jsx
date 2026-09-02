@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Card,
   Row, 
@@ -36,7 +36,8 @@ import {
   UserOutlined,
   DollarOutlined,
   FileTextOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  TeamOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
@@ -45,6 +46,7 @@ import apiService from '../services/api';
 import DashboardWidgets from '../components/analytics/DashboardWidgets';
 import RealTimeAnalytics from '../components/analytics/RealTimeAnalytics';
 import { getJobStatusColor, getJobStatusHexColor, getInvoiceStatusColor, formatJobStatusLabel } from '../utils/statusUtils';
+import { getRoleInfo } from '../utils/permissions';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 import useResponsive from '../hooks/useResponsive';
 
@@ -70,6 +72,9 @@ const ReportsPage = () => {
   ]);
   const [selectedPeriod, setSelectedPeriod] = useState('30days');
   const [activeTab, setActiveTab] = useState('overview');
+  const [assigneeId, setAssigneeId] = useState(undefined);
+  const [assigneeOptions, setAssigneeOptions] = useState([]);
+  const skipInitialTeamWorkLoad = useRef(true);
   
   // Check if user should see revenue data
   const employeeRoles = ['ENQUIRY_OFFICER', 'ENTRY_OFFICER', 'TRANSPORT_COORDINATOR', 'RELEASE_OFFICER', 'PREINVOICE_OFFICER', 'INVOICE_OFFICER', 'SUPERVISOR', 'REVIEW_OFFICER', 'VETTING_OFFICER', 'CLEARING_OFFICER', 'STAFF', 'DRIVER', 'WAREHOUSE'];
@@ -95,6 +100,9 @@ const ReportsPage = () => {
   const [customerData, setCustomerData] = useState([]);
   const [processingTimeData, setProcessingTimeData] = useState([]);
   const [monthlyTrendsData, setMonthlyTrendsData] = useState([]);
+  const [assigneeWorkData, setAssigneeWorkData] = useState([]);
+  const [stageTimesData, setStageTimesData] = useState([]);
+  const [teamWorkLoading, setTeamWorkLoading] = useState(false);
   
   // Financial reports state
   const [financialData, setFinancialData] = useState({
@@ -117,10 +125,42 @@ const ReportsPage = () => {
     loadAllReports();
   }, [dateRange, selectedPeriod]);
 
+  useEffect(() => {
+    if (skipInitialTeamWorkLoad.current) {
+      skipInitialTeamWorkLoad.current = false;
+      return;
+    }
+    loadTeamWork();
+  }, [assigneeId]);
+
+  const applyTeamWorkResults = (assigneeWork, stageTimes) => {
+    const people = Array.isArray(assigneeWork?.people) ? assigneeWork.people : [];
+    setAssigneeWorkData(people);
+    if (!assigneeId) {
+      setAssigneeOptions(people.map((person) => ({ userId: person.userId, name: person.name })));
+    }
+    setStageTimesData(Array.isArray(stageTimes?.pairs) ? stageTimes.pairs : []);
+  };
+
+  const loadTeamWork = async () => {
+    setTeamWorkLoading(true);
+    try {
+      const [assigneeWork, stageTimes] = await Promise.all([
+        reportService.getAssigneeWork(dateRange[0], dateRange[1], assigneeId),
+        reportService.getStageTimes(dateRange[0], dateRange[1], assigneeId)
+      ]);
+      applyTeamWorkResults(assigneeWork, stageTimes);
+    } catch (error) {
+      message.error('Failed to load team work report');
+    } finally {
+      setTeamWorkLoading(false);
+    }
+  };
+
   const loadAllReports = async () => {
     setLoading(true);
     try {
-      const [summaryStats, jobStatus, dailyActivity, revenue, invoices, customers, processingTime, monthlyTrends] = await Promise.all([
+      const [summaryStats, jobStatus, dailyActivity, revenue, invoices, customers, processingTime, monthlyTrends, assigneeWork, stageTimes] = await Promise.all([
         reportService.getSummaryStats(dateRange[0], dateRange[1]),
         reportService.getJobStatusSummary(dateRange[0], dateRange[1]),
         reportService.getDailyActivity(dateRange[0], dateRange[1]),
@@ -128,7 +168,9 @@ const ReportsPage = () => {
         reportService.getInvoiceReports(dateRange[0], dateRange[1]),
         reportService.getCustomerActivity(dateRange[0], dateRange[1]),
         reportService.getProcessingTimeReport(dateRange[0], dateRange[1]),
-        reportService.getMonthlyTrendsReport(dateRange[0], dateRange[1])
+        reportService.getMonthlyTrendsReport(dateRange[0], dateRange[1]),
+        reportService.getAssigneeWork(dateRange[0], dateRange[1], assigneeId),
+        reportService.getStageTimes(dateRange[0], dateRange[1], assigneeId)
       ]);
 
     // Load financial data for accountants and IT consultants
@@ -144,6 +186,7 @@ const ReportsPage = () => {
       setCustomerData(customers);
       setProcessingTimeData(processingTime);
       setMonthlyTrendsData(monthlyTrends);
+      applyTeamWorkResults(assigneeWork, stageTimes);
     } catch (error) {
 
       message.error('Failed to load reports');
@@ -1081,6 +1124,126 @@ const ReportsPage = () => {
     }
   ];
 
+  const formatHours = (value) => {
+    if (value == null || Number.isNaN(Number(value))) return '—';
+    return `${Number(value).toFixed(1)}h`;
+  };
+
+  const renderStatusCounts = (counts) => {
+    const entries = Object.entries(counts || {});
+    if (entries.length === 0) {
+      return <Text type="secondary">None</Text>;
+    }
+    return (
+      <Space wrap size={[4, 4]}>
+        {entries
+          .sort((a, b) => b[1] - a[1])
+          .map(([status, count]) => (
+            <Tag key={status} color={getJobStatusColor(status)}>
+              {formatJobStatusLabel(status)}: {count}
+            </Tag>
+          ))}
+      </Space>
+    );
+  };
+
+  const assigneeWorkColumns = [
+    {
+      title: 'Name',
+      dataIndex: 'name',
+      key: 'name',
+      render: (name, record) => (
+        <div>
+          <Text strong>{name}</Text>
+          {record.role ? (
+            <div>
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                {getRoleInfo(record.role).name}
+              </Text>
+            </div>
+          ) : null}
+        </div>
+      )
+    },
+    {
+      title: 'Moves',
+      dataIndex: 'moves',
+      key: 'moves',
+      defaultSortOrder: 'descend',
+      sorter: (a, b) => a.moves - b.moves,
+      render: (count) => <Tag color="blue">{count}</Tag>
+    },
+    {
+      title: 'Jobs touched',
+      dataIndex: 'jobsTouched',
+      key: 'jobsTouched',
+      render: (count) => <Text strong>{count}</Text>
+    },
+    {
+      title: 'Completed',
+      dataIndex: 'completed',
+      key: 'completed',
+      render: (count) => <Tag color="green">{count}</Tag>
+    },
+    {
+      title: 'By status',
+      key: 'movesByStatus',
+      dataIndex: 'movesByStatus',
+      render: (counts) => renderStatusCounts(counts)
+    },
+    {
+      title: 'Assigned now',
+      key: 'currentlyAssigned',
+      dataIndex: ['currentlyAssigned', 'total'],
+      render: (total) => <Text>{total || 0}</Text>
+    }
+  ];
+
+  const stageTimesColumns = [
+    {
+      title: 'From',
+      dataIndex: 'from',
+      key: 'from',
+      render: (status) => <Tag color={getJobStatusColor(status)}>{formatJobStatusLabel(status)}</Tag>
+    },
+    {
+      title: 'To',
+      dataIndex: 'to',
+      key: 'to',
+      render: (status) => <Tag color={getJobStatusColor(status)}>{formatJobStatusLabel(status)}</Tag>
+    },
+    {
+      title: 'Avg',
+      dataIndex: 'avgHours',
+      key: 'avgHours',
+      render: formatHours
+    },
+    {
+      title: 'Median',
+      dataIndex: 'medianHours',
+      key: 'medianHours',
+      render: formatHours
+    },
+    {
+      title: 'Min',
+      dataIndex: 'minHours',
+      key: 'minHours',
+      render: formatHours
+    },
+    {
+      title: 'Max',
+      dataIndex: 'maxHours',
+      key: 'maxHours',
+      render: formatHours
+    },
+    {
+      title: 'Sample size',
+      dataIndex: 'sampleCount',
+      key: 'sampleCount',
+      render: (count) => <Text strong>{count}</Text>
+    }
+  ];
+
     return (
     <div style={{ padding: '24px' }}>
       <div style={{ marginBottom: '24px' }}>
@@ -1479,6 +1642,77 @@ const ReportsPage = () => {
                 mobileConfig={{
                   primaryFields: ['customerName'],
                   secondaryFields: ['totalJobs', 'totalRevenue']
+                }}
+              />
+            </Card>
+          </TabPane>
+
+          <TabPane tab="Team Work" key="teamwork">
+            <Space style={{ marginBottom: 16 }} wrap>
+              <TeamOutlined />
+              <Text strong>Assignee:</Text>
+              <Select
+                showSearch
+                optionFilterProp="label"
+                value={assigneeId || 'ALL'}
+                onChange={(value) => setAssigneeId(value === 'ALL' ? undefined : value)}
+                style={{ minWidth: 220 }}
+              >
+                <Option value="ALL" label="All">All</Option>
+                {assigneeOptions.map((person) => (
+                  <Option key={person.userId} value={person.userId} label={person.name}>
+                    {person.name}
+                  </Option>
+                ))}
+              </Select>
+            </Space>
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="Completed = jobs this person moved to Cleared or Delivered. Current assignment can change and is shown separately."
+            />
+            <Card title="Work by person" size="small" style={{ marginBottom: 16 }}>
+              <ResponsiveTable
+                dataSource={assigneeWorkData}
+                columns={assigneeWorkColumns}
+                rowKey="userId"
+                pagination={false}
+                loading={loading || teamWorkLoading}
+                expandable={{
+                  expandedRowRender: (record) => (
+                    <div>
+                      <div style={{ marginBottom: 8 }}>
+                        <Text strong>Moves by status: </Text>
+                        {renderStatusCounts(record.movesByStatus)}
+                      </div>
+                      <div>
+                        <Text strong>Currently assigned: </Text>
+                        {renderStatusCounts(record.currentlyAssigned?.byStatus)}
+                      </div>
+                    </div>
+                  )
+                }}
+                locale={{
+                  emptyText: <Empty description="No status moves in this period" />
+                }}
+                mobileConfig={{
+                  primaryFields: ['name', 'moves', 'jobsTouched', 'completed', 'movesByStatus']
+                }}
+              />
+            </Card>
+            <Card title="Time between stages" size="small">
+              <ResponsiveTable
+                dataSource={stageTimesData}
+                columns={stageTimesColumns}
+                rowKey={(record) => `${record.from}-${record.to}`}
+                pagination={false}
+                loading={loading || teamWorkLoading}
+                locale={{
+                  emptyText: <Empty description="No transitions in this period" />
+                }}
+                mobileConfig={{
+                  primaryFields: ['from', 'to', 'avgHours', 'sampleCount']
                 }}
               />
             </Card>

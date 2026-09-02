@@ -149,6 +149,9 @@ model JobStatusHistory {
   job           Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
   updatedByUser User      @relation("StatusHistory", fields: [updatedById], references: [id])
 
+  @@index([date])
+  @@index([jobId, date])
+  @@index([updatedById, date])
   @@map("job_status_history")
 }
 

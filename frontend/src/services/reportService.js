@@ -128,6 +128,38 @@ class ReportService {
       throw error;
     }
   }
+
+  async getAssigneeWork(startDate, endDate, assigneeId) {
+    try {
+      const params = {
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0]
+      };
+      if (assigneeId) {
+        params.assigneeId = assigneeId;
+      }
+      return await apiService.get('/reports/assignee-work', { params });
+    } catch (error) {
+
+      throw error;
+    }
+  }
+
+  async getStageTimes(startDate, endDate, assigneeId) {
+    try {
+      const params = {
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0]
+      };
+      if (assigneeId) {
+        params.assigneeId = assigneeId;
+      }
+      return await apiService.get('/reports/stage-times', { params });
+    } catch (error) {
+
+      throw error;
+    }
+  }
 }
 
 const reportServiceInstance = new ReportService();
