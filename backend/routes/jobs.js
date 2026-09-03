@@ -621,6 +621,15 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
       console.error('❌ [Jobs API] Assignment SMS failed:', smsError.message);
     }
 
+    // Customer SMS with ETA on real (non-draft) job create
+    if (!isDraft) {
+      try {
+        await SmsNotificationService.notifyCustomerJobCreatedWithEta(completeJob.id);
+      } catch (smsError) {
+        console.error('❌ [Jobs API] Customer job-created ETA SMS failed:', smsError.message);
+      }
+    }
+
     // Emit socket event for real-time update
     SocketService.emitJobCreated(completeJob);
 
@@ -873,6 +882,15 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
         });
       } catch (smsError) {
         console.error('Assignment SMS failed:', smsError.message);
+      }
+    }
+
+    // Draft → submitted: same customer ETA SMS as create (skip if no ETA / no phone)
+    if (submittingDraft) {
+      try {
+        await SmsNotificationService.notifyCustomerJobCreatedWithEta(id);
+      } catch (smsError) {
+        console.error('Customer job-created ETA SMS failed:', smsError.message);
       }
     }
 
@@ -1220,8 +1238,15 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
             jobId: id,
             userId: prev.id,
             dedupeKey: `SMS_JOB_REASSIGNED:prev:${id}:${prev.id}:${status}`,
-            skipQuietHours: true
+            skipQuietHours: true,
+            metadata: { role: 'previous_assignee', via: 'status-update' }
           });
+        } else {
+          console.log(
+            `📱 [SMS] skipped previous-assignee SMS on status update — ${
+              prev ? 'user has no phone' : 'previous user not found'
+            } (user=${existingJob.assignedToId}, job=${id})`
+          );
         }
         await SmsNotificationService.checkReassignChurn(id);
       }

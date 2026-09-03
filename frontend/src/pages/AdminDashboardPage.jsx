@@ -176,7 +176,7 @@ const AdminDashboardPage = () => {
       profileForm.setFieldsValue({
         name: currentUser.name || '',
         email: currentUser.email || '',
-        phone: '', // Phone field not available in current user schema
+        phone: currentUser.phone || '',
         department: department || 'operations'
       });
     }
@@ -219,7 +219,7 @@ const AdminDashboardPage = () => {
         role: user.role.toLowerCase(),
         status: user.isActive ? 'active' : 'inactive',
         avatar: null,
-        phone: 'N/A', // Phone not stored in current schema
+        phone: user.phone || '',
         department: getDepartmentByRole(user.role),
         joinedDate: new Date(user.createdAt).toISOString().split('T')[0],
         lastLogin: 'N/A' // Last login not tracked in current schema
@@ -366,8 +366,8 @@ const AdminDashboardPage = () => {
       // Only update fields that exist in the user schema
       const updateData = {
         name: values.name,
-        email: values.email
-        // Note: phone and department are not part of the user schema
+        email: values.email,
+        phone: values.phone
       };
       
       await updateProfile(updateData);
@@ -1032,8 +1032,18 @@ const AdminDashboardPage = () => {
               </Row>
               <Row gutter={16}>
                 <Col span={12}>
-                  <Form.Item label="Phone" name="phone">
-                    <Input prefix={<PhoneOutlined />} placeholder="Your phone number" disabled />
+                  <Form.Item
+                    label="Phone"
+                    name="phone"
+                    extra="Required for staff assignment / reassignment SMS"
+                    rules={[
+                      {
+                        pattern: /^[0-9+\-\s()]*$/,
+                        message: 'Please enter a valid phone number'
+                      }
+                    ]}
+                  >
+                    <Input prefix={<PhoneOutlined />} placeholder="e.g. 0241234567" />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -1048,7 +1058,8 @@ const AdminDashboardPage = () => {
                 </Col>
               </Row>
               <Text type="secondary" style={{ fontSize: '12px', marginBottom: '16px', display: 'block' }}>
-                Note: Phone and Department fields are display-only. Only Name and Email can be updated.
+                Note: Department is display-only. Phone is saved to your profile and is required
+                for assignment / reassignment SMS.
               </Text>
               <Form.Item>
                 <Button type="primary" htmlType="submit">Update Profile</Button>
@@ -1622,7 +1633,9 @@ const AdminDashboardPage = () => {
                     <Descriptions.Item label="Phone">
                       <Space>
                         <PhoneOutlined />
-                        {selectedUser.phone}
+                        {selectedUser.phone || (
+                          <Text type="warning">Not set — assignment SMS will be skipped</Text>
+                        )}
                       </Space>
                     </Descriptions.Item>
                     <Descriptions.Item label="Department">

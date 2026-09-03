@@ -46,6 +46,7 @@ const STAFF_TOGGLES = [
 ];
 
 const CUSTOMER_TOGGLES = [
+  { key: 'SMS_CUSTOMER_JOB_CREATED_ETA', label: 'Job created → customer (include ETA)', default: true },
   { key: 'SMS_CUSTOMER_ENTRY_COMPLETED', label: 'ENTRY_COMPLETED', default: true },
   { key: 'SMS_CUSTOMER_DUTY_PAID', label: 'DUTY_PAID', default: true },
   { key: 'SMS_CUSTOMER_READY_FOR_RELEASE', label: 'READY_FOR_RELEASE', default: true },
@@ -306,6 +307,21 @@ const SmsSettingsPanel = ({ initialTab = 'settings' }) => {
         truth). Use <Text strong>Test SMS &amp; Statistics</Text> to send a test message and review
         send/fail counts.
       </Paragraph>
+
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="Staff phones required for assignment SMS"
+        description={
+          <>
+            Job assigned / reassigned SMS goes to <Text code>User.phone</Text> on the assignee&apos;s
+            profile (Settings → Profile, or Admin user details). If phone is empty, in-app
+            notifications still fire but SMS is skipped (visible in Test SMS &amp; Statistics as
+            skipped). Customer milestone SMS uses <Text code>Customer.phone</Text>.
+          </>
+        }
+      />
 
       <Tabs
         activeKey={activeTab}

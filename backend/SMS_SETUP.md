@@ -65,6 +65,7 @@ Controlled in the database via configurations (Admin Dashboard → **SMS Setting
 | `SMS_REASSIGN_CHURN` | `true` | ≥N reassigns / 24h |
 | `SMS_RELEASE_MONEY` | `true` | Cron after delay |
 | `SMS_COMMENT_ASSIGNEE` | `false` | Opt-in |
+| `SMS_CUSTOMER_JOB_CREATED_ETA` | `true` | **Job created → customer** (include ETA; skip if no ETA) |
 | `SMS_CUSTOMER_*` milestones | `true` | Incl. READY_FOR_RELEASE |
 | `SMS_CUSTOMER_CONSIGNEE_COPY` | `false` | RELEASED / CLEARED / DELIVERED |
 | `SMS_CUSTOMER_ETA_APPROACHING` | `false` | **ETA approaching → customer** (uses `Customer.phone`) |
@@ -75,9 +76,11 @@ Thresholds: `SMS_ETA_WARN_DAYS` (`7,3`), `SMS_ETA_OVERDUE_REPEAT_HOURS` (24), `S
 
 Quiet hours apply to SLA/ETA nudges only — **not** assignment, reassignment, or customer milestones.
 
+**Staff phones:** Assignment / reassignment SMS uses `User.phone`. If empty, in-app notifications still work but SMS is skipped (logged as `skipped` in `SmsDispatchLog`). Team members set phone under Settings → Profile; Admin user list now shows phone and warns when missing.
+
 Client ETA toggles are independent of staff ETA toggles: turning staff ETA off does not block customer ETA SMS (and vice versa). Both still require the master switch.
 
-Seed missing keys: Admin → SMS Settings → **Seed missing defaults**, or `POST /api/configurations/init`.
+Runtime note: if an event key was never seeded, the backend now uses the same product defaults as the Admin UI (previously UI could show ON while sends treated missing keys as OFF). Still prefer **Seed missing defaults** so values persist in the DB.
 
 ## Scheduler
 
@@ -139,6 +142,6 @@ Deploy may still wire optional `MNOTIFY_*` env vars from GitHub secrets as a **f
 ### After this change
 
 1. Redeploy (or restart) the backend so the new code/config keys are live.
-2. Admin → SMS Settings → **Seed missing defaults** (adds `MNOTIFY_*` and `SMS_CUSTOMER_ETA_APPROACHING` if missing).
+2. Admin → SMS Settings → **Seed missing defaults** (adds `MNOTIFY_*`, `SMS_CUSTOMER_JOB_CREATED_ETA`, and other new keys if missing).
 3. Enter MNotify API key + sender ID and save.
 4. Enable master SMS and any client ETA toggles you want.

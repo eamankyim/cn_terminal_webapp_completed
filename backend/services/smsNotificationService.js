@@ -32,6 +32,21 @@ function track(job) {
   return job?.trackingId || 'job';
 }
 
+/** Short ETA for SMS (Africa/Accra), e.g. "03 Sep 2026". */
+function formatEtaForSms(eta) {
+  if (!eta) return null;
+  try {
+    return new Date(eta).toLocaleDateString('en-GB', {
+      timeZone: 'Africa/Accra',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  } catch {
+    return null;
+  }
+}
+
 async function safe(fn, label) {
   try {
     return await fn();
@@ -71,7 +86,12 @@ async function loadJob(jobId) {
 }
 
 async function sendToPhone({ phone, message, eventKey, jobId, userId, dedupeKey, metadata, skipQuietHours }) {
-  if (!phone) return { success: false, reason: 'No phone' };
+  if (!phone) {
+    console.log(
+      `📱 [SMS] skipped — no phone (event=${eventKey || 'n/a'}, job=${jobId || 'n/a'}, user=${userId || 'n/a'})`
+    );
+    return { success: false, reason: 'No phone', skipped: true };
+  }
   return smsService.sendSms({
     to: phone,
     message: trunc(message),
@@ -85,8 +105,39 @@ async function sendToPhone({ phone, message, eventKey, jobId, userId, dedupeKey,
 }
 
 async function sendToUser(user, message, eventKey, opts = {}) {
-  if (!user?.phone) {
-    return { success: false, reason: 'User has no phone' };
+  if (!user) {
+    console.log(
+      `📱 [SMS] skipped — user not found/inactive (event=${eventKey || 'n/a'}, job=${opts.jobId || 'n/a'})`
+    );
+    return { success: false, reason: 'User not found or inactive', skipped: true };
+  }
+  if (!user.phone) {
+    console.log(
+      `📱 [SMS] skipped — user has no phone (user=${user.id}, name=${user.name || '?'}, event=${eventKey || 'n/a'}, job=${opts.jobId || 'n/a'}). Staff must set phone on their profile (Settings) for assignment SMS.`
+    );
+    // Persist skip so Admin → SMS Statistics can explain missing assignee SMS
+    try {
+      await smsService._writeDispatchLog({
+        eventKey,
+        jobId: opts.jobId || null,
+        userId: user.id,
+        phone: null,
+        dedupeKey:
+          opts.dedupeKey ||
+          `skip:nophone:${eventKey || 'custom'}:${user.id}:${opts.jobId || 'na'}:${Date.now()}`,
+        message: trunc(message),
+        status: 'skipped',
+        errorMessage: 'User has no phone on profile',
+        metadata: {
+          ...(opts.metadata && typeof opts.metadata === 'object' ? opts.metadata : {}),
+          skipReason: 'User has no phone',
+          userName: user.name || null
+        }
+      });
+    } catch (e) {
+      // ignore log failures
+    }
+    return { success: false, reason: 'User has no phone', skipped: true };
   }
   return sendToPhone({
     phone: user.phone,
@@ -118,9 +169,17 @@ class SmsNotificationService {
    */
   static async notifyJobAssigned({ jobId, assignedToId, assignedById }) {
     return safe(async () => {
-      if (!assignedToId || assignedToId === assignedById) return { skipped: true, reason: 'self-assign' };
+      if (!assignedToId || assignedToId === assignedById) {
+        console.log(
+          `📱 [SMS:job-assigned] skipped — self-assign (job=${jobId}, user=${assignedToId})`
+        );
+        return { skipped: true, reason: 'self-assign' };
+      }
       const job = await loadJob(jobId);
-      if (!job) return { skipped: true };
+      if (!job) {
+        console.log(`📱 [SMS:job-assigned] skipped — job not found (${jobId})`);
+        return { skipped: true, reason: 'Job not found' };
+      }
       const user = await getUser(assignedToId);
       const msg = `CN Terminal: Job ${track(job)} assigned to you (${job.customer?.name || 'client'}).`;
       return sendToUser(user, msg, 'SMS_JOB_ASSIGNED', {
@@ -142,7 +201,10 @@ class SmsNotificationService {
   }) {
     return safe(async () => {
       const job = await loadJob(jobId);
-      if (!job) return { skipped: true };
+      if (!job) {
+        console.log(`📱 [SMS:job-reassigned] skipped — job not found (${jobId})`);
+        return { skipped: true, reason: 'Job not found' };
+      }
       const results = [];
 
       if (newAssigneeId && newAssigneeId !== assignedById) {
@@ -155,10 +217,18 @@ class SmsNotificationService {
             {
               jobId,
               dedupeKey: `SMS_JOB_REASSIGNED:new:${jobId}:${newAssigneeId}:${Date.now()}`,
-              skipQuietHours: true
+              skipQuietHours: true,
+              metadata: { role: 'new_assignee' }
             }
           )
         );
+      } else if (newAssigneeId && newAssigneeId === assignedById) {
+        console.log(
+          `📱 [SMS:job-reassigned] skipped new-assignee SMS — self-reassign (job=${jobId}, user=${newAssigneeId})`
+        );
+        results.push({ skipped: true, reason: 'self-reassign' });
+      } else if (!newAssigneeId) {
+        console.log(`📱 [SMS:job-reassigned] skipped new-assignee SMS — no newAssigneeId (job=${jobId})`);
       }
 
       if (previousAssigneeId && previousAssigneeId !== newAssigneeId) {
@@ -171,7 +241,8 @@ class SmsNotificationService {
             {
               jobId,
               dedupeKey: `SMS_JOB_REASSIGNED:prev:${jobId}:${previousAssigneeId}:${Date.now()}`,
-              skipQuietHours: true
+              skipQuietHours: true,
+              metadata: { role: 'previous_assignee' }
             }
           )
         );
@@ -180,6 +251,15 @@ class SmsNotificationService {
       // Churn check (≥N reassigns / 24h)
       await this.checkReassignChurn(jobId);
 
+      console.log(
+        `📱 [SMS:job-reassigned] done job=${track(job)} results=${JSON.stringify(
+          results.map((r) => ({
+            success: r?.success,
+            skipped: r?.skipped,
+            reason: r?.reason || r?.error || null
+          }))
+        )}`
+      );
       return results;
     }, 'job-reassigned');
   }
@@ -237,6 +317,54 @@ class SmsNotificationService {
       );
       return results;
     }, 'status-reverted');
+  }
+
+  /**
+   * Job created → customer SMS with ETA (skip drafts / missing ETA / missing phone).
+   * Fired on real job create and when a draft is submitted — not on later ETA edits.
+   */
+  static async notifyCustomerJobCreatedWithEta(jobOrId) {
+    return safe(async () => {
+      const job =
+        typeof jobOrId === 'string'
+          ? await loadJob(jobOrId)
+          : jobOrId?.customer
+            ? jobOrId
+            : await loadJob(jobOrId.id);
+
+      if (!job) {
+        console.log('📱 [SMS:job-created-eta] skipped — job not found');
+        return { skipped: true, reason: 'Job not found' };
+      }
+      if (job.isDraft) {
+        console.log(`📱 [SMS:job-created-eta] skipped — draft ${track(job)}`);
+        return { skipped: true, reason: 'Draft job' };
+      }
+      if (!job.eta) {
+        console.log(`📱 [SMS:job-created-eta] skipped — no ETA on ${track(job)}`);
+        return { skipped: true, reason: 'No ETA' };
+      }
+      if (!job.customer?.phone) {
+        console.log(`📱 [SMS:job-created-eta] skipped — no customer phone on ${track(job)}`);
+        return { skipped: true, reason: 'No customer phone' };
+      }
+
+      const etaLabel = formatEtaForSms(job.eta);
+      if (!etaLabel) {
+        console.log(`📱 [SMS:job-created-eta] skipped — invalid ETA on ${track(job)}`);
+        return { skipped: true, reason: 'Invalid ETA' };
+      }
+
+      const msg = `CN Terminal: Job ${track(job)} created. ETA: ${etaLabel}.`;
+      return sendToPhone({
+        phone: job.customer.phone,
+        message: msg,
+        eventKey: 'SMS_CUSTOMER_JOB_CREATED_ETA',
+        jobId: job.id,
+        dedupeKey: `SMS_CUSTOMER_JOB_CREATED_ETA:${job.id}`,
+        skipQuietHours: true
+      });
+    }, 'job-created-eta');
   }
 
   /**

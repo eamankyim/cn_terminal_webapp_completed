@@ -532,6 +532,7 @@ router.get('/me', authenticateToken, async (req, res) => {
         id: true,
         name: true,
         email: true,
+        phone: true,
         role: true,
         isActive: true,
         createdAt: true,
@@ -776,6 +777,7 @@ router.get('/users', authenticateToken, async (req, res) => {
         id: true,
         name: true,
         email: true,
+        phone: true,
         role: true,
         isActive: true,
         createdAt: true,
@@ -1057,12 +1059,12 @@ router.put('/users/:id/status', authenticateToken, requireAdmin, async (req, res
 router.put('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, role, isActive, password } = req.body;
+    const { name, email, role, isActive, password, phone } = req.body;
 
     console.log('=== ADMIN USER UPDATE ATTEMPT ===');
     console.log('Admin User:', req.user.email);
     console.log('Target User ID:', id);
-    console.log('Request Body:', JSON.stringify({ name, email, role, isActive, password: password ? '***PROVIDED***' : 'NOT PROVIDED' }));
+    console.log('Request Body:', JSON.stringify({ name, email, role, isActive, phone: phone !== undefined ? phone : 'NOT PROVIDED', password: password ? '***PROVIDED***' : 'NOT PROVIDED' }));
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -1094,7 +1096,8 @@ router.put('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
         ...(name && { name }),
         ...(email && { email }),
         ...(role && { role }),
-        ...(isActive !== undefined && { isActive })
+        ...(isActive !== undefined && { isActive }),
+        ...(phone !== undefined && { phone: phone === '' || phone === null ? null : String(phone).trim() })
     };
 
     // Keep roleId in sync so login returns the correct RolePermission set
@@ -1121,6 +1124,7 @@ router.put('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
         id: true,
         name: true,
         email: true,
+        phone: true,
         role: true,
         isActive: true,
         createdAt: true,
