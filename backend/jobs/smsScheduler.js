@@ -96,7 +96,10 @@ async function sendStaff(job, message, eventKey, rolesExtra = [], dedupeKey) {
 }
 
 async function processEtaApproaching(jobs, map) {
-  if (!smsService.isEventEnabled(map, 'SMS_ETA_APPROACHING')) return;
+  const staffOn = smsService.isEventEnabled(map, 'SMS_ETA_APPROACHING');
+  const customerOn = smsService.isEventEnabled(map, 'SMS_CUSTOMER_ETA_APPROACHING');
+  if (!staffOn && !customerOn) return;
+
   const warnRaw = smsService.getConfigValue(map, 'SMS_ETA_WARN_DAYS', '7,3');
   const thresholds = String(warnRaw)
     .split(',')
@@ -112,22 +115,38 @@ async function processEtaApproaching(jobs, map) {
     for (const threshold of thresholds) {
       // Fire when within threshold days and not more than 1 day past the window start
       if (days <= threshold && days > threshold - 1) {
-        const msg = `CN Terminal: Job ${job.trackingId} ETA in ~${Math.ceil(days)}d.`;
-        const roles = threshold <= 3 ? ['SUPERVISOR'] : [];
-        await sendStaff(
-          job,
-          msg,
-          'SMS_ETA_APPROACHING',
-          roles,
-          `SMS_ETA_APPROACHING:${job.id}:${threshold}d:${dayBucket(job.eta)}`
-        );
+        if (staffOn) {
+          const msg = `CN Terminal: Job ${job.trackingId} ETA in ~${Math.ceil(days)}d.`;
+          const roles = threshold <= 3 ? ['SUPERVISOR'] : [];
+          await sendStaff(
+            job,
+            msg,
+            'SMS_ETA_APPROACHING',
+            roles,
+            `SMS_ETA_APPROACHING:${job.id}:${threshold}d:${dayBucket(job.eta)}`
+          );
+        }
+
+        // Customer ETA approaching (default OFF) — independent of staff toggle
+        if (customerOn && job.customer?.phone) {
+          await smsService.sendSms({
+            to: job.customer.phone,
+            message: `CN Terminal: Your shipment ${job.trackingId} ETA is in ~${Math.ceil(days)} day(s).`,
+            eventKey: 'SMS_CUSTOMER_ETA_APPROACHING',
+            jobId: job.id,
+            dedupeKey: `SMS_CUSTOMER_ETA_APPROACHING:${job.id}:${threshold}d:${dayBucket(job.eta)}`
+          });
+        }
       }
     }
   }
 }
 
 async function processEtaOverdue(jobs, map) {
-  if (!smsService.isEventEnabled(map, 'SMS_ETA_OVERDUE')) return;
+  const staffOn = smsService.isEventEnabled(map, 'SMS_ETA_OVERDUE');
+  const customerOn = smsService.isEventEnabled(map, 'SMS_CUSTOMER_ETA_OVERDUE');
+  if (!staffOn && !customerOn) return;
+
   const repeatH = parseNumber(
     smsService.getConfigValue(map, 'SMS_ETA_OVERDUE_REPEAT_HOURS', '24'),
     24
@@ -137,31 +156,34 @@ async function processEtaOverdue(jobs, map) {
     if (!job.eta) continue;
     if (daysUntil(job.eta) >= 0) continue;
 
-    const last = await smsService.lastSentAt('SMS_ETA_OVERDUE', job.id);
-    if (last && hoursSince(last) < repeatH) continue;
-
     const overdueDays = Math.ceil(Math.abs(daysUntil(job.eta)));
-    const msg = `CN Terminal: Job ${job.trackingId} ETA overdue by ${overdueDays}d.`;
-    await sendStaff(
-      job,
-      msg,
-      'SMS_ETA_OVERDUE',
-      ['SUPERVISOR'],
-      `SMS_ETA_OVERDUE:${job.id}:${dayBucket()}`
-    );
 
-    // Customer ETA overdue (default OFF)
-    if (
-      smsService.isEventEnabled(map, 'SMS_CUSTOMER_ETA_OVERDUE') &&
-      job.customer?.phone
-    ) {
-      await smsService.sendSms({
-        to: job.customer.phone,
-        message: `CN Terminal: Job ${job.trackingId} ETA has passed. We are following up.`,
-        eventKey: 'SMS_CUSTOMER_ETA_OVERDUE',
-        jobId: job.id,
-        dedupeKey: `SMS_CUSTOMER_ETA_OVERDUE:${job.id}:${dayBucket()}`
-      });
+    if (staffOn) {
+      const last = await smsService.lastSentAt('SMS_ETA_OVERDUE', job.id);
+      if (!(last && hoursSince(last) < repeatH)) {
+        const msg = `CN Terminal: Job ${job.trackingId} ETA overdue by ${overdueDays}d.`;
+        await sendStaff(
+          job,
+          msg,
+          'SMS_ETA_OVERDUE',
+          ['SUPERVISOR'],
+          `SMS_ETA_OVERDUE:${job.id}:${dayBucket()}`
+        );
+      }
+    }
+
+    // Customer ETA overdue (default OFF) — independent of staff toggle
+    if (customerOn && job.customer?.phone) {
+      const lastCustomer = await smsService.lastSentAt('SMS_CUSTOMER_ETA_OVERDUE', job.id);
+      if (!(lastCustomer && hoursSince(lastCustomer) < repeatH)) {
+        await smsService.sendSms({
+          to: job.customer.phone,
+          message: `CN Terminal: Job ${job.trackingId} ETA has passed. We are following up.`,
+          eventKey: 'SMS_CUSTOMER_ETA_OVERDUE',
+          jobId: job.id,
+          dedupeKey: `SMS_CUSTOMER_ETA_OVERDUE:${job.id}:${dayBucket()}`
+        });
+      }
     }
   }
 }

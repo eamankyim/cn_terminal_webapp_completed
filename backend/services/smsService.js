@@ -1,32 +1,30 @@
 /**
  * SMS service via MNotify (Ghana).
- * Replaces Clickatell. Env: MNOTIFY_API_KEY, MNOTIFY_SENDER_ID, SMS_DEV_MODE.
+ * Credentials: configurations table (Admin UI) with optional env fallback for local/dev.
+ * Env: SMS_DEV_MODE; optional MNOTIFY_API_KEY / MNOTIFY_SENDER_ID / MNOTIFY_API_URL.
  */
 const fetch = require('node-fetch');
 const { prisma } = require('../config/database');
 const {
   QUIET_HOURS_EVENTS,
+  MNOTIFY_CONFIG_KEYS,
   parseBoolean,
   parseQuietHours,
   isWithinQuietHours
 } = require('./smsConfig');
 
+const DEFAULT_MNOTIFY_URL = 'https://api.mnotify.com/api/sms/quick';
+
 class SmsService {
   constructor() {
-    this.apiKey = process.env.MNOTIFY_API_KEY;
-    this.apiUrl = process.env.MNOTIFY_API_URL || 'https://api.mnotify.com/api/sms/quick';
-    this.senderId = (process.env.MNOTIFY_SENDER_ID || 'CNTerminal').slice(0, 11);
     this.devMode = process.env.SMS_DEV_MODE === 'true';
     this._configCache = { at: 0, map: null };
     this._configTtlMs = 30_000;
 
     if (process.env.CLICKATELL_API_KEY && !process.env.MNOTIFY_API_KEY) {
       console.warn(
-        '⚠️ CLICKATELL_API_KEY is deprecated. SMS now uses MNotify — set MNOTIFY_API_KEY and MNOTIFY_SENDER_ID.'
+        '⚠️ CLICKATELL_API_KEY is deprecated. SMS now uses MNotify — set credentials in Admin → SMS Settings (or MNOTIFY_* env for local/dev).'
       );
-    }
-    if (!this.apiKey && !this.devMode) {
-      console.warn('⚠️ MNotify API key not configured. SMS will not be sent (set MNOTIFY_API_KEY or SMS_DEV_MODE=true).');
     }
   }
 
@@ -68,7 +66,8 @@ class SmsService {
         where: {
           OR: [
             { key: 'SMS_NOTIFICATIONS' },
-            { key: { startsWith: 'SMS_' } }
+            { key: { startsWith: 'SMS_' } },
+            { key: { in: MNOTIFY_CONFIG_KEYS } }
           ]
         }
       });
@@ -92,6 +91,37 @@ class SmsService {
     const row = map[key];
     if (!row) return defaultValue;
     return row.value;
+  }
+
+  /**
+   * Resolve MNotify credentials: config table first, then env (local/dev fallback).
+   * Never log the API key.
+   */
+  resolveMnotifyCredentials(map) {
+    const fromConfig = (key) => {
+      const v = this.getConfigValue(map, key, null);
+      if (v === null || v === undefined) return '';
+      return String(v).trim();
+    };
+
+    const apiKey =
+      fromConfig('MNOTIFY_API_KEY') ||
+      (process.env.MNOTIFY_API_KEY || '').trim() ||
+      '';
+    const senderRaw =
+      fromConfig('MNOTIFY_SENDER_ID') ||
+      (process.env.MNOTIFY_SENDER_ID || '').trim() ||
+      'CNTerminal';
+    const apiUrl =
+      fromConfig('MNOTIFY_API_URL') ||
+      (process.env.MNOTIFY_API_URL || '').trim() ||
+      DEFAULT_MNOTIFY_URL;
+
+    return {
+      apiKey,
+      senderId: senderRaw.slice(0, 11),
+      apiUrl
+    };
   }
 
   isMasterEnabled(map) {
@@ -186,6 +216,8 @@ class SmsService {
       const truncatedMessage =
         message.length > maxLength ? `${message.substring(0, maxLength - 3)}...` : message;
 
+      const { apiKey, senderId, apiUrl } = this.resolveMnotifyCredentials(map);
+
       let result;
       if (this.devMode) {
         console.log('📱 [SMS DEV MODE] SMS would be sent:');
@@ -200,11 +232,17 @@ class SmsService {
           devMode: true
         };
       } else {
-        if (!this.apiKey) {
-          console.error('❌ MNotify API key not configured');
+        if (!apiKey) {
+          console.error(
+            '❌ MNotify API key not configured (set in Admin → SMS Settings, or MNOTIFY_API_KEY env for local/dev)'
+          );
           result = { success: false, reason: 'MNotify API key not configured' };
         } else {
-          result = await this._sendViaMNotify(formattedPhone, truncatedMessage);
+          result = await this._sendViaMNotify(formattedPhone, truncatedMessage, {
+            apiKey,
+            senderId,
+            apiUrl
+          });
         }
       }
 
@@ -243,7 +281,8 @@ class SmsService {
     }
   }
 
-  async _sendViaMNotify(formattedPhone, truncatedMessage) {
+  async _sendViaMNotify(formattedPhone, truncatedMessage, credentials) {
+    const { apiKey, senderId, apiUrl } = credentials;
     // MNotify quick SMS: POST with recipient array; accepts 0XXXXXXXXX or 233…
     // Prefer local 0-prefix for API examples compatibility, keep 233 in logs.
     const localRecipient =
@@ -251,10 +290,10 @@ class SmsService {
         ? `0${formattedPhone.slice(3)}`
         : formattedPhone;
 
-    const url = `${this.apiUrl}?key=${encodeURIComponent(this.apiKey)}`;
+    const url = `${apiUrl}?key=${encodeURIComponent(apiKey)}`;
     const body = {
       recipient: [localRecipient],
-      sender: this.senderId,
+      sender: senderId,
       message: truncatedMessage,
       is_schedule: false,
       schedule_date: ''

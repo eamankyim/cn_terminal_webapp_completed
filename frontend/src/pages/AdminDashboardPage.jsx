@@ -1389,7 +1389,7 @@ const AdminDashboardPage = () => {
             showIcon
             style={{ marginTop: 16 }}
             message="Per-event SMS toggles"
-            description="Open the SMS Settings tab to enable or disable each staff and customer SMS event, and to configure thresholds."
+            description="Open the SMS Settings tab to set MNotify credentials, enable or disable each staff and customer SMS event (including client ETA alerts), and to configure thresholds."
           />
         </div>
       ),

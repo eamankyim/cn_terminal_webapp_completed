@@ -115,6 +115,22 @@ const configurationService = {
     }
   },
 
+  /**
+   * Get raw configuration row (includes isConfigured for sensitive keys).
+   */
+  async getConfigMeta(key) {
+    try {
+      const response = await this.getConfiguration(key);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      if (error?.status === 404) return null;
+      throw error;
+    }
+  },
+
   // Helper method to parse configuration value based on type
   parseConfigValue(value, type) {
     if (value === null || value === undefined) return null;

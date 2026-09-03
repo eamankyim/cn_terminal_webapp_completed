@@ -15,9 +15,15 @@ const QUIET_HOURS_EVENTS = new Set([
   'SMS_STUCK_STATUS',
   'SMS_ESCALATION',
   'SMS_RELEASE_MONEY',
+  'SMS_CUSTOMER_ETA_APPROACHING',
   'SMS_CUSTOMER_ETA_OVERDUE',
   'SMS_PAYMENT_REMINDER'
 ]);
+
+/** MNotify credential keys stored in configurations (Admin UI is source of truth). */
+const MNOTIFY_CONFIG_KEYS = ['MNOTIFY_API_KEY', 'MNOTIFY_SENDER_ID', 'MNOTIFY_API_URL'];
+
+const SENSITIVE_CONFIG_KEYS = new Set(['MNOTIFY_API_KEY']);
 
 /**
  * Default SMS configurations seeded via /configurations/init.
@@ -25,7 +31,8 @@ const QUIET_HOURS_EVENTS = new Set([
  * - Master: false (existing AdminDashboard default)
  * - Staff assignment / ops alerts: ON
  * - Customer milestones (incl. READY_FOR_RELEASE): ON
- * - Risky (customer ETA overdue, comments, payment reminder): OFF
+ * - Risky (customer ETA alerts, comments, payment reminder): OFF
+ * - MNotify credentials: empty (enter in Admin → SMS Settings)
  */
 const SMS_DEFAULT_CONFIGS = [
   // Master
@@ -35,6 +42,29 @@ const SMS_DEFAULT_CONFIGS = [
     type: 'BOOLEAN',
     category: 'NOTIFICATIONS',
     description: 'Master switch — enable outbound SMS via MNotify'
+  },
+
+  // MNotify provider credentials (Admin / IT Consultant only)
+  {
+    key: 'MNOTIFY_API_KEY',
+    value: '',
+    type: 'STRING',
+    category: SMS_CATEGORY,
+    description: 'MNotify API key (sensitive — set via Admin SMS Settings)'
+  },
+  {
+    key: 'MNOTIFY_SENDER_ID',
+    value: '',
+    type: 'STRING',
+    category: SMS_CATEGORY,
+    description: 'MNotify sender ID (max 11 characters)'
+  },
+  {
+    key: 'MNOTIFY_API_URL',
+    value: 'https://api.mnotify.com/api/sms/quick',
+    type: 'STRING',
+    category: SMS_CATEGORY,
+    description: 'MNotify quick SMS API URL'
   },
 
   // Staff events
@@ -61,7 +91,8 @@ const SMS_DEFAULT_CONFIGS = [
   { key: 'SMS_CUSTOMER_CLEARED', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'Customer SMS on CLEARED' },
   { key: 'SMS_CUSTOMER_DELIVERED', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'Customer SMS on DELIVERED' },
   { key: 'SMS_CUSTOMER_CONSIGNEE_COPY', value: 'false', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'Also SMS consignee on RELEASED/CLEARED/DELIVERED' },
-  { key: 'SMS_CUSTOMER_ETA_OVERDUE', value: 'false', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'Customer SMS when ETA overdue (default OFF — reputation risk)' },
+  { key: 'SMS_CUSTOMER_ETA_APPROACHING', value: 'false', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'ETA approaching → customer (default OFF)' },
+  { key: 'SMS_CUSTOMER_ETA_OVERDUE', value: 'false', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'ETA overdue → customer (default OFF — reputation risk)' },
   { key: 'SMS_PAYMENT_REMINDER', value: 'false', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'Customer SMS payment reminders (default OFF)' },
 
   // Thresholds
@@ -155,10 +186,37 @@ function isWithinQuietHours(quietSpec, date = new Date()) {
   return hour >= startHour || hour < endHour;
 }
 
+function isAdminOrIT(user) {
+  return user && ['ADMIN', 'IT_CONSULTANT'].includes(user.role);
+}
+
+function isMnotifyCredentialKey(key) {
+  return MNOTIFY_CONFIG_KEYS.includes(key);
+}
+
+/**
+ * Redact sensitive config values for API responses.
+ * API key is never returned in cleartext — only isConfigured for admins.
+ */
+function sanitizeConfigForResponse(config, user) {
+  if (!config || !SENSITIVE_CONFIG_KEYS.has(config.key)) return config;
+  const hasValue = !!(config.value && String(config.value).trim());
+  if (!isAdminOrIT(user)) {
+    return { ...config, value: '', isConfigured: false };
+  }
+  return {
+    ...config,
+    value: '',
+    isConfigured: hasValue
+  };
+}
+
 module.exports = {
   SMS_CATEGORY,
   SMS_DEFAULT_CONFIGS,
   QUIET_HOURS_EVENTS,
+  MNOTIFY_CONFIG_KEYS,
+  SENSITIVE_CONFIG_KEYS,
   CUSTOMER_STATUS_EVENT_MAP,
   CONSIGNEE_COPY_STATUSES,
   TERMINAL_JOB_STATUSES,
@@ -166,5 +224,8 @@ module.exports = {
   parseNumber,
   parseQuietHours,
   getAccraHour,
-  isWithinQuietHours
+  isWithinQuietHours,
+  isAdminOrIT,
+  isMnotifyCredentialKey,
+  sanitizeConfigForResponse
 };

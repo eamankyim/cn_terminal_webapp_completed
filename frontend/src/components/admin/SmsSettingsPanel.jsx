@@ -12,6 +12,7 @@ import {
   Row,
   Space,
   Switch,
+  Tag,
   Typography
 } from 'antd';
 import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
@@ -45,7 +46,8 @@ const CUSTOMER_TOGGLES = [
   { key: 'SMS_CUSTOMER_CLEARED', label: 'CLEARED', default: true },
   { key: 'SMS_CUSTOMER_DELIVERED', label: 'DELIVERED', default: true },
   { key: 'SMS_CUSTOMER_CONSIGNEE_COPY', label: 'Consignee copy (RELEASED/CLEARED/DELIVERED)', default: false },
-  { key: 'SMS_CUSTOMER_ETA_OVERDUE', label: 'Customer ETA overdue (reputation risk)', default: false },
+  { key: 'SMS_CUSTOMER_ETA_APPROACHING', label: 'ETA approaching → customer', default: false },
+  { key: 'SMS_CUSTOMER_ETA_OVERDUE', label: 'ETA overdue → customer', default: false },
   { key: 'SMS_PAYMENT_REMINDER', label: 'Payment reminder', default: false }
 ];
 
@@ -84,6 +86,21 @@ const META = {
     category: 'NOTIFICATIONS',
     description: 'Master switch — enable outbound SMS via MNotify'
   },
+  MNOTIFY_API_KEY: {
+    type: 'STRING',
+    category: 'SMS',
+    description: 'MNotify API key (sensitive — set via Admin SMS Settings)'
+  },
+  MNOTIFY_SENDER_ID: {
+    type: 'STRING',
+    category: 'SMS',
+    description: 'MNotify sender ID (max 11 characters)'
+  },
+  MNOTIFY_API_URL: {
+    type: 'STRING',
+    category: 'SMS',
+    description: 'MNotify quick SMS API URL'
+  },
   ...Object.fromEntries(
     [...STAFF_TOGGLES, ...CUSTOMER_TOGGLES].map((t) => [
       t.key,
@@ -103,7 +120,12 @@ const META = {
 };
 
 function buildDefaults() {
-  const values = { SMS_NOTIFICATIONS: false };
+  const values = {
+    SMS_NOTIFICATIONS: false,
+    MNOTIFY_API_KEY: '',
+    MNOTIFY_SENDER_ID: '',
+    MNOTIFY_API_URL: 'https://api.mnotify.com/api/sms/quick'
+  };
   STAFF_TOGGLES.forEach((t) => {
     values[t.key] = t.default;
   });
@@ -121,13 +143,14 @@ const SmsSettingsPanel = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const defaults = buildDefaults();
-      const keys = Object.keys(defaults);
-      const loaded = { ...defaults };
+      const keys = Object.keys(defaults).filter((k) => k !== 'MNOTIFY_API_KEY');
+      const loaded = { ...defaults, MNOTIFY_API_KEY: '' };
       await Promise.all(
         keys.map(async (key) => {
           try {
@@ -138,6 +161,14 @@ const SmsSettingsPanel = () => {
           }
         })
       );
+
+      try {
+        const apiMeta = await configurationService.getConfigMeta('MNOTIFY_API_KEY');
+        setApiKeyConfigured(!!apiMeta?.isConfigured);
+      } catch {
+        setApiKeyConfigured(false);
+      }
+
       // JSON field as pretty string for the form
       if (loaded.SMS_STATUS_SLA_HOURS && typeof loaded.SMS_STATUS_SLA_HOURS === 'object') {
         loaded.SMS_STATUS_SLA_HOURS = JSON.stringify(loaded.SMS_STATUS_SLA_HOURS, null, 2);
@@ -183,22 +214,39 @@ const SmsSettingsPanel = () => {
         slaValue = JSON.stringify(slaValue);
       }
 
-      const configurations = Object.keys(values).map((key) => {
-        const meta = META[key] || { type: 'STRING', category: 'SMS', description: key };
-        let value = values[key];
-        if (key === 'SMS_STATUS_SLA_HOURS') value = slaValue;
-        if (meta.type === 'BOOLEAN') value = !!value;
-        return {
-          key,
-          value,
-          type: meta.type,
-          category: meta.category,
-          description: meta.description
-        };
-      });
+      const senderId = (values.MNOTIFY_SENDER_ID || '').trim();
+      if (senderId.length > 11) {
+        message.error('Sender ID must be at most 11 characters');
+        setSaving(false);
+        return;
+      }
+
+      const configurations = Object.keys(values)
+        .filter((key) => {
+          // Blank API key = keep existing (do not clear)
+          if (key === 'MNOTIFY_API_KEY') {
+            return !!(values.MNOTIFY_API_KEY && String(values.MNOTIFY_API_KEY).trim());
+          }
+          return true;
+        })
+        .map((key) => {
+          const meta = META[key] || { type: 'STRING', category: 'SMS', description: key };
+          let value = values[key];
+          if (key === 'SMS_STATUS_SLA_HOURS') value = slaValue;
+          if (key === 'MNOTIFY_SENDER_ID') value = senderId;
+          if (meta.type === 'BOOLEAN') value = !!value;
+          return {
+            key,
+            value,
+            type: meta.type,
+            category: meta.category,
+            description: meta.description
+          };
+        });
 
       await configurationService.saveConfigurations(configurations);
       message.success('SMS settings saved');
+      await load();
     } catch {
       message.error('Failed to save SMS settings');
     } finally {
@@ -210,10 +258,10 @@ const SmsSettingsPanel = () => {
     <div>
       <Title level={4}>SMS Notifications (MNotify)</Title>
       <Paragraph type="secondary">
-        Master switch and per-event toggles for staff and customer SMS. Quiet hours apply to
-        ETA/SLA nudges only — not assignment, reassignment, or customer milestones. Provider:{' '}
-        <Text strong>MNotify</Text> (<Text code>MNOTIFY_API_KEY</Text> /{' '}
-        <Text code>MNOTIFY_SENDER_ID</Text>).
+        Master switch, MNotify credentials, and per-event toggles for staff and customer SMS.
+        Quiet hours apply to ETA/SLA nudges only — not assignment, reassignment, or customer
+        milestones. Credentials are stored in the configurations table (Admin UI is the source of
+        truth).
       </Paragraph>
 
       <Alert
@@ -221,7 +269,7 @@ const SmsSettingsPanel = () => {
         showIcon
         style={{ marginBottom: 16 }}
         message="Admin / IT Consultant only"
-        description="Use SMS_DEV_MODE=true on the backend to log messages without sending. Seed defaults if toggles are missing."
+        description="Use SMS_DEV_MODE=true on the backend to log messages without sending. Seed defaults if toggles are missing. Enter your MNotify API key and sender ID below — GitHub secrets are optional fallback for local/dev only."
       />
 
       <Space style={{ marginBottom: 16 }}>
@@ -245,6 +293,56 @@ const SmsSettingsPanel = () => {
           </Form.Item>
         </Card>
 
+        <Card
+          title="MNotify credentials"
+          style={{ marginBottom: 16 }}
+          extra={
+            apiKeyConfigured ? (
+              <Tag color="success">API key configured</Tag>
+            ) : (
+              <Tag>API key not set</Tag>
+            )
+          }
+        >
+          <Row gutter={16}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="MNOTIFY_API_KEY"
+                label="API key"
+                extra={
+                  apiKeyConfigured
+                    ? 'Leave blank to keep the existing key. Enter a new value to replace it.'
+                    : 'Paste your MNotify API key. It is stored in the database and never shown in cleartext after save.'
+                }
+              >
+                <Input.Password
+                  placeholder={apiKeyConfigured ? '•••••••• (configured)' : 'Enter MNotify API key'}
+                  autoComplete="new-password"
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="MNOTIFY_SENDER_ID"
+                label="Sender ID"
+                extra="Max 11 characters (MNotify rule). Must be an approved sender ID."
+                rules={[{ max: 11, message: 'Max 11 characters' }]}
+              >
+                <Input maxLength={11} placeholder="e.g. CNTerminal" showCount />
+              </Form.Item>
+            </Col>
+            <Col xs={24}>
+              <Form.Item
+                name="MNOTIFY_API_URL"
+                label="API URL (optional)"
+                extra="Defaults to MNotify quick SMS endpoint if left as the default URL."
+              >
+                <Input placeholder="https://api.mnotify.com/api/sms/quick" />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Card>
+
         <Card title="Staff events" style={{ marginBottom: 16 }}>
           <Row gutter={[16, 8]}>
             {STAFF_TOGGLES.map((t) => (
@@ -258,6 +356,10 @@ const SmsSettingsPanel = () => {
         </Card>
 
         <Card title="Customer events" style={{ marginBottom: 16 }}>
+          <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+            Client ETA alerts default off. When enabled (and master SMS is on), messages go to{' '}
+            <Text code>Customer.phone</Text>.
+          </Paragraph>
           <Row gutter={[16, 8]}>
             {CUSTOMER_TOGGLES.map((t) => (
               <Col xs={24} sm={12} md={8} key={t.key}>

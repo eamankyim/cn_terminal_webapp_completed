@@ -1,6 +1,11 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { authenticateToken } = require('../middleware/auth');
+const {
+  isMnotifyCredentialKey,
+  sanitizeConfigForResponse,
+  SENSITIVE_CONFIG_KEYS
+} = require('../services/smsConfig');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -19,6 +24,24 @@ function parseJsonStringList(raw) {
   }
 }
 
+function rejectNonAdminMnotify(req, res, key) {
+  if (!isMnotifyCredentialKey(key)) return false;
+  if (['ADMIN', 'IT_CONSULTANT'].includes(req.user?.role)) return false;
+  res.status(403).json({
+    success: false,
+    message: 'Admin or IT Consultant access required to manage MNotify credentials'
+  });
+  return true;
+}
+
+function shouldInvalidateSmsCache(key) {
+  return (
+    key === 'SMS_NOTIFICATIONS' ||
+    String(key).startsWith('SMS_') ||
+    isMnotifyCredentialKey(key)
+  );
+}
+
 // Get all configurations
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -29,12 +52,12 @@ router.get('/', authenticateToken, async (req, res) => {
       ]
     });
 
-    // Group configurations by category
+    // Group configurations by category; redact sensitive values
     const groupedConfigs = configurations.reduce((acc, config) => {
       if (!acc[config.category]) {
         acc[config.category] = [];
       }
-      acc[config.category].push(config);
+      acc[config.category].push(sanitizeConfigForResponse(config, req.user));
       return acc;
     }, {});
 
@@ -235,6 +258,18 @@ router.post('/:key/list-items', authenticateToken, async (req, res) => {
 router.get('/:key', authenticateToken, async (req, res) => {
   try {
     const { key } = req.params;
+
+    // Non-admins cannot fetch the raw API key endpoint (still redacted for admins)
+    if (
+      SENSITIVE_CONFIG_KEYS.has(key) &&
+      !['ADMIN', 'IT_CONSULTANT'].includes(req.user?.role)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin or IT Consultant access required to view MNotify credentials'
+      });
+    }
+
     const configuration = await prisma.configuration.findUnique({
       where: { key }
     });
@@ -248,7 +283,7 @@ router.get('/:key', authenticateToken, async (req, res) => {
 
     res.json({
       success: true,
-      data: configuration
+      data: sanitizeConfigForResponse(configuration, req.user)
     });
   } catch (error) {
 
@@ -274,10 +309,29 @@ router.post('/', authenticateToken, async (req, res) => {
       });
     }
 
+    if (rejectNonAdminMnotify(req, res, key)) return;
+
+    if (key === 'MNOTIFY_SENDER_ID' && String(value).length > 11) {
+      return res.status(400).json({
+        success: false,
+        message: 'MNOTIFY_SENDER_ID must be at most 11 characters'
+      });
+    }
+
     // Check if configuration exists
     const existingConfig = await prisma.configuration.findUnique({
       where: { key }
     });
+
+    // Empty sensitive value on update = keep existing (UI sends blank when not replacing)
+    let valueToStore = value;
+    if (
+      SENSITIVE_CONFIG_KEYS.has(key) &&
+      existingConfig &&
+      (value === '' || value === null || String(value).trim() === '')
+    ) {
+      valueToStore = existingConfig.value;
+    }
 
     let configuration;
     if (existingConfig) {
@@ -285,7 +339,7 @@ router.post('/', authenticateToken, async (req, res) => {
       configuration = await prisma.configuration.update({
         where: { key },
         data: {
-          value: value.toString(),
+          value: valueToStore.toString(),
           type: type || existingConfig.type,
           category: category || existingConfig.category,
           description: description || existingConfig.description,
@@ -298,7 +352,7 @@ router.post('/', authenticateToken, async (req, res) => {
       configuration = await prisma.configuration.create({
         data: {
           key,
-          value: value.toString(),
+          value: valueToStore.toString(),
           type: type || 'STRING',
           category: category || 'GENERAL',
           description,
@@ -311,11 +365,11 @@ router.post('/', authenticateToken, async (req, res) => {
     res.json({
       success: true,
       message: existingConfig ? 'Configuration updated successfully' : 'Configuration created successfully',
-      data: configuration
+      data: sanitizeConfigForResponse(configuration, req.user)
     });
 
     // Invalidate SMS config cache when SMS-related keys change
-    if (key === 'SMS_NOTIFICATIONS' || String(key).startsWith('SMS_')) {
+    if (shouldInvalidateSmsCache(key)) {
       try {
         require('../services/smsService').invalidateConfigCache();
       } catch (_) { /* ignore */ }
@@ -357,17 +411,52 @@ router.put('/bulk', authenticateToken, async (req, res) => {
         continue;
       }
 
+      if (isMnotifyCredentialKey(key) && !['ADMIN', 'IT_CONSULTANT'].includes(req.user?.role)) {
+        results.push({
+          key,
+          success: false,
+          message: 'Admin or IT Consultant access required to manage MNotify credentials'
+        });
+        continue;
+      }
+
+      if (key === 'MNOTIFY_SENDER_ID' && String(value).length > 11) {
+        results.push({
+          key,
+          success: false,
+          message: 'MNOTIFY_SENDER_ID must be at most 11 characters'
+        });
+        continue;
+      }
+
       try {
         const existingConfig = await prisma.configuration.findUnique({
           where: { key }
         });
+
+        let valueToStore = value;
+        if (
+          SENSITIVE_CONFIG_KEYS.has(key) &&
+          existingConfig &&
+          (value === '' || value === null || String(value).trim() === '')
+        ) {
+          // Skip no-op: blank password field means keep existing key
+          results.push({
+            key,
+            success: true,
+            skipped: true,
+            message: 'API key unchanged (empty value)',
+            data: sanitizeConfigForResponse(existingConfig, req.user)
+          });
+          continue;
+        }
 
         let configuration;
         if (existingConfig) {
           configuration = await prisma.configuration.update({
             where: { key },
             data: {
-              value: value.toString(),
+              value: valueToStore.toString(),
               type: type || existingConfig.type,
               category: category || existingConfig.category,
               description: description || existingConfig.description,
@@ -379,7 +468,7 @@ router.put('/bulk', authenticateToken, async (req, res) => {
           configuration = await prisma.configuration.create({
             data: {
               key,
-              value: value.toString(),
+              value: valueToStore.toString(),
               type: type || 'STRING',
               category: category || 'GENERAL',
               description,
@@ -392,7 +481,7 @@ router.put('/bulk', authenticateToken, async (req, res) => {
         results.push({
           key,
           success: true,
-          data: configuration
+          data: sanitizeConfigForResponse(configuration, req.user)
         });
       } catch (error) {
         results.push({
@@ -427,6 +516,8 @@ router.delete('/:key', authenticateToken, async (req, res) => {
   try {
     const { key } = req.params;
 
+    if (rejectNonAdminMnotify(req, res, key)) return;
+
     const configuration = await prisma.configuration.findUnique({
       where: { key }
     });
@@ -441,6 +532,12 @@ router.delete('/:key', authenticateToken, async (req, res) => {
     await prisma.configuration.delete({
       where: { key }
     });
+
+    if (shouldInvalidateSmsCache(key)) {
+      try {
+        require('../services/smsService').invalidateConfigCache();
+      } catch (_) { /* ignore */ }
+    }
 
     res.json({
       success: true,
