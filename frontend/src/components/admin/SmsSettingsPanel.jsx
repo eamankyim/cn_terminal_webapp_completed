@@ -16,7 +16,12 @@ import {
   Tag,
   Typography
 } from 'antd';
-import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
+import {
+  ExperimentOutlined,
+  ReloadOutlined,
+  SaveOutlined,
+  SettingOutlined
+} from '@ant-design/icons';
 import configurationService from '../../services/configurationService';
 import SmsTestStatsPanel from './SmsTestStatsPanel';
 
@@ -140,12 +145,18 @@ function buildDefaults() {
   return values;
 }
 
-const SmsSettingsPanel = () => {
+const SmsSettingsPanel = ({ initialTab = 'settings' }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -176,6 +187,7 @@ const SmsSettingsPanel = () => {
         loaded.SMS_STATUS_SLA_HOURS = JSON.stringify(loaded.SMS_STATUS_SLA_HOURS, null, 2);
       }
       form.setFieldsValue(loaded);
+      setDirty(false);
     } catch (err) {
       message.error('Failed to load SMS settings');
     } finally {
@@ -223,11 +235,15 @@ const SmsSettingsPanel = () => {
         return;
       }
 
+      const apiKeyTrimmed = values.MNOTIFY_API_KEY
+        ? String(values.MNOTIFY_API_KEY).trim()
+        : '';
+
       const configurations = Object.keys(values)
         .filter((key) => {
           // Blank API key = keep existing (do not clear)
           if (key === 'MNOTIFY_API_KEY') {
-            return !!(values.MNOTIFY_API_KEY && String(values.MNOTIFY_API_KEY).trim());
+            return !!apiKeyTrimmed;
           }
           return true;
         })
@@ -236,6 +252,7 @@ const SmsSettingsPanel = () => {
           let value = values[key];
           if (key === 'SMS_STATUS_SLA_HOURS') value = slaValue;
           if (key === 'MNOTIFY_SENDER_ID') value = senderId;
+          if (key === 'MNOTIFY_API_KEY') value = apiKeyTrimmed;
           if (meta.type === 'BOOLEAN') value = !!value;
           return {
             key,
@@ -246,8 +263,31 @@ const SmsSettingsPanel = () => {
           };
         });
 
-      await configurationService.saveConfigurations(configurations);
-      message.success('SMS settings saved');
+      const response = await configurationService.saveConfigurations(configurations);
+      if (!response?.success) {
+        message.error(response?.message || 'Failed to save SMS settings');
+        return;
+      }
+
+      const failed = (response.data || []).filter((r) => r && r.success === false);
+      if (failed.length > 0) {
+        message.error(
+          failed[0].message || `Failed to save ${failed.length} setting(s)`
+        );
+        return;
+      }
+
+      const keySaved = apiKeyTrimmed
+        ? (response.data || []).some(
+            (r) => r?.key === 'MNOTIFY_API_KEY' && r.success && !r.skipped
+          )
+        : false;
+
+      message.success(
+        keySaved
+          ? 'SMS settings saved (API key updated)'
+          : 'SMS settings saved'
+      );
       await load();
     } catch {
       message.error('Failed to save SMS settings');
@@ -262,161 +302,205 @@ const SmsSettingsPanel = () => {
       <Paragraph type="secondary">
         Master switch, MNotify credentials, and per-event toggles for staff and customer SMS.
         Quiet hours apply to ETA/SLA nudges only — not assignment, reassignment, or customer
-        milestones. Credentials are stored in the configurations table (Admin UI is the source of
-        truth). Use Test &amp; Statistics to send a test message and review send/fail counts.
+        milestones. Credentials are stored in the configurations table (this panel is the source of
+        truth). Use <Text strong>Test SMS &amp; Statistics</Text> to send a test message and review
+        send/fail counts.
       </Paragraph>
 
       <Tabs
-        defaultActiveKey="settings"
+        activeKey={activeTab}
+        onChange={setActiveTab}
         items={[
           {
             key: 'settings',
-            label: 'Settings',
+            label: (
+              <span>
+                <SettingOutlined /> Settings
+              </span>
+            ),
             children: (
               <>
-      <Alert
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-        message="Admin / IT Consultant only"
-        description="Use SMS_DEV_MODE=true on the backend to log messages without sending. Seed defaults if toggles are missing. Enter your MNotify API key and sender ID below — GitHub secrets are optional fallback for local/dev only."
-      />
-
-      <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ReloadOutlined />} onClick={load} disabled={loading}>
-          Reload
-        </Button>
-        <Button onClick={seedDefaults} loading={seeding}>
-          Seed missing defaults
-        </Button>
-      </Space>
-
-      <Form form={form} layout="vertical" onFinish={onSave} disabled={loading}>
-        <Card title="Master" style={{ marginBottom: 16 }}>
-          <Form.Item
-            name="SMS_NOTIFICATIONS"
-            label="Enable SMS notifications"
-            valuePropName="checked"
-            extra="Must be ON for event SMS (jobs, ETA, customers). Admin test send still works with valid MNotify credentials."
-          >
-            <Switch />
-          </Form.Item>
-        </Card>
-
-        <Card
-          title="MNotify credentials"
-          style={{ marginBottom: 16 }}
-          extra={
-            apiKeyConfigured ? (
-              <Tag color="success">API key configured</Tag>
-            ) : (
-              <Tag>API key not set</Tag>
-            )
-          }
-        >
-          <Row gutter={16}>
-            <Col xs={24} md={12}>
-              <Form.Item
-                name="MNOTIFY_API_KEY"
-                label="API key"
-                extra={
-                  apiKeyConfigured
-                    ? 'Leave blank to keep the existing key. Enter a new value to replace it.'
-                    : 'Paste your MNotify API key. It is stored in the database and never shown in cleartext after save.'
-                }
-              >
-                <Input.Password
-                  placeholder={apiKeyConfigured ? '•••••••• (configured)' : 'Enter MNotify API key'}
-                  autoComplete="new-password"
+                <Alert
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                  message="Send a test SMS here"
+                  description="After saving your MNotify API key and sender ID, open Test SMS & Statistics to send a test message and view delivery stats. Do not use System Configuration for the API key — it is redacted there."
+                  action={
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<ExperimentOutlined />}
+                      onClick={() => setActiveTab('test-stats')}
+                    >
+                      Open Test SMS
+                    </Button>
+                  }
                 />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item
-                name="MNOTIFY_SENDER_ID"
-                label="Sender ID"
-                extra="Max 11 characters (MNotify rule). Must be an approved sender ID."
-                rules={[{ max: 11, message: 'Max 11 characters' }]}
-              >
-                <Input maxLength={11} placeholder="e.g. CNTerminal" showCount />
-              </Form.Item>
-            </Col>
-            <Col xs={24}>
-              <Form.Item
-                name="MNOTIFY_API_URL"
-                label="API URL (optional)"
-                extra="Defaults to MNotify quick SMS endpoint if left as the default URL."
-              >
-                <Input placeholder="https://api.mnotify.com/api/sms/quick" />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Card>
 
-        <Card title="Staff events" style={{ marginBottom: 16 }}>
-          <Row gutter={[16, 8]}>
-            {STAFF_TOGGLES.map((t) => (
-              <Col xs={24} sm={12} md={8} key={t.key}>
-                <Form.Item name={t.key} label={t.label} valuePropName="checked">
-                  <Switch />
-                </Form.Item>
-              </Col>
-            ))}
-          </Row>
-        </Card>
+                <Alert
+                  type="warning"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                  message="Admin / IT Consultant only"
+                  description="Use SMS_DEV_MODE=true on the backend to log messages without sending. Seed defaults if toggles are missing. Enter your MNotify API key and sender ID below — GitHub secrets are optional fallback for local/dev only."
+                />
 
-        <Card title="Customer events" style={{ marginBottom: 16 }}>
-          <Paragraph type="secondary" style={{ marginBottom: 12 }}>
-            Client ETA alerts default off. When enabled (and master SMS is on), messages go to{' '}
-            <Text code>Customer.phone</Text>.
-          </Paragraph>
-          <Row gutter={[16, 8]}>
-            {CUSTOMER_TOGGLES.map((t) => (
-              <Col xs={24} sm={12} md={8} key={t.key}>
-                <Form.Item name={t.key} label={t.label} valuePropName="checked">
-                  <Switch />
-                </Form.Item>
-              </Col>
-            ))}
-          </Row>
-        </Card>
+                <Space style={{ marginBottom: 16 }}>
+                  <Button icon={<ReloadOutlined />} onClick={load} disabled={loading}>
+                    Reload
+                  </Button>
+                  <Button onClick={seedDefaults} loading={seeding}>
+                    Seed missing defaults
+                  </Button>
+                </Space>
 
-        <Card title="Thresholds" style={{ marginBottom: 16 }}>
-          <Row gutter={16}>
-            {THRESHOLD_FIELDS.filter((t) => t.type !== 'json').map((t) => (
-              <Col xs={24} sm={12} md={8} key={t.key}>
-                <Form.Item name={t.key} label={t.label}>
-                  {t.type === 'number' ? (
-                    <InputNumber min={0} style={{ width: '100%' }} />
-                  ) : (
-                    <Input />
-                  )}
-                </Form.Item>
-              </Col>
-            ))}
-          </Row>
-          <Divider />
-          <Form.Item
-            name="SMS_STATUS_SLA_HOURS"
-            label="Per-status SLA hours (JSON)"
-            extra="Hours a job may stay in each status before stuck-status SMS"
-          >
-            <Input.TextArea rows={8} style={{ fontFamily: 'monospace' }} />
-          </Form.Item>
-        </Card>
+                <Form
+                  form={form}
+                  layout="vertical"
+                  onFinish={onSave}
+                  onValuesChange={() => setDirty(true)}
+                  disabled={loading}
+                >
+                  <Card title="Master" style={{ marginBottom: 16 }}>
+                    <Form.Item
+                      name="SMS_NOTIFICATIONS"
+                      label="Enable SMS notifications"
+                      valuePropName="checked"
+                      extra="Must be ON for event SMS (jobs, ETA, customers). Admin test send still works with valid MNotify credentials."
+                    >
+                      <Switch />
+                    </Form.Item>
+                  </Card>
 
-        <Form.Item>
-          <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving}>
-            Save SMS settings
-          </Button>
-        </Form.Item>
-      </Form>
+                  <Card
+                    title="MNotify credentials"
+                    style={{ marginBottom: 16 }}
+                    extra={
+                      apiKeyConfigured ? (
+                        <Tag color="success">API key configured</Tag>
+                      ) : (
+                        <Tag color="warning">API key not set</Tag>
+                      )
+                    }
+                  >
+                    <Row gutter={16}>
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          name="MNOTIFY_API_KEY"
+                          label="API key"
+                          extra={
+                            apiKeyConfigured
+                              ? 'Leave blank to keep the existing key. Enter a new value to replace it.'
+                              : 'Paste your MNotify API key. It is stored in the database and never shown in cleartext after save.'
+                          }
+                        >
+                          <Input.Password
+                            placeholder={
+                              apiKeyConfigured
+                                ? '•••••••• (configured — leave blank to keep)'
+                                : 'Enter MNotify API key'
+                            }
+                            autoComplete="new-password"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          name="MNOTIFY_SENDER_ID"
+                          label="Sender ID"
+                          extra="Max 11 characters (MNotify rule). Must be an approved sender ID."
+                          rules={[{ max: 11, message: 'Max 11 characters' }]}
+                        >
+                          <Input maxLength={11} placeholder="e.g. CNTerminal" showCount />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24}>
+                        <Form.Item
+                          name="MNOTIFY_API_URL"
+                          label="API URL (optional)"
+                          extra="Defaults to MNotify quick SMS endpoint if left as the default URL."
+                        >
+                          <Input placeholder="https://api.mnotify.com/api/sms/quick" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </Card>
+
+                  <Card title="Staff events" style={{ marginBottom: 16 }}>
+                    <Row gutter={[16, 8]}>
+                      {STAFF_TOGGLES.map((t) => (
+                        <Col xs={24} sm={12} md={8} key={t.key}>
+                          <Form.Item name={t.key} label={t.label} valuePropName="checked">
+                            <Switch />
+                          </Form.Item>
+                        </Col>
+                      ))}
+                    </Row>
+                  </Card>
+
+                  <Card title="Customer events" style={{ marginBottom: 16 }}>
+                    <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+                      Client ETA alerts default off. When enabled (and master SMS is on), messages go
+                      to <Text code>Customer.phone</Text>.
+                    </Paragraph>
+                    <Row gutter={[16, 8]}>
+                      {CUSTOMER_TOGGLES.map((t) => (
+                        <Col xs={24} sm={12} md={8} key={t.key}>
+                          <Form.Item name={t.key} label={t.label} valuePropName="checked">
+                            <Switch />
+                          </Form.Item>
+                        </Col>
+                      ))}
+                    </Row>
+                  </Card>
+
+                  <Card title="Thresholds" style={{ marginBottom: 16 }}>
+                    <Row gutter={16}>
+                      {THRESHOLD_FIELDS.filter((t) => t.type !== 'json').map((t) => (
+                        <Col xs={24} sm={12} md={8} key={t.key}>
+                          <Form.Item name={t.key} label={t.label}>
+                            {t.type === 'number' ? (
+                              <InputNumber min={0} style={{ width: '100%' }} />
+                            ) : (
+                              <Input />
+                            )}
+                          </Form.Item>
+                        </Col>
+                      ))}
+                    </Row>
+                    <Divider />
+                    <Form.Item
+                      name="SMS_STATUS_SLA_HOURS"
+                      label="Per-status SLA hours (JSON)"
+                      extra="Hours a job may stay in each status before stuck-status SMS"
+                    >
+                      <Input.TextArea rows={8} style={{ fontFamily: 'monospace' }} />
+                    </Form.Item>
+                  </Card>
+
+                  <Form.Item>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      icon={<SaveOutlined />}
+                      loading={saving}
+                      disabled={!dirty || loading}
+                    >
+                      {dirty ? 'Save SMS settings' : 'No unsaved changes'}
+                    </Button>
+                  </Form.Item>
+                </Form>
               </>
             )
           },
           {
             key: 'test-stats',
-            label: 'Test & Statistics',
+            label: (
+              <span>
+                <ExperimentOutlined /> Test SMS &amp; Statistics
+              </span>
+            ),
             children: <SmsTestStatsPanel />
           }
         ]}

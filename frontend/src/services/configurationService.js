@@ -164,7 +164,7 @@ const configurationService = {
       case 'PERCENTAGE':
         return `${parseFloat(value).toFixed(2)}%`;
       case 'BOOLEAN':
-        return value ? 'Yes' : 'No';
+        return value === true || value === 'true' ? 'Yes' : 'No';
       case 'JSON':
         return JSON.stringify(value, null, 2);
       default:
