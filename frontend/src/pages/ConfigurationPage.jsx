@@ -158,7 +158,7 @@ const ConfigurationPage = () => {
       
       if (response.success) {
         // Filter to only show essential categories
-        const essentialCategories = ['TAX', 'SERVICE', 'BUSINESS', 'INVOICE'];
+        const essentialCategories = ['TAX', 'SERVICE', 'BUSINESS', 'INVOICE', 'SMS', 'NOTIFICATIONS'];
         const filteredConfigurations = {};
         
         essentialCategories.forEach(category => {
