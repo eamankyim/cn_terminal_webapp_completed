@@ -19,7 +19,8 @@ import {
   Descriptions,
   Divider,
   InputNumber,
-  Switch
+  Switch,
+  Alert
 } from 'antd';
 import { 
   PlusOutlined, 
@@ -34,6 +35,7 @@ import {
   LockOutlined
 } from '@ant-design/icons';
 import InviteManagement from '../components/admin/InviteManagement';
+import SmsSettingsPanel from '../components/admin/SmsSettingsPanel';
 import userService from '../services/userService';
 import configurationService from '../services/configurationService';
 import { useAuth } from '../contexts/AuthContext';
@@ -1340,7 +1342,7 @@ const AdminDashboardPage = () => {
                   </Form.Item>
                 </Col>
                 <Col span={12}>
-                  <Form.Item label="SMS Notifications" name="smsNotifications" valuePropName="checked">
+                  <Form.Item label="SMS Notifications (master)" name="smsNotifications" valuePropName="checked">
                     <Switch />
                   </Form.Item>
                 </Col>
@@ -1382,8 +1384,20 @@ const AdminDashboardPage = () => {
               </Form.Item>
             </Form>
           </Card>
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginTop: 16 }}
+            message="Per-event SMS toggles"
+            description="Open the SMS Settings tab to enable or disable each staff and customer SMS event, and to configure thresholds."
+          />
         </div>
       ),
+    },
+    {
+      key: 'sms-settings',
+      label: 'SMS Settings',
+      children: <SmsSettingsPanel />,
     },
     {
       key: 'security-settings',

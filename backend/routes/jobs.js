@@ -5,6 +5,7 @@ const { UI_PERMISSIONS } = require('../utils/uiPermissions');
 const NotificationService = require('../services/notificationService');
 const RealtimeNotificationService = require('../services/realtimeNotificationService');
 const SocketService = require('../services/socketService');
+const SmsNotificationService = require('../services/smsNotificationService');
 const { getJobSelect } = require('../utils/jobSelect');
 const { applyEtaFilterToWhere, shouldOrderByEta } = require('../utils/etaFilter');
 
@@ -535,11 +536,13 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
 
     // Create job
 
+    const effectiveAssigneeId = assignedToId || req.user.id;
     const jobData = {
       customerId,
       consignmentId: consignmentId || null,
       trackingId,
-      assignedToId: assignedToId || req.user.id,
+      assignedToId: effectiveAssigneeId,
+      lastAssignedAt: new Date(),
       status: status || 'NEW',
       isDraft,
       goodsTypes: Array.isArray(goodsTypes) ? goodsTypes : [],
@@ -603,6 +606,19 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
     } catch (notificationError) {
       console.error('❌ [Jobs API] Error creating notifications:', notificationError);
       // Don't fail the job creation if notifications fail
+    }
+
+    // Staff SMS on assignment (skip self-assign; no all-staff blast)
+    try {
+      await SmsNotificationService.handleAssignment({
+        jobId: completeJob.id,
+        newAssigneeId: completeJob.assignedToId,
+        previousAssigneeId: null,
+        assignedById: req.user.id,
+        isReassign: false
+      });
+    } catch (smsError) {
+      console.error('❌ [Jobs API] Assignment SMS failed:', smsError.message);
     }
 
     // Emit socket event for real-time update
@@ -725,6 +741,10 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
       updatedById: req.user.id
     };
 
+    if (assignedToId && assignedToId !== existingJob.assignedToId) {
+      updateData.lastAssignedAt = new Date();
+    }
+
     // Add isDraft if provided
     if (isDraft !== undefined) {
       updateData.isDraft = isDraft;
@@ -842,6 +862,17 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
         );
       } catch (notifyError) {
         console.error('Assignment notification failed:', notifyError);
+      }
+      try {
+        await SmsNotificationService.handleAssignment({
+          jobId: id,
+          newAssigneeId: assignedToId,
+          previousAssigneeId: existingJob.assignedToId,
+          assignedById: req.user.id,
+          isReassign: true
+        });
+      } catch (smsError) {
+        console.error('Assignment SMS failed:', smsError.message);
       }
     }
 
@@ -1052,7 +1083,9 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
     // Add assignedToId if provided
     if (assignedToId !== undefined) {
       updateData.assignedToId = assignedToId;
-
+      if (assignedToId !== existingJob.assignedToId) {
+        updateData.lastAssignedAt = new Date();
+      }
     }
 
     // Add demurrage/free days if provided
@@ -1154,45 +1187,43 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
       }
     }
 
-    // Send SMS to customer if job status changed and SMS is enabled
+    // SMS: customer milestones, handoff, revert, release-money (never all-staff blast)
     try {
-      const smsService = require('../services/smsService');
-      
-      // Check if SMS notifications are enabled
-      const smsConfig = await prisma.configuration.findUnique({
-        where: { key: 'SMS_NOTIFICATIONS' }
+      const assigneeChanged = !!(assignedToId && assignedToId !== existingJob.assignedToId);
+      await SmsNotificationService.handleStatusUpdate({
+        jobId: id,
+        oldStatus: existingJob.status,
+        newStatus: status,
+        isRevert,
+        previousAssigneeId: existingJob.assignedToId,
+        newAssigneeId: assigneeChanged ? assignedToId : existingJob.assignedToId,
+        updatedById: req.user.id,
+        releaseMoneyReceived:
+          releaseMoneyReceived !== undefined
+            ? releaseMoneyReceived
+            : existingJob.releaseMoneyReceived,
+        assigneeChanged
       });
-      
-      // Check if SMS is enabled (handle both boolean and string values)
-      const isSmsEnabled = smsConfig && (
-        smsConfig.value === 'true' || 
-        smsConfig.value === true || 
-        (smsConfig.type === 'BOOLEAN' && smsConfig.value === 'true')
-      );
-      
-      if (isSmsEnabled) {
-        // Get complete job with customer info
-        const jobWithCustomer = await prisma.job.findUnique({
-          where: { id: id },
-          include: {
-            customer: {
-              select: {
-                id: true,
-                name: true,
-                phone: true,
-                email: true
-              }
-            }
-          }
+
+      // On status+assignee change: handoff covers the new assignee; notify previous only
+      if (assigneeChanged && !isRevert && existingJob.assignedToId) {
+        const prev = await prisma.user.findFirst({
+          where: { id: existingJob.assignedToId, isActive: true },
+          select: { id: true, name: true, phone: true, role: true }
         });
-        
-        if (jobWithCustomer && jobWithCustomer.customer) {
-          // Send SMS for important status changes
-          const importantStatuses = ['ENTRY_COMPLETED', 'DUTY_PAID', 'RELEASED', 'CLEARED', 'DELIVERED'];
-          if (importantStatuses.includes(status)) {
-            await smsService.sendJobStatusUpdate(jobWithCustomer, status, existingJob.status);
-          }
+        if (prev?.phone) {
+          const smsService = require('../services/smsService');
+          await smsService.sendSms({
+            to: prev.phone,
+            message: `CN Terminal: Job ${completeJob.trackingId} reassigned away from you.`,
+            eventKey: 'SMS_JOB_REASSIGNED',
+            jobId: id,
+            userId: prev.id,
+            dedupeKey: `SMS_JOB_REASSIGNED:prev:${id}:${prev.id}:${status}`,
+            skipQuietHours: true
+          });
         }
+        await SmsNotificationService.checkReassignChurn(id);
       }
     } catch (smsError) {
       console.error('❌ Failed to send SMS notification:', smsError.message);
@@ -1344,6 +1375,7 @@ router.post('/:id/reassign', authenticateToken, requirePermission(UI_PERMISSIONS
         where: { id },
         data: {
           assignedToId,
+          lastAssignedAt: new Date(),
           updatedById: req.user.id
         }
       });
@@ -1377,6 +1409,18 @@ router.post('/:id/reassign', authenticateToken, requirePermission(UI_PERMISSIONS
       );
     } catch (notifyError) {
       console.error('Reassign notification failed:', notifyError);
+    }
+
+    try {
+      await SmsNotificationService.handleAssignment({
+        jobId: id,
+        newAssigneeId: assignedToId,
+        previousAssigneeId: existingJob.assignedToId,
+        assignedById: req.user.id,
+        isReassign: true
+      });
+    } catch (smsError) {
+      console.error('Reassign SMS failed:', smsError.message);
     }
 
     SocketService.emitJobUpdated(updatedJob);
@@ -1432,6 +1476,17 @@ router.post('/:id/comments', authenticateToken, requirePermission(UI_PERMISSIONS
 
     // Emit socket event for real-time update
     SocketService.emitJobCommentAdded(id, jobComment);
+
+    // Opt-in SMS to assignee when someone else comments
+    try {
+      await SmsNotificationService.notifyCommentToAssignee({
+        jobId: id,
+        commenterId: req.user.id,
+        commentPreview: comment.trim()
+      });
+    } catch (smsError) {
+      console.error('Comment SMS failed:', smsError.message);
+    }
 
     res.status(201).json({
       message: 'Comment added successfully',

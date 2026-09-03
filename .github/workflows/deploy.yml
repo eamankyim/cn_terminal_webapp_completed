@@ -65,6 +65,11 @@ jobs:
             printf 'REACT_APP_FROM_NAME=%s\n' '${{ secrets.REACT_APP_FROM_NAME }}'
             printf 'REACT_APP_EMAIL_DEV_MODE=%s\n' 'false'
             printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD_SECRET"
+            # MNotify SMS (optional until secrets are set — empty disables live send)
+            printf 'MNOTIFY_API_KEY=%s\n' '${{ secrets.MNOTIFY_API_KEY }}'
+            printf 'MNOTIFY_SENDER_ID=%s\n' '${{ secrets.MNOTIFY_SENDER_ID }}'
+            printf 'MNOTIFY_API_URL=%s\n' '${{ secrets.MNOTIFY_API_URL }}'
+            printf 'SMS_DEV_MODE=%s\n' 'false'
           } > .env.production
 
           # Compose reads ".env" by default; keep a copy so ${VAR} interpolation works

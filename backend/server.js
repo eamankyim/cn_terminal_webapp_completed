@@ -445,4 +445,12 @@ server.listen(PORT, () => {
   console.log(`   Settings: ${BASE_URL}/api/configurations`);
   console.log('\n💡 Tip: Visit the Swagger UI to explore all available endpoints');
   console.log('='.repeat(80) + '\n');
+
+  // MNotify SMS scheduler (ETA / stuck / demurrage / escalations)
+  try {
+    const { startSmsScheduler } = require('./jobs/smsScheduler');
+    startSmsScheduler();
+  } catch (smsSchedErr) {
+    console.error('⚠️ Failed to start SMS scheduler:', smsSchedErr.message);
+  }
 });
