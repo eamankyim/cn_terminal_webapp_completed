@@ -30,8 +30,8 @@ const SENSITIVE_CONFIG_KEYS = new Set(['MNOTIFY_API_KEY']);
  * Defaults match product requirements:
  * - Master: false (existing AdminDashboard default)
  * - Staff assignment / ops alerts: ON
- * - Customer milestones (incl. READY_FOR_RELEASE): ON
- * - Risky (customer ETA alerts, comments, payment reminder): OFF
+ * - Customer milestones (incl. job-created ETA, READY_FOR_RELEASE): ON
+ * - Risky (customer ETA approaching/overdue, comments, payment reminder): OFF
  * - MNotify credentials: empty (enter in Admin → SMS Settings)
  */
 const SMS_DEFAULT_CONFIGS = [
@@ -84,6 +84,7 @@ const SMS_DEFAULT_CONFIGS = [
   { key: 'SMS_COMMENT_ASSIGNEE', value: 'false', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'SMS assignee when someone else comments (opt-in)' },
 
   // Customer events
+  { key: 'SMS_CUSTOMER_JOB_CREATED_ETA', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'Job created → customer SMS including ETA (skip if no ETA)' },
   { key: 'SMS_CUSTOMER_ENTRY_COMPLETED', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'Customer SMS on ENTRY_COMPLETED' },
   { key: 'SMS_CUSTOMER_DUTY_PAID', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'Customer SMS on DUTY_PAID' },
   { key: 'SMS_CUSTOMER_READY_FOR_RELEASE', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'Customer SMS on READY_FOR_RELEASE' },
@@ -130,6 +131,22 @@ const CUSTOMER_STATUS_EVENT_MAP = {
   CLEARED: 'SMS_CUSTOMER_CLEARED',
   DELIVERED: 'SMS_CUSTOMER_DELIVERED'
 };
+
+/** Lookup map of seeded default values (string form, as stored in DB). */
+const SMS_DEFAULT_VALUE_MAP = Object.fromEntries(
+  SMS_DEFAULT_CONFIGS.map((c) => [c.key, c.value])
+);
+
+/**
+ * Default config value when a key is missing from the DB.
+ * Keeps runtime toggles aligned with Admin UI defaults (UI already falls back on 404).
+ */
+function getSmsDefaultValue(key, fallback = null) {
+  if (Object.prototype.hasOwnProperty.call(SMS_DEFAULT_VALUE_MAP, key)) {
+    return SMS_DEFAULT_VALUE_MAP[key];
+  }
+  return fallback;
+}
 
 const CONSIGNEE_COPY_STATUSES = new Set(['RELEASED', 'CLEARED', 'DELIVERED']);
 
@@ -214,6 +231,7 @@ function sanitizeConfigForResponse(config, user) {
 module.exports = {
   SMS_CATEGORY,
   SMS_DEFAULT_CONFIGS,
+  SMS_DEFAULT_VALUE_MAP,
   QUIET_HOURS_EVENTS,
   MNOTIFY_CONFIG_KEYS,
   SENSITIVE_CONFIG_KEYS,
@@ -227,5 +245,6 @@ module.exports = {
   isWithinQuietHours,
   isAdminOrIT,
   isMnotifyCredentialKey,
-  sanitizeConfigForResponse
+  sanitizeConfigForResponse,
+  getSmsDefaultValue
 };

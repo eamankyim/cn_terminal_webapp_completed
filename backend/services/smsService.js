@@ -10,7 +10,8 @@ const {
   MNOTIFY_CONFIG_KEYS,
   parseBoolean,
   parseQuietHours,
-  isWithinQuietHours
+  isWithinQuietHours,
+  getSmsDefaultValue
 } = require('./smsConfig');
 
 const DEFAULT_MNOTIFY_URL = 'https://api.mnotify.com/api/sms/quick';
@@ -94,6 +95,18 @@ class SmsService {
   }
 
   /**
+   * Config value with SMS_DEFAULT_CONFIGS fallback when the row is missing.
+   * Prevents Admin UI (defaults on 404) from disagreeing with runtime send checks.
+   */
+  getConfigValueOrDefault(map, key, fallback = null) {
+    const row = map[key];
+    if (row && row.value !== undefined && row.value !== null) {
+      return row.value;
+    }
+    return getSmsDefaultValue(key, fallback);
+  }
+
+  /**
    * Resolve MNotify credentials: config table first, then env (local/dev fallback).
    * Never log the API key.
    */
@@ -125,15 +138,20 @@ class SmsService {
   }
 
   isMasterEnabled(map) {
-    return parseBoolean(this.getConfigValue(map, 'SMS_NOTIFICATIONS', 'false'), false);
+    // Master stays opt-in: missing/unset → false (matches SMS_DEFAULT_CONFIGS).
+    return parseBoolean(
+      this.getConfigValueOrDefault(map, 'SMS_NOTIFICATIONS', 'false'),
+      false
+    );
   }
 
   isEventEnabled(map, eventKey) {
     if (!eventKey) return this.isMasterEnabled(map);
     if (!this.isMasterEnabled(map)) return false;
-    // Missing key → treat as disabled for safety except we seed defaults on init
-    const raw = this.getConfigValue(map, eventKey, null);
-    if (raw === null) return false;
+    // Missing event key → product default (usually true for staff assign/reassign),
+    // matching Admin SMS Settings UI which shows defaults when the row is 404.
+    const raw = this.getConfigValueOrDefault(map, eventKey, null);
+    if (raw === null || raw === undefined) return false;
     return parseBoolean(raw, false);
   }
 
@@ -242,19 +260,50 @@ class SmsService {
         if (!skipEventCheck) {
           if (eventKey) {
             if (!this.isEventEnabled(map, eventKey)) {
-              return { success: false, reason: `Event disabled: ${eventKey}`, skipped: true };
+              const masterOn = this.isMasterEnabled(map);
+              const stored = this.getConfigValue(map, eventKey, null);
+              const reason = !masterOn
+                ? 'SMS_NOTIFICATIONS disabled'
+                : stored === null
+                  ? `Event unset (no default): ${eventKey}`
+                  : `Event disabled: ${eventKey}`;
+              console.log(
+                `📱 [SMS] skipped — ${reason} (to=${this.maskPhone(to)}, job=${jobId || 'n/a'})`
+              );
+              await this._writeDispatchLog({
+                eventKey,
+                jobId,
+                userId,
+                phone: this.formatPhoneNumber(to) || String(to).slice(0, 32),
+                dedupeKey: dedupeKey || `skip:${eventKey}:${jobId || 'na'}:${Date.now()}`,
+                message: String(message).slice(0, 160),
+                status: 'skipped',
+                errorMessage: reason,
+                metadata: {
+                  ...(metadata && typeof metadata === 'object' ? metadata : {}),
+                  skipReason: reason,
+                  masterEnabled: masterOn,
+                  storedValue: stored
+                }
+              });
+              return { success: false, reason, skipped: true };
             }
           } else if (!this.isMasterEnabled(map)) {
+            console.log(`📱 [SMS] skipped — SMS_NOTIFICATIONS disabled (to=${this.maskPhone(to)})`);
             return { success: false, reason: 'SMS_NOTIFICATIONS disabled', skipped: true };
           }
         } else if (!this.isMasterEnabled(map)) {
+          console.log(`📱 [SMS] skipped — SMS_NOTIFICATIONS disabled (to=${this.maskPhone(to)})`);
           return { success: false, reason: 'SMS_NOTIFICATIONS disabled', skipped: true };
         }
 
         if (!skipQuietHours && eventKey && QUIET_HOURS_EVENTS.has(eventKey)) {
-          const quietRaw = this.getConfigValue(map, 'SMS_QUIET_HOURS', '21-7');
+          const quietRaw = this.getConfigValueOrDefault(map, 'SMS_QUIET_HOURS', '21-7');
           const quietSpec = parseQuietHours(quietRaw);
           if (isWithinQuietHours(quietSpec)) {
+            console.log(
+              `📱 [SMS] skipped — quiet hours (${quietRaw}) for ${eventKey} (to=${this.maskPhone(to)})`
+            );
             return { success: false, reason: 'Quiet hours', skipped: true, quietHours: true };
           }
         }
