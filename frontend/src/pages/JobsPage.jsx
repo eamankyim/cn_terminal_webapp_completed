@@ -808,6 +808,17 @@ const JobsPage = () => {
       )
     },
     {
+      title: 'Consignee',
+      key: 'consignee',
+      render: (_, record) => {
+        const name = record.consignment?.consigneeName;
+        if (!name) {
+          return <Text type="secondary">—</Text>;
+        }
+        return <Text>{name}</Text>;
+      }
+    },
+    {
       title: 'Container Number',
       dataIndex: 'containerNumber',
       key: 'containerNumber',
@@ -2007,7 +2018,7 @@ const JobsPage = () => {
                   )}
                   <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <Input.Search
-                      placeholder="Search job ID, customer, container, BL, vessel, assignee..."
+                      placeholder="Search job ID, customer, consignee, container, BL, vessel, assignee..."
                       allowClear
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}

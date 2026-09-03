@@ -58,7 +58,7 @@ const buildJobSearchConditions = (search) => {
  *         name: search
  *         schema:
  *           type: string
- *         description: Search by tracking ID, container number, BL number, assignee, or customer name
+ *         description: Search by tracking ID, container number, BL number, assignee, customer, or consignee name
  *       - in: query
  *         name: status
  *         schema:
