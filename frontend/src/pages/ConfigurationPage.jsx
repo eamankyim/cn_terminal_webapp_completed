@@ -109,27 +109,11 @@ const ConfigurationPage = () => {
   const initializeAndLoadConfigurations = async () => {
     setLoading(true);
     try {
-      // First, try to load existing configurations
-      const response = await configurationService.getConfigurations();
-      
-      if (response.success && response.data) {
-        // Check if we have configurations in any category
-        const hasConfigurations = Object.values(response.data).some(category => Array.isArray(category) && category.length > 0);
-        
-        if (hasConfigurations) {
-          // Configurations exist, load them
-          setConfigurations(response.data);
-          setRefreshKey(prev => prev + 1);
-        } else {
-          // No configurations exist, initialize defaults
-          await initializeDefaults();
-        }
-      } else {
-        // No configurations exist, initialize defaults
-        await initializeDefaults();
-      }
+      // Always call init first — it is idempotent (skips existing keys),
+      // so new categories like SMS are seeded even on existing installations.
+      await configurationService.initializeDefaults();
+      await loadConfigurations();
     } catch (error) {
-
       message.error('Failed to load configurations');
     } finally {
       setLoading(false);
