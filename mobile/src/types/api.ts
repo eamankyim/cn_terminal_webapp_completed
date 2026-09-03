@@ -81,6 +81,10 @@ export interface Job {
     id: string;
     name: string;
   };
+  consignment?: {
+    id: string;
+    consigneeName?: string | null;
+  } | null;
   assignedTo?: {
     id: string;
     name: string;

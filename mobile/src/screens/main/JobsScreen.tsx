@@ -393,7 +393,7 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
                 <TextInput
                   value={searchInput}
                   onChangeText={setSearchInput}
-                  placeholder="Search by Job ID, Container No, or BL"
+                  placeholder="Search by Job ID, client, consignee, container, or BL"
                   placeholderTextColor="#999"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -494,6 +494,11 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
               <Text className="text-base text-black mt-1.5">
                 {item.customer?.name ?? 'Unknown client'}
               </Text>
+              {item.consignment?.consigneeName ? (
+                <Text className="text-sm text-gray-600 mt-1">
+                  {item.consignment.consigneeName}
+                </Text>
+              ) : null}
               <Text className="text-sm text-gray-500 mt-1.5">
                 <Text style={{ color: getEtaTextColor(item.eta, item.status) }}>
                   ETA {formatJobDate(item.eta)}
