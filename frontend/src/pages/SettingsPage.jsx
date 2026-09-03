@@ -152,6 +152,9 @@ const SettingsPage = () => {
         isActive: values.status
       };
       delete userData.status;
+      if (!userData.password) {
+        delete userData.password;
+      }
 
       console.log('  - Final userData to send:', { ...userData, password: userData.password ? '***PROVIDED***' : 'NOT PROVIDED' });
 
@@ -172,12 +175,20 @@ const SettingsPage = () => {
     }
   };
 
-  const handleEditUser = (user) => {
-    setEditingUser(user);
+  const populateEditUserForm = (user) => {
+    if (!user) return;
     form.setFieldsValue({
-      ...user,
-      status: user.isActive
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: user.isActive,
+      password: undefined,
     });
+  };
+
+  const handleEditUser = (user) => {
+    form.resetFields();
+    setEditingUser(user);
     setIsUserModalVisible(true);
   };
 
@@ -1318,6 +1329,12 @@ const SettingsPage = () => {
       <Modal
         title="Edit User"
         open={isUserModalVisible}
+        destroyOnClose
+        afterOpenChange={(open) => {
+          if (open && editingUser) {
+            populateEditUserForm(editingUser);
+          }
+        }}
         onCancel={() => {
           setIsUserModalVisible(false);
           setEditingUser(null);
@@ -1330,6 +1347,7 @@ const SettingsPage = () => {
           form={form}
           layout="vertical"
           onFinish={handleUpdateUser}
+          autoComplete="off"
         >
           <Row gutter={16}>
             <Col span={12}>
@@ -1338,7 +1356,7 @@ const SettingsPage = () => {
                 label="Full Name"
                 rules={[{ required: true, message: 'Please enter full name' }]}
               >
-                <Input placeholder="Enter full name" />
+                <Input placeholder="Enter full name" autoComplete="off" />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -1350,7 +1368,7 @@ const SettingsPage = () => {
                   { type: 'email', message: 'Please enter valid email' }
                 ]}
               >
-                <Input placeholder="Enter email address" />
+                <Input placeholder="Enter email address" autoComplete="off" />
               </Form.Item>
             </Col>
           </Row>
@@ -1396,7 +1414,10 @@ const SettingsPage = () => {
               { min: 8, message: 'Password must be at least 8 characters' }
             ]}
           >
-            <Input.Password placeholder={editingUser ? "Leave blank to keep current password" : "Enter password"} />
+            <Input.Password
+              placeholder={editingUser ? "Leave blank to keep current password" : "Enter password"}
+              autoComplete="new-password"
+            />
           </Form.Item>
 
           <Form.Item style={{ marginTop: '24px', textAlign: 'right' }}>
@@ -1621,8 +1642,7 @@ const SettingsPage = () => {
                   icon={<EditOutlined />}
                   onClick={() => {
                     setIsDetailsDrawerVisible(false);
-                    setEditingUser(selectedUser);
-                    setIsUserModalVisible(true);
+                    handleEditUser(selectedUser);
                   }}
                 >
                   Edit User
