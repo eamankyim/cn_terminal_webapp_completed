@@ -28,7 +28,8 @@ import {
   DollarOutlined,
   PercentageOutlined,
   GlobalOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  MessageOutlined
 } from '@ant-design/icons';
 import configurationService from '../services/configurationService';
 import { useAuth } from '../contexts/AuthContext';
@@ -86,6 +87,18 @@ const ConfigurationPage = () => {
       icon: <FileTextOutlined />,
       color: '#722ed1',
       description: 'Invoice generation and formatting settings'
+    },
+    SMS: {
+      title: 'SMS Events',
+      icon: <MessageOutlined />,
+      color: '#13c2c2',
+      description: 'Per-event SMS toggles and thresholds (MNotify). Prefer Admin → SMS Settings for a clearer UI.'
+    },
+    NOTIFICATIONS: {
+      title: 'Notifications',
+      icon: <MessageOutlined />,
+      color: '#fa8c16',
+      description: 'Master notification switches including SMS_NOTIFICATIONS'
     }
   };
 

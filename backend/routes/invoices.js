@@ -649,6 +649,22 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.IN
       // Don't fail the status update if notification fails
     }
 
+    // Optional customer payment-reminder SMS (toggle default OFF)
+    if (status === 'OVERDUE') {
+      try {
+        const SmsNotificationService = require('../services/smsNotificationService');
+        const invoiceWithCustomer = await prisma.invoice.findUnique({
+          where: { id },
+          include: { customer: { select: { phone: true, name: true } } }
+        });
+        if (invoiceWithCustomer) {
+          await SmsNotificationService.notifyPaymentReminder(invoiceWithCustomer);
+        }
+      } catch (smsError) {
+        console.error('Payment reminder SMS failed:', smsError.message);
+      }
+    }
+
     res.json({
       message: 'Invoice status updated successfully',
       invoice: updatedInvoice

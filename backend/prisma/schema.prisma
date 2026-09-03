@@ -101,6 +101,7 @@ model Job {
   updatedAt            DateTime              @updatedAt
   goodsTypes           String[]              @default([])
   assignedToId         String
+  lastAssignedAt       DateTime?             // Updated whenever assignedToId changes (for stuck-assignee / SLA SMS)
   eta                  DateTime?
   blNumber             String?
   containerNumber      String?
@@ -127,6 +128,7 @@ model Job {
   documents            JobDocument[]
   statusHistory        JobStatusHistory[]
   comments             JobComment[]
+  smsDispatchLogs      SmsDispatchLog[]
   assignedTo           User                  @relation("AssignedJobs", fields: [assignedToId], references: [id])
   consignment          Consignment?          @relation(fields: [consignmentId], references: [id])
   createdBy            User                  @relation("CreatedJobs", fields: [createdById], references: [id])
@@ -137,6 +139,25 @@ model Job {
   payouts              Payout[]
 
   @@map("jobs")
+}
+
+/// Dedupes cron / repeatable SMS so the same event is not spammed.
+model SmsDispatchLog {
+  id        String   @id @default(cuid())
+  eventKey  String
+  jobId     String?
+  userId    String?
+  phone     String?
+  dedupeKey String   @unique
+  message   String?
+  status    String   @default("sent") // sent | skipped | failed
+  metadata  Json?
+  createdAt DateTime @default(now())
+  job       Job?     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([eventKey, jobId])
+  @@index([createdAt])
+  @@map("sms_dispatch_logs")
 }
 
 model JobStatusHistory {

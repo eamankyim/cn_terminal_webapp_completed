@@ -313,6 +313,13 @@ router.post('/', authenticateToken, async (req, res) => {
       message: existingConfig ? 'Configuration updated successfully' : 'Configuration created successfully',
       data: configuration
     });
+
+    // Invalidate SMS config cache when SMS-related keys change
+    if (key === 'SMS_NOTIFICATIONS' || String(key).startsWith('SMS_')) {
+      try {
+        require('../services/smsService').invalidateConfigCache();
+      } catch (_) { /* ignore */ }
+    }
   } catch (error) {
 
     res.status(500).json({
@@ -401,6 +408,10 @@ router.put('/bulk', authenticateToken, async (req, res) => {
       message: 'Bulk update completed',
       data: results
     });
+
+    try {
+      require('../services/smsService').invalidateConfigCache();
+    } catch (_) { /* ignore */ }
   } catch (error) {
 
     res.status(500).json({
@@ -507,7 +518,10 @@ router.post('/init', authenticateToken, async (req, res) => {
         type: 'JSON',
         category: 'JOBS',
         description: 'Available terminal names for RELEASED status'
-      }
+      },
+
+      // SMS notification toggles & thresholds (MNotify)
+      ...require('../services/smsConfig').SMS_DEFAULT_CONFIGS
     ];
 
     const results = [];

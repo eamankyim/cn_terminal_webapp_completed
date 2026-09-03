@@ -1,141 +1,129 @@
-# SMS Service Setup (Clickatell)
+# SMS Service Setup (MNotify)
 
-This document explains how to set up and use the SMS service with Clickatell.
+CN Terminal sends SMS via **MNotify** (Ghana). Clickatell is deprecated and no longer used.
 
-## Environment Variables
+## Environment variables
 
-Add the following environment variables to your `.env` file:
+Add to `backend/.env`:
 
-```env
-# Clickatell SMS Configuration
-CLICKATELL_API_KEY=your_clickatell_api_key_here
-CLICKATELL_API_URL=https://platform.clickatell.com/messages/http/send
-CLICKATELL_SENDER_ID=CN Terminal
+```bash
+# MNotify SMS
+MNOTIFY_API_KEY=your_mnotify_api_key
+MNOTIFY_SENDER_ID=CNTerminal
+# Optional override (default below)
+# MNOTIFY_API_URL=https://api.mnotify.com/api/sms/quick
 
-# SMS Development Mode (set to 'true' to log SMS instead of sending)
-SMS_DEV_MODE=false
+# Development: log SMS instead of calling MNotify
+SMS_DEV_MODE=true
+
+# Optional: run one SMS scan ~60s after server boot
+# SMS_SCHEDULER_RUN_ON_BOOT=true
 ```
 
-## Getting Your Clickatell API Key
+- `MNOTIFY_SENDER_ID` max **11 characters** (MNotify rule).
+- Numbers are normalized to Ghana `233XXXXXXXXX` internally; the API call uses local `0XXXXXXXXX` format.
 
-1. Sign up for a Clickatell account at https://www.clickatell.com/
-2. Navigate to your dashboard
-3. Go to **API** section
-4. Copy your **API Key**
-5. Add it to your `.env` file as `CLICKATELL_API_KEY`
+## Getting an API key
 
-## Features
+1. Create / log in at [mNotify](https://www.mnotify.com/) / BMS.
+2. Generate an API key (API v2).
+3. Register a sender ID (max 11 chars).
+4. Docs: https://readthedocs.mnotify.com/ (Quick Bulk SMS → `POST /api/sms/quick?key=...`)
 
-The SMS service automatically sends SMS notifications to customers for:
+## Master + per-event toggles
 
-- **Job Status Updates**: When job status changes to:
-  - `ENTRY_COMPLETED`
-  - `DUTY_PAID`
-  - `RELEASED`
-  - `CLEARED`
-  - `DELIVERED`
+Controlled in the database via configurations (Admin Dashboard → **SMS Settings**, or Configuration page → SMS).
 
-## Enabling SMS Notifications
+| Key | Default | Notes |
+|-----|---------|--------|
+| `SMS_NOTIFICATIONS` | `false` | **Master** — must be ON for any SMS |
+| `SMS_JOB_ASSIGNED` | `true` | Staff — new assignee (skip self-assign) |
+| `SMS_JOB_REASSIGNED` | `true` | Staff — new + previous |
+| `SMS_STAFF_STAGE_HANDOFF` | `true` | Status advance + assignee change |
+| `SMS_STATUS_REVERTED` | `true` | Assignee + SUPERVISOR (+ ADMIN optional) |
+| `SMS_ETA_APPROACHING` | `true` | Cron — 7d / 3d thresholds |
+| `SMS_ETA_OVERDUE` | `true` | Cron — daily to assignee + SUPERVISOR |
+| `SMS_DEMURRAGE` | `true` | Cron |
+| `SMS_RELEASE_SCHEDULE_SLIPPED` | `true` | Cron |
+| `SMS_STUCK_ASSIGNEE` | `true` | Cron |
+| `SMS_STUCK_STATUS` | `true` | Cron — per-status SLA JSON |
+| `SMS_ESCALATION` | `true` | Cron — SUPERVISOR then ADMIN |
+| `SMS_REASSIGN_CHURN` | `true` | ≥N reassigns / 24h |
+| `SMS_RELEASE_MONEY` | `true` | Cron after delay |
+| `SMS_COMMENT_ASSIGNEE` | `false` | Opt-in |
+| `SMS_CUSTOMER_*` milestones | `true` | Incl. READY_FOR_RELEASE |
+| `SMS_CUSTOMER_CONSIGNEE_COPY` | `false` | RELEASED / CLEARED / DELIVERED |
+| `SMS_CUSTOMER_ETA_OVERDUE` | `false` | Reputation risk |
+| `SMS_PAYMENT_REMINDER` | `false` | Overdue invoices |
 
-SMS notifications are controlled by the `SMS_NOTIFICATIONS` configuration in the database:
+Thresholds: `SMS_ETA_WARN_DAYS` (`7,3`), `SMS_ETA_OVERDUE_REPEAT_HOURS` (24), `SMS_STUCK_ASSIGNEE_HOURS` (24), `SMS_STATUS_SLA_HOURS` (JSON), `SMS_ESCALATION_HOURS` (24), `SMS_REASSIGN_CHURN_COUNT` (3), `SMS_RELEASE_MONEY_DELAY_HOURS` (2), `SMS_QUIET_HOURS` (`21-7` Africa/Accra).
 
-1. Go to **Settings** → **System Preferences**
-2. Enable **SMS Notifications**
-3. SMS will be sent automatically when enabled
+Quiet hours apply to SLA/ETA nudges only — **not** assignment, reassignment, or customer milestones.
 
-## Phone Number Format
+Seed missing keys: Admin → SMS Settings → **Seed missing defaults**, or `POST /api/configurations/init`.
 
-The service automatically formats phone numbers:
-- Removes spaces and special characters
-- Adds Ghana country code (+233) if missing
-- Handles numbers starting with 0
+## Scheduler
 
-**Examples:**
-- `020 123 4567` → `233201234567`
-- `0249876543` → `233249876543`
-- `233201234567` → `233201234567` (already formatted)
+`backend/jobs/smsScheduler.js` runs every **20 minutes** via `node-cron` (started from `server.js`).
 
-## Development Mode
+Scans: ETA approaching/overdue, stuck assignee/status, escalation, demurrage, release schedule slipped, release money, overdue payment reminders.
 
-Set `SMS_DEV_MODE=true` in your `.env` file to:
-- Log SMS messages to console instead of sending
-- Test SMS functionality without using credits
-- See formatted phone numbers and message content
+Dedupe: `SmsDispatchLog` table (`dedupeKey` unique).
 
-## Usage Examples
+`Job.lastAssignedAt` is updated on assignment/reassign. Older jobs fall back to current status history date / `updatedAt`.
 
-### Send Job Status Update
-```javascript
+## Local testing with SMS_DEV_MODE
+
+1. Set `SMS_DEV_MODE=true` in `backend/.env`.
+2. Restart the backend.
+3. In Admin → SMS Settings: turn **Enable SMS notifications** ON; leave event toggles as needed.
+4. Ensure staff/customer records have phone numbers.
+5. Trigger an event (assign a job, advance to `ENTRY_COMPLETED`, etc.).
+6. Check backend logs for:
+
+```text
+📱 [SMS DEV MODE] SMS would be sent:
+   Event: SMS_JOB_ASSIGNED
+   To: 233XXXXXXXXX
+   Message: ...
+```
+
+7. Set `SMS_DEV_MODE=false` and configure real `MNOTIFY_*` credentials for production.
+
+## Manual API usage
+
+```js
 const smsService = require('./services/smsService');
 
-await smsService.sendJobStatusUpdate(job, 'DELIVERED', 'CLEARED');
+await smsService.sendSms({
+  to: '0241234567',
+  message: 'Test from CN Terminal',
+  eventKey: 'SMS_JOB_ASSIGNED' // optional toggle check
+});
 ```
-
-### Send Delivery Notification
-```javascript
-await smsService.sendDeliveryNotification(job);
-```
-
-### Send Payment Reminder
-```javascript
-await smsService.sendPaymentReminder(invoice);
-```
-
-### Send Custom Message
-```javascript
-await smsService.sendCustomMessage('233201234567', 'Your custom message here');
-```
-
-## Error Handling
-
-The SMS service:
-- Logs errors but doesn't fail the main operation
-- Returns success/failure status
-- Handles missing phone numbers gracefully
-- Truncates messages longer than 160 characters
-
-## Message Templates
-
-### Job Status Update
-```
-CN Terminal: Job {trackingId} - {status message}. Thank you for choosing CN Terminal.
-```
-
-### Delivery Notification
-```
-CN Terminal: Your shipment {trackingId} has been delivered successfully. Thank you for choosing CN Terminal!
-```
-
-### Payment Reminder
-```
-CN Terminal: Reminder - Invoice {invoiceNumber} for GHS {amount} is pending payment. Please make payment to avoid delays.
-```
-
-## Testing
-
-1. Set `SMS_DEV_MODE=true` in `.env`
-2. Update a job status to `DELIVERED`
-3. Check console logs for SMS details
-4. Verify phone number formatting
-5. Set `SMS_DEV_MODE=false` to send real SMS
 
 ## Troubleshooting
 
-### SMS Not Sending
-- Check `CLICKATELL_API_KEY` is set correctly
-- Verify `SMS_NOTIFICATIONS` is enabled in settings
-- Ensure customer has a valid phone number
-- Check Clickatell account has credits
-- Review console logs for error messages
+- Master `SMS_NOTIFICATIONS` must be `true`.
+- Per-event toggle must be `true`.
+- User/customer must have a phone number.
+- Check MNotify balance and sender ID approval.
+- Deduped cron events will not re-send until the dedupe key changes (often daily).
 
-### Invalid Phone Number
-- Ensure phone number is in the customer record
-- Check phone number format (should be 9-10 digits for Ghana)
-- Verify country code is correct
+## Production (GitHub Actions)
 
-### API Errors
-- Verify API key is valid
-- Check Clickatell account status
-- Review Clickatell API documentation for changes
-- Check network connectivity
+Deploy writes `.env.production` from GitHub secrets and passes them into the backend container via `docker-compose.prod.yml`.
+
+Required repository secrets (Settings → Secrets and variables → Actions):
+
+- `MNOTIFY_API_KEY` — MNotify API key
+- `MNOTIFY_SENDER_ID` — approved sender ID (max 11 chars), e.g. `CNTerminal`
+
+Optional:
+
+- `MNOTIFY_API_URL` — defaults in code to `https://api.mnotify.com/api/sms/quick` if empty
+
+`SMS_DEV_MODE` is forced to `false` on production deploys. The in-app master toggle `SMS_NOTIFICATIONS` stays **off** until an admin enables it (do not rely on env alone for customer SMS).
+
+After adding secrets, re-run the production deploy (push to `production` or workflow_dispatch) so containers pick up the new env.
 
