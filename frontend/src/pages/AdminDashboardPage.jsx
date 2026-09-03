@@ -39,7 +39,7 @@ import SmsSettingsPanel from '../components/admin/SmsSettingsPanel';
 import userService from '../services/userService';
 import configurationService from '../services/configurationService';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
@@ -49,6 +49,7 @@ const { TextArea } = Input;
 const AdminDashboardPage = () => {
   const { currentUser, updateProfile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   // Route guard: Only ADMIN and IT_CONSULTANT can access this page
   useEffect(() => {
@@ -57,7 +58,22 @@ const AdminDashboardPage = () => {
       navigate('/dashboard');
     }
   }, [currentUser, navigate]);
-  const [activeTab, setActiveTab] = useState('profile');
+  const tabFromUrl = searchParams.get('tab') || 'profile';
+  const [activeTab, setActiveTab] = useState(tabFromUrl);
+
+  useEffect(() => {
+    const next = searchParams.get('tab') || 'profile';
+    setActiveTab(next);
+  }, [searchParams]);
+
+  const handleTabChange = (key) => {
+    setActiveTab(key);
+    if (key === 'profile') {
+      setSearchParams({});
+    } else {
+      setSearchParams({ tab: key });
+    }
+  };
   const [userModalVisible, setUserModalVisible] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -1388,8 +1404,13 @@ const AdminDashboardPage = () => {
             type="info"
             showIcon
             style={{ marginTop: 16 }}
-            message="Per-event SMS toggles"
-            description="Open the SMS Settings tab to set MNotify credentials, enable or disable each staff and customer SMS event (including client ETA alerts), and to configure thresholds."
+            message="Per-event SMS toggles & test send"
+            description="Open the SMS Settings tab to set MNotify credentials, enable or disable each staff and customer SMS event (including client ETA alerts), configure thresholds, and use Test SMS & Statistics to send a test message."
+            action={
+              <Button type="primary" size="small" onClick={() => handleTabChange('sms-settings')}>
+                Open SMS Settings
+              </Button>
+            }
           />
         </div>
       ),
@@ -1397,7 +1418,11 @@ const AdminDashboardPage = () => {
     {
       key: 'sms-settings',
       label: 'SMS Settings',
-      children: <SmsSettingsPanel />,
+      children: (
+        <SmsSettingsPanel
+          initialTab={searchParams.get('smsTab') === 'test' ? 'test-stats' : 'settings'}
+        />
+      ),
     },
     {
       key: 'security-settings',
@@ -1533,9 +1558,9 @@ const AdminDashboardPage = () => {
       {/* Main Content Tabs */}
       <Card>
         <Tabs
-          defaultActiveKey="profile"
+          activeKey={activeTab}
           items={tabItems}
-          onChange={setActiveTab}
+          onChange={handleTabChange}
         />
       </Card>
 

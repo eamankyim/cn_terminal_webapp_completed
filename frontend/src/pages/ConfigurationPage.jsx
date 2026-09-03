@@ -29,7 +29,8 @@ import {
   PercentageOutlined,
   GlobalOutlined,
   FileTextOutlined,
-  MessageOutlined
+  MessageOutlined,
+  ExperimentOutlined
 } from '@ant-design/icons';
 import configurationService from '../services/configurationService';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,6 +42,8 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 const { TabPane } = Tabs;
+
+const SENSITIVE_CONFIG_KEYS = new Set(['MNOTIFY_API_KEY']);
 
 const ConfigurationPage = () => {
   const { currentUser } = useAuth();
@@ -62,6 +65,7 @@ const ConfigurationPage = () => {
   const [editingConfig, setEditingConfig] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [modalForm] = Form.useForm();
+  const [dirtyCategories, setDirtyCategories] = useState({});
 
   const configCategories = {
     TAX: {
@@ -92,7 +96,7 @@ const ConfigurationPage = () => {
       title: 'SMS Events',
       icon: <MessageOutlined />,
       color: '#13c2c2',
-      description: 'Per-event SMS toggles, thresholds, and MNotify credentials. Prefer Admin → SMS Settings (API key is redacted in list views).'
+      description: 'Per-event SMS toggles and thresholds. Manage API key and send tests in Admin → SMS Settings.'
     },
     NOTIFICATIONS: {
       title: 'Notifications',
@@ -120,21 +124,6 @@ const ConfigurationPage = () => {
     }
   };
 
-  const initializeDefaults = async () => {
-    try {
-      const response = await configurationService.initializeDefaults();
-      if (response.success) {
-        // Reload configurations after initialization
-        await loadConfigurations();
-      } else {
-        message.error('Failed to initialize default configurations');
-      }
-    } catch (error) {
-
-      message.error('Failed to initialize default configurations');
-    }
-  };
-
   const loadConfigurations = async () => {
     setLoading(true);
     try {
@@ -152,6 +141,7 @@ const ConfigurationPage = () => {
         });
         
         setConfigurations(filteredConfigurations);
+        setDirtyCategories({});
         setRefreshKey(prev => prev + 1); // Force re-render
       } else {
         message.error('Failed to load configurations');
@@ -164,32 +154,65 @@ const ConfigurationPage = () => {
     }
   };
 
+  const markCategoryDirty = (category) => {
+    setDirtyCategories((prev) => ({ ...prev, [category]: true }));
+  };
+
   const handleSave = async (category) => {
+    if (!dirtyCategories[category]) {
+      message.info('No unsaved changes');
+      return;
+    }
+
+    setSaving(true);
     try {
       const categoryConfigs = configurations[category] || [];
-      const updatedConfigs = categoryConfigs.map(config => ({
-        key: config.key,
-        value: config.value,
-        type: config.type,
-        category: config.category,
-        description: config.description,
-        isActive: config.isActive
-      }));
+      const updatedConfigs = categoryConfigs
+        .filter((config) => {
+          // Never push redacted empty API key back — that would look like a wipe
+          // (backend keeps existing on blank, but we still skip the no-op).
+          if (
+            SENSITIVE_CONFIG_KEYS.has(config.key) &&
+            (!config.value || String(config.value).trim() === '')
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .map((config) => ({
+          key: config.key,
+          value: config.value,
+          type: config.type,
+          category: config.category,
+          description: config.description,
+          isActive: config.isActive
+        }));
 
       const response = await configurationService.saveConfigurations(updatedConfigs);
       if (response.success) {
-        message.success(`${configCategories[category]?.title} settings saved successfully`);
-        loadConfigurations();
+        const failed = (response.data || []).filter((r) => r && r.success === false);
+        if (failed.length > 0) {
+          message.error(failed[0].message || 'Some settings failed to save');
+        } else {
+          message.success(`${configCategories[category]?.title} settings saved successfully`);
+        }
+        await loadConfigurations();
       } else {
         message.error('Failed to save configurations');
       }
     } catch (error) {
-
       message.error('Failed to save configurations');
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleEditConfig = (config) => {
+    if (SENSITIVE_CONFIG_KEYS.has(config.key)) {
+      message.info('Manage the MNotify API key in Admin → SMS Settings');
+      navigate('/admin?tab=sms-settings');
+      return;
+    }
     setEditingConfig(config);
     modalForm.setFieldsValue({
       key: config.key,
@@ -203,6 +226,10 @@ const ConfigurationPage = () => {
   };
 
   const handleModalSave = async (values) => {
+    if (SENSITIVE_CONFIG_KEYS.has(values.key)) {
+      message.error('API key cannot be edited here. Use Admin → SMS Settings.');
+      return;
+    }
     setSaving(true);
     try {
       const response = await configurationService.saveConfiguration(values);
@@ -210,12 +237,11 @@ const ConfigurationPage = () => {
         message.success(editingConfig ? 'Configuration updated successfully' : 'Configuration created successfully');
         setIsModalVisible(false);
         modalForm.resetFields();
-        loadConfigurations();
+        await loadConfigurations();
       } else {
         message.error('Failed to save configuration');
       }
     } catch (error) {
-
       message.error('Failed to save configuration');
     } finally {
       setSaving(false);
@@ -237,7 +263,6 @@ const ConfigurationPage = () => {
         message.error('Failed to reset configurations to defaults');
       }
     } catch (error) {
-
       message.error('Failed to reset configurations to defaults');
     } finally {
       setSaving(false);
@@ -251,17 +276,45 @@ const ConfigurationPage = () => {
         config.key === key ? { ...config, [field]: value } : config
       ) || []
     }));
+    markCategoryDirty(category);
   };
 
+  const isBooleanTrue = (value) => value === true || value === 'true';
+
   const renderConfigField = (config) => {
-    const { key, value, type, isActive } = config;
+    const { key, value, type } = config;
+
+    if (SENSITIVE_CONFIG_KEYS.has(key)) {
+      return (
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          {config.isConfigured ? (
+            <Tag color="success">Configured (hidden)</Tag>
+          ) : (
+            <Tag color="warning">Not configured</Tag>
+          )}
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Edit only in Admin → SMS Settings (value is never shown here).
+          </Text>
+          <Button
+            type="link"
+            size="small"
+            style={{ padding: 0 }}
+            onClick={() => navigate('/admin?tab=sms-settings')}
+          >
+            Open SMS Settings
+          </Button>
+        </Space>
+      );
+    }
     
     switch (type) {
       case 'BOOLEAN':
         return (
           <Switch
-            checked={isActive}
-            onChange={(checked) => updateConfigValue(config.category, key, 'isActive', checked)}
+            checked={isBooleanTrue(value)}
+            onChange={(checked) =>
+              updateConfigValue(config.category, key, 'value', checked ? 'true' : 'false')
+            }
           />
         );
       case 'NUMBER':
@@ -274,8 +327,8 @@ const ConfigurationPage = () => {
             style={{ width: '100%' }}
             min={0}
             precision={type === 'CURRENCY' ? 2 : type === 'PERCENTAGE' ? 2 : 0}
-            formatter={type === 'CURRENCY' ? value => `GHS ${value}` : type === 'PERCENTAGE' ? value => `${value}%` : undefined}
-            parser={type === 'CURRENCY' ? value => value.replace('GHS ', '') : type === 'PERCENTAGE' ? value => value.replace('%', '') : value}
+            formatter={type === 'CURRENCY' ? v => `GHS ${v}` : type === 'PERCENTAGE' ? v => `${v}%` : undefined}
+            parser={type === 'CURRENCY' ? v => v.replace('GHS ', '') : type === 'PERCENTAGE' ? v => v.replace('%', '') : v => v}
           />
         );
       case 'JSON':
@@ -301,6 +354,7 @@ const ConfigurationPage = () => {
   const renderConfigCard = (category) => {
     const categoryConfigs = configurations[category] || [];
     const categoryInfo = configCategories[category];
+    const isDirty = !!dirtyCategories[category];
 
     if (!categoryInfo) return null;
 
@@ -312,6 +366,7 @@ const ConfigurationPage = () => {
             {categoryInfo.icon}
             <span>{categoryInfo.title}</span>
             <Tag color={categoryInfo.color}>{categoryConfigs.length} settings</Tag>
+            {isDirty && <Tag color="orange">Unsaved changes</Tag>}
           </Space>
         }
         extra={
@@ -321,13 +376,43 @@ const ConfigurationPage = () => {
               icon={<SaveOutlined />}
               onClick={() => handleSave(category)}
               loading={saving}
+              disabled={!isDirty}
             >
-              Save Changes
+              {isDirty ? 'Save Changes' : 'Saved'}
             </Button>
           </Space>
         }
         style={{ marginBottom: 16 }}
       >
+        {category === 'SMS' && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="Manage SMS & send a test"
+            description="MNotify API key, Test SMS, and delivery statistics live in Admin → SMS Settings (not this list). The API key appears empty here on purpose — it is redacted after save."
+            action={
+              <Space direction="vertical" size={4}>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<SettingOutlined />}
+                  onClick={() => navigate('/admin?tab=sms-settings')}
+                >
+                  Open SMS Settings
+                </Button>
+                <Button
+                  size="small"
+                  icon={<ExperimentOutlined />}
+                  onClick={() => navigate('/admin?tab=sms-settings&smsTab=test')}
+                >
+                  Open Test SMS
+                </Button>
+              </Space>
+            }
+          />
+        )}
+
         {categoryConfigs.length === 0 ? (
           <Alert
             message="No configurations found"
@@ -381,18 +466,24 @@ const ConfigurationPage = () => {
                   
                   <div style={{ marginBottom: 8 }}>
                     <Text type="secondary" style={{ fontSize: '12px' }}>
-                      {configurationService.formatConfigValue(config.value, config.type)}
+                      {SENSITIVE_CONFIG_KEYS.has(config.key)
+                        ? config.isConfigured
+                          ? 'Configured (value hidden)'
+                          : 'Not set'
+                        : configurationService.formatConfigValue(config.value, config.type)}
                     </Text>
                   </div>
                   
                   <div style={{ textAlign: 'right' }}>
                     <Space size="small">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<EditOutlined />}
-                        onClick={() => handleEditConfig(config)}
-                      />
+                      {!SENSITIVE_CONFIG_KEYS.has(config.key) && (
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<EditOutlined />}
+                          onClick={() => handleEditConfig(config)}
+                        />
+                      )}
                     </Space>
                   </div>
                 </Card>
