@@ -12,11 +12,13 @@ import {
   Row,
   Space,
   Switch,
+  Tabs,
   Tag,
   Typography
 } from 'antd';
 import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import configurationService from '../../services/configurationService';
+import SmsTestStatsPanel from './SmsTestStatsPanel';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -261,9 +263,17 @@ const SmsSettingsPanel = () => {
         Master switch, MNotify credentials, and per-event toggles for staff and customer SMS.
         Quiet hours apply to ETA/SLA nudges only — not assignment, reassignment, or customer
         milestones. Credentials are stored in the configurations table (Admin UI is the source of
-        truth).
+        truth). Use Test &amp; Statistics to send a test message and review send/fail counts.
       </Paragraph>
 
+      <Tabs
+        defaultActiveKey="settings"
+        items={[
+          {
+            key: 'settings',
+            label: 'Settings',
+            children: (
+              <>
       <Alert
         type="info"
         showIcon
@@ -287,7 +297,7 @@ const SmsSettingsPanel = () => {
             name="SMS_NOTIFICATIONS"
             label="Enable SMS notifications"
             valuePropName="checked"
-            extra="Must be ON for any SMS to send"
+            extra="Must be ON for event SMS (jobs, ETA, customers). Admin test send still works with valid MNotify credentials."
           >
             <Switch />
           </Form.Item>
@@ -401,6 +411,16 @@ const SmsSettingsPanel = () => {
           </Button>
         </Form.Item>
       </Form>
+              </>
+            )
+          },
+          {
+            key: 'test-stats',
+            label: 'Test & Statistics',
+            children: <SmsTestStatsPanel />
+          }
+        ]}
+      />
     </div>
   );
 };

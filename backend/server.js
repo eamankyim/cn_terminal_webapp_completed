@@ -78,6 +78,7 @@ const roleRoutes = require('./routes/roles');
 const expenseRoutes = require('./routes/expenses');
 const payoutRoutes = require('./routes/payouts');
 const cashflowRoutes = require('./routes/cashflow');
+const smsRoutes = require('./routes/sms');
 
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
@@ -107,6 +108,7 @@ app.use('/api/roles', roleRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/cashflow', cashflowRoutes);
+app.use('/api/sms', smsRoutes);
 
 // Add catch-all route for debugging
 app.use('/api/*', (req, res, next) => {
