@@ -92,7 +92,7 @@ const ConfigurationPage = () => {
       title: 'SMS Events',
       icon: <MessageOutlined />,
       color: '#13c2c2',
-      description: 'Per-event SMS toggles and thresholds (MNotify). Prefer Admin → SMS Settings for a clearer UI.'
+      description: 'Per-event SMS toggles, thresholds, and MNotify credentials. Prefer Admin → SMS Settings (API key is redacted in list views).'
     },
     NOTIFICATIONS: {
       title: 'Notifications',
