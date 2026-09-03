@@ -143,20 +143,22 @@ model Job {
 
 /// Dedupes cron / repeatable SMS so the same event is not spammed.
 model SmsDispatchLog {
-  id        String   @id @default(cuid())
-  eventKey  String
-  jobId     String?
-  userId    String?
-  phone     String?
-  dedupeKey String   @unique
-  message   String?
-  status    String   @default("sent") // sent | skipped | failed
-  metadata  Json?
-  createdAt DateTime @default(now())
-  job       Job?     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  eventKey     String
+  jobId        String?
+  userId       String?
+  phone        String?
+  dedupeKey    String   @unique
+  message      String?
+  status       String   @default("sent") // sent | skipped | failed
+  errorMessage String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  job          Job?     @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@index([eventKey, jobId])
   @@index([createdAt])
+  @@index([status])
   @@map("sms_dispatch_logs")
 }
 

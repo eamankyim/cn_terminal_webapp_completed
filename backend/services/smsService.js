@@ -138,6 +138,68 @@ class SmsService {
   }
 
   /**
+   * Strip API keys from provider payloads before storing or returning them.
+   */
+  sanitizeProviderPayload(raw, apiKey) {
+    if (raw == null) return null;
+    let text = typeof raw === 'string' ? raw : JSON.stringify(raw);
+    if (apiKey) {
+      text = text.split(apiKey).join('[redacted]');
+    }
+    text = text.replace(/([?&]key=)[^&"'\s]+/gi, '$1[redacted]');
+    if (text.length > 500) text = `${text.slice(0, 500)}…`;
+    return text;
+  }
+
+  maskPhone(phone) {
+    if (!phone) return null;
+    const s = String(phone);
+    if (s.length <= 6) return '****';
+    return `${s.slice(0, 3)}****${s.slice(-4)}`;
+  }
+
+  async _writeDispatchLog({
+    eventKey,
+    jobId,
+    userId,
+    phone,
+    dedupeKey,
+    message,
+    status,
+    errorMessage,
+    metadata
+  }) {
+    if (!dedupeKey && !jobId && !eventKey) return;
+    const key = dedupeKey || `oneshot:${eventKey || 'custom'}:${phone || 'unknown'}:${Date.now()}`;
+    try {
+      await prisma.smsDispatchLog.upsert({
+        where: { dedupeKey: key },
+        create: {
+          eventKey: eventKey || 'CUSTOM',
+          jobId,
+          userId,
+          phone,
+          dedupeKey: key,
+          message,
+          status,
+          errorMessage: errorMessage || null,
+          metadata: metadata || undefined
+        },
+        update: {
+          status,
+          message,
+          errorMessage: errorMessage || null,
+          metadata: metadata || undefined
+        }
+      });
+    } catch (logErr) {
+      if (logErr.code !== 'P2002') {
+        console.error('❌ [SMS] Failed to write dispatch log:', logErr.message);
+      }
+    }
+  }
+
+  /**
    * Central send entry — checks master + event toggle, quiet hours, formats number.
    * Never throws to callers for business flows; returns { success, ... }.
    *
@@ -147,6 +209,7 @@ class SmsService {
    * @param {string} [opts.eventKey] - Config toggle key
    * @param {boolean} [opts.skipQuietHours]
    * @param {boolean} [opts.skipEventCheck] - Only check master (rare)
+   * @param {boolean} [opts.bypassToggles] - Admin test: skip master, event, and quiet hours
    * @param {string} [opts.jobId]
    * @param {string} [opts.userId]
    * @param {string} [opts.dedupeKey] - Unique key; if already sent, skip
@@ -159,6 +222,7 @@ class SmsService {
       eventKey = null,
       skipQuietHours = false,
       skipEventCheck = false,
+      bypassToggles = false,
       jobId = null,
       userId = null,
       dedupeKey = null,
@@ -174,27 +238,25 @@ class SmsService {
 
       const map = await this._loadConfigMap();
 
-      if (!skipEventCheck) {
-        if (eventKey) {
-          if (!this.isEventEnabled(map, eventKey)) {
-            return { success: false, reason: `Event disabled: ${eventKey}`, skipped: true };
+      if (!bypassToggles) {
+        if (!skipEventCheck) {
+          if (eventKey) {
+            if (!this.isEventEnabled(map, eventKey)) {
+              return { success: false, reason: `Event disabled: ${eventKey}`, skipped: true };
+            }
+          } else if (!this.isMasterEnabled(map)) {
+            return { success: false, reason: 'SMS_NOTIFICATIONS disabled', skipped: true };
           }
         } else if (!this.isMasterEnabled(map)) {
           return { success: false, reason: 'SMS_NOTIFICATIONS disabled', skipped: true };
         }
-      } else if (!this.isMasterEnabled(map)) {
-        return { success: false, reason: 'SMS_NOTIFICATIONS disabled', skipped: true };
-      }
 
-      if (
-        !skipQuietHours &&
-        eventKey &&
-        QUIET_HOURS_EVENTS.has(eventKey)
-      ) {
-        const quietRaw = this.getConfigValue(map, 'SMS_QUIET_HOURS', '21-7');
-        const quietSpec = parseQuietHours(quietRaw);
-        if (isWithinQuietHours(quietSpec)) {
-          return { success: false, reason: 'Quiet hours', skipped: true, quietHours: true };
+        if (!skipQuietHours && eventKey && QUIET_HOURS_EVENTS.has(eventKey)) {
+          const quietRaw = this.getConfigValue(map, 'SMS_QUIET_HOURS', '21-7');
+          const quietSpec = parseQuietHours(quietRaw);
+          if (isWithinQuietHours(quietSpec)) {
+            return { success: false, reason: 'Quiet hours', skipped: true, quietHours: true };
+          }
         }
       }
 
@@ -209,7 +271,19 @@ class SmsService {
 
       const formattedPhone = this.formatPhoneNumber(to);
       if (!formattedPhone) {
-        return { success: false, reason: 'Invalid phone number format' };
+        const invalid = { success: false, reason: 'Invalid phone number format' };
+        await this._writeDispatchLog({
+          eventKey,
+          jobId,
+          userId,
+          phone: String(to).slice(0, 32),
+          dedupeKey,
+          message: String(message).slice(0, 160),
+          status: 'failed',
+          errorMessage: invalid.reason,
+          metadata
+        });
+        return invalid;
       }
 
       const maxLength = 160;
@@ -246,37 +320,45 @@ class SmsService {
         }
       }
 
-      if (dedupeKey || jobId || eventKey) {
-        try {
-          await prisma.smsDispatchLog.upsert({
-            where: { dedupeKey: dedupeKey || `oneshot:${eventKey || 'custom'}:${formattedPhone}:${Date.now()}` },
-            create: {
-              eventKey: eventKey || 'CUSTOM',
-              jobId,
-              userId,
-              phone: formattedPhone,
-              dedupeKey: dedupeKey || `oneshot:${eventKey || 'custom'}:${formattedPhone}:${Date.now()}`,
-              message: truncatedMessage,
-              status: result.success ? 'sent' : result.skipped ? 'skipped' : 'failed',
-              metadata: metadata || undefined
-            },
-            update: {
-              status: result.success ? 'sent' : 'failed',
-              message: truncatedMessage,
-              metadata: metadata || undefined
-            }
-          });
-        } catch (logErr) {
-          // Unique race — ignore
-          if (logErr.code !== 'P2002') {
-            console.error('❌ [SMS] Failed to write dispatch log:', logErr.message);
-          }
-        }
-      }
+      const providerSnippet = this.sanitizeProviderPayload(result.raw, apiKey);
+      const status = result.success ? 'sent' : result.skipped ? 'skipped' : 'failed';
+      const errorMessage = result.success ? null : result.reason || result.error || null;
 
-      return result;
+      await this._writeDispatchLog({
+        eventKey,
+        jobId,
+        userId,
+        phone: formattedPhone,
+        dedupeKey,
+        message: truncatedMessage,
+        status,
+        errorMessage,
+        metadata: {
+          ...(metadata && typeof metadata === 'object' ? metadata : {}),
+          ...(providerSnippet ? { providerResponse: providerSnippet } : {}),
+          ...(result.devMode ? { devMode: true } : {}),
+          ...(result.messageId ? { messageId: result.messageId } : {})
+        }
+      });
+
+      return {
+        ...result,
+        raw: undefined,
+        providerResponse: providerSnippet || undefined
+      };
     } catch (error) {
       console.error('❌ Failed to send SMS:', error.message);
+      await this._writeDispatchLog({
+        eventKey,
+        jobId,
+        userId,
+        phone: to ? String(to).slice(0, 32) : null,
+        dedupeKey,
+        message: message ? String(message).slice(0, 160) : null,
+        status: 'failed',
+        errorMessage: error.message,
+        metadata
+      });
       return { success: false, error: error.message };
     }
   }
@@ -392,6 +474,167 @@ class SmsService {
 
   async sendCustomMessage(phoneNumber, message) {
     return this.sendSms({ to: phoneNumber, message, skipEventCheck: false });
+  }
+
+  _countByStatus(rows) {
+    const counts = { sent: 0, failed: 0, skipped: 0 };
+    for (const row of rows) {
+      const key = row.status;
+      const n = typeof row._count === 'number' ? row._count : row._count?.status || 0;
+      if (counts[key] != null) counts[key] = n;
+    }
+    counts.total = counts.sent + counts.failed + counts.skipped;
+    return counts;
+  }
+
+  async getConnectionStatus() {
+    const map = await this._loadConfigMap(true);
+    const fromConfig = (key) => {
+      const v = this.getConfigValue(map, key, null);
+      if (v === null || v === undefined) return '';
+      return String(v).trim();
+    };
+    const configKey = fromConfig('MNOTIFY_API_KEY');
+    const envKey = (process.env.MNOTIFY_API_KEY || '').trim();
+    const { apiKey, senderId, apiUrl } = this.resolveMnotifyCredentials(map);
+
+    let apiKeySource = 'none';
+    if (configKey) apiKeySource = 'config';
+    else if (envKey) apiKeySource = 'env';
+
+    const [lastSuccess, lastError] = await Promise.all([
+      prisma.smsDispatchLog.findFirst({
+        where: { status: 'sent' },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true, eventKey: true, phone: true }
+      }),
+      prisma.smsDispatchLog.findFirst({
+        where: { status: 'failed' },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true, eventKey: true, errorMessage: true, phone: true }
+      })
+    ]);
+
+    return {
+      configured: !!apiKey,
+      apiKeyConfigured: !!apiKey,
+      apiKeySource,
+      senderIdConfigured: !!senderId,
+      senderId,
+      apiUrl,
+      masterEnabled: this.isMasterEnabled(map),
+      devMode: this.devMode,
+      lastSuccessAt: lastSuccess?.createdAt || null,
+      lastSuccessEventKey: lastSuccess?.eventKey || null,
+      lastErrorAt: lastError?.createdAt || null,
+      lastErrorEventKey: lastError?.eventKey || null,
+      lastErrorMessage: lastError?.errorMessage || null
+    };
+  }
+
+  async getAdminStats({ recentLimit = 50, failureLimit = 30 } = {}) {
+    const now = new Date();
+    const d24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const d7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const takeRecent = Math.min(Math.max(Number(recentLimit) || 50, 1), 100);
+    const takeFailures = Math.min(Math.max(Number(failureLimit) || 30, 1), 50);
+
+    const [
+      connection,
+      totalsRaw,
+      last24hRaw,
+      last7dRaw,
+      byEventRaw,
+      recentRows,
+      failureRows
+    ] = await Promise.all([
+      this.getConnectionStatus(),
+      prisma.smsDispatchLog.groupBy({ by: ['status'], _count: { status: true } }),
+      prisma.smsDispatchLog.groupBy({
+        by: ['status'],
+        _count: { status: true },
+        where: { createdAt: { gte: d24h } }
+      }),
+      prisma.smsDispatchLog.groupBy({
+        by: ['status'],
+        _count: { status: true },
+        where: { createdAt: { gte: d7d } }
+      }),
+      prisma.smsDispatchLog.groupBy({
+        by: ['eventKey', 'status'],
+        _count: { status: true }
+      }),
+      prisma.smsDispatchLog.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: takeRecent,
+        select: {
+          id: true,
+          eventKey: true,
+          status: true,
+          phone: true,
+          errorMessage: true,
+          createdAt: true,
+          message: true
+        }
+      }),
+      prisma.smsDispatchLog.findMany({
+        where: { status: 'failed' },
+        orderBy: { createdAt: 'desc' },
+        take: takeFailures,
+        select: {
+          id: true,
+          eventKey: true,
+          status: true,
+          phone: true,
+          errorMessage: true,
+          createdAt: true,
+          metadata: true
+        }
+      })
+    ]);
+
+    const byEventMap = {};
+    for (const row of byEventRaw) {
+      if (!byEventMap[row.eventKey]) {
+        byEventMap[row.eventKey] = {
+          eventKey: row.eventKey,
+          sent: 0,
+          failed: 0,
+          skipped: 0,
+          total: 0
+        };
+      }
+      const bucket = byEventMap[row.eventKey];
+      const n = typeof row._count === 'number' ? row._count : row._count?.status || 0;
+      if (bucket[row.status] != null) bucket[row.status] = n;
+      bucket.total += n;
+    }
+
+    const mapRow = (row) => ({
+      id: row.id,
+      eventKey: row.eventKey,
+      status: row.status,
+      phoneMasked: this.maskPhone(row.phone),
+      errorMessage: row.errorMessage || null,
+      createdAt: row.createdAt,
+      messagePreview: row.message ? String(row.message).slice(0, 80) : null
+    });
+
+    return {
+      connection,
+      totals: this._countByStatus(totalsRaw),
+      last24h: this._countByStatus(last24hRaw),
+      last7d: this._countByStatus(last7dRaw),
+      byEventKey: Object.values(byEventMap).sort((a, b) => b.total - a.total),
+      recent: recentRows.map(mapRow),
+      recentFailures: failureRows.map((row) => ({
+        ...mapRow(row),
+        providerResponse:
+          row.metadata && typeof row.metadata === 'object'
+            ? this.sanitizeProviderPayload(row.metadata.providerResponse, null)
+            : null
+      }))
+    };
   }
 }
 
