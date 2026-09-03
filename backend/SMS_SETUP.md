@@ -76,6 +76,8 @@ Thresholds: `SMS_ETA_WARN_DAYS` (`7,3`), `SMS_ETA_OVERDUE_REPEAT_HOURS` (24), `S
 
 Quiet hours apply to SLA/ETA nudges only — **not** assignment, reassignment, or customer milestones.
 
+**Job identity in SMS:** Messages identify a job by **container number** and **client / consignee name**, not tracking ID (e.g. CNT-2026-001234). Example: `CN Terminal: Job for Acme Ltd / Kwame Mensah · MSKU1234567: created. ETA: 03 Sep 2026.` Tracking ID is used only if both names and container are missing.
+
 **Staff phones:** Assignment / reassignment SMS uses `User.phone`. If empty, in-app notifications still work but SMS is skipped (logged as `skipped` in `SmsDispatchLog`). Team members set phone under Settings → Profile; Admin user list now shows phone and warns when missing.
 
 Client ETA toggles are independent of staff ETA toggles: turning staff ETA off does not block customer ETA SMS (and vice versa). Both still require the master switch.

@@ -28,8 +28,48 @@ function trunc(msg, max = 160) {
   return msg.length > max ? `${msg.slice(0, max - 3)}...` : msg;
 }
 
-function track(job) {
+function shortName(value, max = 22) {
+  const s = String(value || '').trim();
+  if (!s) return '';
+  return s.length > max ? `${s.slice(0, Math.max(1, max - 3))}...` : s;
+}
+
+/**
+ * Compact SMS identity: customer / consignee · container.
+ * Does not lead with trackingId unless names and container are all missing.
+ */
+function formatJobSmsRef(job) {
+  const customer = shortName(job?.customer?.name);
+  const consignee = shortName(job?.consignment?.consigneeName);
+  const container = String(job?.containerNumber || '').trim();
+
+  let parties = customer;
+  if (consignee && (!customer || consignee.toLowerCase() !== customer.toLowerCase())) {
+    parties = customer ? `${customer} / ${consignee}` : consignee;
+  }
+
+  if (parties && container) return `${parties} · ${container}`;
+  if (parties) return `${parties} · No container`;
+  if (container) return container;
   return job?.trackingId || 'job';
+}
+
+function jobHasSmsRelations(job) {
+  if (!job || typeof job !== 'object') return false;
+  if (job.customer === undefined) return false;
+  if (job.consignmentId && job.consignment === undefined) return false;
+  return true;
+}
+
+async function ensureJobForSms(jobOrId) {
+  if (!jobOrId) return null;
+  if (typeof jobOrId === 'string') return loadJob(jobOrId);
+  if (jobHasSmsRelations(jobOrId)) return jobOrId;
+  return jobOrId.id ? loadJob(jobOrId.id) : null;
+}
+
+function track(job) {
+  return job?.trackingId || job?.id || 'job';
 }
 
 /** Short ETA for SMS (Africa/Accra), e.g. "03 Sep 2026". */
@@ -181,7 +221,7 @@ class SmsNotificationService {
         return { skipped: true, reason: 'Job not found' };
       }
       const user = await getUser(assignedToId);
-      const msg = `CN Terminal: Job ${track(job)} assigned to you (${job.customer?.name || 'client'}).`;
+      const msg = `CN Terminal: Job for ${formatJobSmsRef(job)} assigned to you.`;
       return sendToUser(user, msg, 'SMS_JOB_ASSIGNED', {
         jobId,
         dedupeKey: `SMS_JOB_ASSIGNED:${jobId}:${assignedToId}:${Date.now()}`,
@@ -212,7 +252,7 @@ class SmsNotificationService {
         results.push(
           await sendToUser(
             neu,
-            `CN Terminal: Job ${track(job)} reassigned to you (${job.customer?.name || 'client'}).`,
+            `CN Terminal: Job for ${formatJobSmsRef(job)} reassigned to you.`,
             'SMS_JOB_REASSIGNED',
             {
               jobId,
@@ -236,7 +276,7 @@ class SmsNotificationService {
         results.push(
           await sendToUser(
             prev,
-            `CN Terminal: Job ${track(job)} reassigned away from you.`,
+            `CN Terminal: Job for ${formatJobSmsRef(job)} reassigned away from you.`,
             'SMS_JOB_REASSIGNED',
             {
               jobId,
@@ -274,7 +314,7 @@ class SmsNotificationService {
       if (!job) return { skipped: true };
       const user = await getUser(newAssigneeId);
       const label = STATUS_LABELS[newStatus] || newStatus;
-      const msg = `CN Terminal: Job ${track(job)} → ${label}. Now assigned to you.`;
+      const msg = `CN Terminal: Job for ${formatJobSmsRef(job)} → ${label}. Now assigned to you.`;
       return sendToUser(user, msg, 'SMS_STAFF_STAGE_HANDOFF', {
         jobId,
         dedupeKey: `SMS_STAFF_STAGE_HANDOFF:${jobId}:${newStatus}:${newAssigneeId}`,
@@ -290,7 +330,7 @@ class SmsNotificationService {
     return safe(async () => {
       const job = await loadJob(jobId);
       if (!job) return { skipped: true };
-      const msg = `CN Terminal: Job ${track(job)} reverted ${oldStatus}→${newStatus}.`;
+      const msg = `CN Terminal: Job for ${formatJobSmsRef(job)} reverted ${oldStatus}→${newStatus}.`;
       const results = [];
 
       if (job.assignedTo) {
@@ -325,12 +365,7 @@ class SmsNotificationService {
    */
   static async notifyCustomerJobCreatedWithEta(jobOrId) {
     return safe(async () => {
-      const job =
-        typeof jobOrId === 'string'
-          ? await loadJob(jobOrId)
-          : jobOrId?.customer
-            ? jobOrId
-            : await loadJob(jobOrId.id);
+      const job = await ensureJobForSms(jobOrId);
 
       if (!job) {
         console.log('📱 [SMS:job-created-eta] skipped — job not found');
@@ -355,7 +390,7 @@ class SmsNotificationService {
         return { skipped: true, reason: 'Invalid ETA' };
       }
 
-      const msg = `CN Terminal: Job ${track(job)} created. ETA: ${etaLabel}.`;
+      const msg = `CN Terminal: Job for ${formatJobSmsRef(job)}: created. ETA: ${etaLabel}.`;
       return sendToPhone({
         phone: job.customer.phone,
         message: msg,
@@ -375,17 +410,14 @@ class SmsNotificationService {
       const eventKey = CUSTOMER_STATUS_EVENT_MAP[newStatus];
       if (!eventKey) return { skipped: true, reason: 'Not a customer SMS status' };
 
-      const job =
-        typeof jobOrId === 'string' ? await loadJob(jobOrId) : jobOrId?.customer
-          ? jobOrId
-          : await loadJob(jobOrId.id);
+      const job = await ensureJobForSms(jobOrId);
 
       if (!job?.customer?.phone) {
         return { success: false, reason: 'No customer phone' };
       }
 
       const label = STATUS_LABELS[newStatus] || newStatus;
-      const msg = `CN Terminal: Job ${track(job)} - ${label}. Thank you.`;
+      const msg = `CN Terminal: Job for ${formatJobSmsRef(job)} - ${label}. Thank you.`;
       const results = [];
 
       results.push(
@@ -400,7 +432,7 @@ class SmsNotificationService {
       );
 
       if (CONSIGNEE_COPY_STATUSES.has(newStatus) && job.consignment?.consigneePhone) {
-        const consigneeMsg = `CN Terminal: Shipment ${track(job)} - ${label}.`;
+        const consigneeMsg = `CN Terminal: Shipment for ${formatJobSmsRef(job)} - ${label}.`;
         results.push(
           await sendToPhone({
             phone: job.consignment.consigneePhone,
@@ -426,7 +458,7 @@ class SmsNotificationService {
       if (!job?.assignedToId) return { skipped: true };
       if (job.assignedToId === commenterId) return { skipped: true, reason: 'self-comment' };
       const snippet = (commentPreview || '').trim().slice(0, 60);
-      const msg = `CN Terminal: New comment on job ${track(job)}${snippet ? `: ${snippet}` : ''}`;
+      const msg = `CN Terminal: New comment on job for ${formatJobSmsRef(job)}${snippet ? `: ${snippet}` : ''}`;
       return sendToUser(job.assignedTo, msg, 'SMS_COMMENT_ASSIGNEE', {
         jobId,
         dedupeKey: `SMS_COMMENT_ASSIGNEE:${jobId}:${commenterId}:${Date.now()}`,
@@ -461,7 +493,7 @@ class SmsNotificationService {
       const job = await loadJob(jobId);
       if (!job) return { skipped: true };
       const dayKey = new Date().toISOString().slice(0, 10);
-      const msg = `CN Terminal: Job ${track(job)} reassigned ${count}x in 24h. Review.`;
+      const msg = `CN Terminal: Job for ${formatJobSmsRef(job)} reassigned ${count}x in 24h. Review.`;
       return sendToRoles(['SUPERVISOR'], msg, 'SMS_REASSIGN_CHURN', {
         jobId,
         dedupeKey: `SMS_REASSIGN_CHURN:${jobId}:${dayKey}`,
@@ -493,7 +525,7 @@ class SmsNotificationService {
     if (!job || job.releaseMoneyReceived === true) return { skipped: true };
     if (!['READY_FOR_RELEASE', 'RELEASED'].includes(job.status)) return { skipped: true };
 
-    const msg = `CN Terminal: Job ${track(job)} — release money not marked received.`;
+    const msg = `CN Terminal: Job for ${formatJobSmsRef(job)} — release money not marked received.`;
     const results = [];
     if (job.assignedTo) {
       results.push(
@@ -630,5 +662,7 @@ class SmsNotificationService {
     }, 'assignment');
   }
 }
+
+SmsNotificationService.formatJobSmsRef = formatJobSmsRef;
 
 module.exports = SmsNotificationService;

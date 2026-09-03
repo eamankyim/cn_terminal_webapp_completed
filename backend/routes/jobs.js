@@ -1233,7 +1233,7 @@ router.put('/:id/status', authenticateToken, requirePermission(UI_PERMISSIONS.JO
           const smsService = require('../services/smsService');
           await smsService.sendSms({
             to: prev.phone,
-            message: `CN Terminal: Job ${completeJob.trackingId} reassigned away from you.`,
+            message: `CN Terminal: Job for ${SmsNotificationService.formatJobSmsRef(completeJob)} reassigned away from you.`,
             eventKey: 'SMS_JOB_REASSIGNED',
             jobId: id,
             userId: prev.id,

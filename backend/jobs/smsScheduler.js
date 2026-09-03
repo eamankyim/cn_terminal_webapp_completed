@@ -31,6 +31,11 @@ function dayBucket(date = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
+function truncSms(msg, max = 160) {
+  if (!msg) return '';
+  return msg.length > max ? `${msg.slice(0, max - 3)}...` : msg;
+}
+
 async function getActiveJobs(extraWhere = {}) {
   return prisma.job.findMany({
     where: {
@@ -40,6 +45,9 @@ async function getActiveJobs(extraWhere = {}) {
     },
     include: {
       customer: { select: { id: true, name: true, phone: true } },
+      consignment: {
+        select: { id: true, consigneeName: true, consigneePhone: true }
+      },
       assignedTo: { select: { id: true, name: true, phone: true, role: true } },
       statusHistory: {
         orderBy: { date: 'desc' },
@@ -65,7 +73,7 @@ async function sendStaff(job, message, eventKey, rolesExtra = [], dedupeKey) {
     results.push(
       await smsService.sendSms({
         to: job.assignedTo.phone,
-        message,
+        message: truncSms(message),
         eventKey,
         jobId: job.id,
         userId: job.assignedTo.id,
@@ -83,7 +91,7 @@ async function sendStaff(job, message, eventKey, rolesExtra = [], dedupeKey) {
       results.push(
         await smsService.sendSms({
           to: u.phone,
-          message,
+          message: truncSms(message),
           eventKey,
           jobId: job.id,
           userId: u.id,
@@ -116,7 +124,8 @@ async function processEtaApproaching(jobs, map) {
       // Fire when within threshold days and not more than 1 day past the window start
       if (days <= threshold && days > threshold - 1) {
         if (staffOn) {
-          const msg = `CN Terminal: Job ${job.trackingId} ETA in ~${Math.ceil(days)}d.`;
+          const ref = SmsNotificationService.formatJobSmsRef(job);
+          const msg = `CN Terminal: Job for ${ref} ETA in ~${Math.ceil(days)}d.`;
           const roles = threshold <= 3 ? ['SUPERVISOR'] : [];
           await sendStaff(
             job,
@@ -131,7 +140,9 @@ async function processEtaApproaching(jobs, map) {
         if (customerOn && job.customer?.phone) {
           await smsService.sendSms({
             to: job.customer.phone,
-            message: `CN Terminal: Your shipment ${job.trackingId} ETA is in ~${Math.ceil(days)} day(s).`,
+            message: truncSms(
+              `CN Terminal: Your shipment for ${SmsNotificationService.formatJobSmsRef(job)} ETA is in ~${Math.ceil(days)} day(s).`
+            ),
             eventKey: 'SMS_CUSTOMER_ETA_APPROACHING',
             jobId: job.id,
             dedupeKey: `SMS_CUSTOMER_ETA_APPROACHING:${job.id}:${threshold}d:${dayBucket(job.eta)}`
@@ -161,7 +172,7 @@ async function processEtaOverdue(jobs, map) {
     if (staffOn) {
       const last = await smsService.lastSentAt('SMS_ETA_OVERDUE', job.id);
       if (!(last && hoursSince(last) < repeatH)) {
-        const msg = `CN Terminal: Job ${job.trackingId} ETA overdue by ${overdueDays}d.`;
+        const msg = `CN Terminal: Job for ${SmsNotificationService.formatJobSmsRef(job)} ETA overdue by ${overdueDays}d.`;
         await sendStaff(
           job,
           msg,
@@ -178,7 +189,9 @@ async function processEtaOverdue(jobs, map) {
       if (!(lastCustomer && hoursSince(lastCustomer) < repeatH)) {
         await smsService.sendSms({
           to: job.customer.phone,
-          message: `CN Terminal: Job ${job.trackingId} ETA has passed. We are following up.`,
+          message: truncSms(
+            `CN Terminal: Job for ${SmsNotificationService.formatJobSmsRef(job)} ETA has passed. We are following up.`
+          ),
           eventKey: 'SMS_CUSTOMER_ETA_OVERDUE',
           jobId: job.id,
           dedupeKey: `SMS_CUSTOMER_ETA_OVERDUE:${job.id}:${dayBucket()}`
@@ -203,7 +216,7 @@ async function processStuckAssignee(jobs, map) {
     const last = await smsService.lastSentAt('SMS_STUCK_ASSIGNEE', job.id);
     if (last && hoursSince(last) < stuckH) continue;
 
-    const msg = `CN Terminal: Job ${job.trackingId} stuck with you >${stuckH}h. Please update.`;
+    const msg = `CN Terminal: Job for ${SmsNotificationService.formatJobSmsRef(job)} stuck with you >${stuckH}h. Please update.`;
     await sendStaff(
       job,
       msg,
@@ -234,7 +247,7 @@ async function processStuckStatus(jobs, map) {
     const last = await smsService.lastSentAt('SMS_STUCK_STATUS', job.id);
     if (last && hoursSince(last) < 24) continue;
 
-    const msg = `CN Terminal: Job ${job.trackingId} in ${job.status} >${limit}h (SLA).`;
+    const msg = `CN Terminal: Job for ${SmsNotificationService.formatJobSmsRef(job)} in ${job.status} >${limit}h (SLA).`;
     await sendStaff(
       job,
       msg,
@@ -271,7 +284,7 @@ async function processEscalation(jobs, map) {
       where: { eventKey: 'SMS_ESCALATION', jobId: job.id, status: 'sent' }
     });
     const roles = priorEscCount === 0 ? ['SUPERVISOR'] : ['ADMIN'];
-    const msg = `CN Terminal: ESCALATION — Job ${job.trackingId} still stuck/overdue.`;
+    const msg = `CN Terminal: ESCALATION — Job for ${SmsNotificationService.formatJobSmsRef(job)} still stuck/overdue.`;
     await sendStaff(job, msg, 'SMS_ESCALATION', roles, `SMS_ESCALATION:${job.id}:${dayBucket()}:wave${priorEscCount}`);
   }
 }
@@ -292,7 +305,7 @@ async function processDemurrage(jobs, map) {
     const last = await smsService.lastSentAt('SMS_DEMURRAGE', job.id);
     if (last && hoursSince(last) < 24) continue;
 
-    const msg = `CN Terminal: Job ${job.trackingId} demurrage/free days at risk (${job.demurrageType || `${job.demurrageFreeDays}d`}).`;
+    const msg = `CN Terminal: Job for ${SmsNotificationService.formatJobSmsRef(job)} demurrage/free days at risk (${job.demurrageType || `${job.demurrageFreeDays}d`}).`;
     await sendStaff(
       job,
       msg,
@@ -313,7 +326,7 @@ async function processReleaseScheduleSlipped(jobs, map) {
     const last = await smsService.lastSentAt('SMS_RELEASE_SCHEDULE_SLIPPED', job.id);
     if (last && hoursSince(last) < 12) continue;
 
-    const msg = `CN Terminal: Job ${job.trackingId} release schedule slipped.`;
+    const msg = `CN Terminal: Job for ${SmsNotificationService.formatJobSmsRef(job)} release schedule slipped.`;
     await sendStaff(
       job,
       msg,
