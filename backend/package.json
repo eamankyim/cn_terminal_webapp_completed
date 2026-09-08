@@ -18,7 +18,15 @@
     "update-admin-password": "node scripts/update-admin-password.js",
     "reset-all-passwords": "node scripts/reset-all-passwords.js",
     "update-email-domains": "node scripts/update-email-domains.js",
-    "view-logs": "node scripts/view-logs.js"
+    "view-logs": "node scripts/view-logs.js",
+    "sms:stop": "node scripts/sms-emergency-stop.js",
+    "sms:status": "node scripts/sms-emergency-stop.js --status",
+    "sms:release": "node scripts/sms-emergency-stop.js --release",
+    "sms:report": "node scripts/sms-incident-report.js",
+    "sms:audit": "node scripts/sms-config-audit.js",
+    "sms:audit:fix": "node scripts/sms-config-audit.js --fix",
+    "sms:selftest": "node scripts/sms-safety-selftest.js",
+    "sms:dryrun": "node scripts/sms-scheduler-dryrun.js"
   },
   "keywords": [
     "api",

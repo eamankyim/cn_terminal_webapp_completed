@@ -41,7 +41,11 @@ const canApproveExpenses = async (user) => {
 
 const requireExpenseQueueAccess = async (req, res, next) => {
   try {
+    // View access to the full request queue (PENDING / ENDORSED / APPROVED / …).
+    // Endorse and approve stay gated on their own endpoints — this only opens the list.
     if (await canEndorseExpenses(req.user)) return next();
+    if (await canApproveExpenses(req.user)) return next();
+    if (await checkUserPermission(req.user.id, PERMISSIONS.EXPENSE_VIEW)) return next();
     if (await checkUserPermission(req.user.id, UI_PERMISSIONS.ACCOUNTING)) return next();
     return res.status(403).json({ error: 'Insufficient permissions' });
   } catch (error) {
@@ -197,7 +201,10 @@ router.get('/my-stats', authenticateToken, async (req, res) => {
   }
 });
 
-// Get all expense requests (with filtering and pagination)
+// Get all expense requests (with filtering and pagination).
+// No role-based status hiding: accountants (and other queue viewers) see PENDING /
+// ENDORSED / APPROVED / REJECTED / PAID alike. Optional ?status= supports a single
+// value or a comma-separated list (e.g. status=PENDING,ENDORSED).
 router.get('/requests', authenticateToken, requireExpenseQueueAccess, async (req, res) => {
   try {
     const { page = 1, limit = 10, status, category, userId, jobId } = req.query;
@@ -205,7 +212,14 @@ router.get('/requests', authenticateToken, requireExpenseQueueAccess, async (req
 
     // Build where clause
     const where = {};
-    if (status) where.status = status;
+    if (status) {
+      const statuses = String(status)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (statuses.length === 1) where.status = statuses[0];
+      else if (statuses.length > 1) where.status = { in: statuses };
+    }
     if (category) where.category = category;
     if (userId) where.requestedById = userId;
     if (jobId) where.jobId = jobId;
@@ -948,20 +962,21 @@ router.get('/stats/summary', authenticateToken, requireExpenseQueueAccess, async
       _count: true
     });
 
-    // Get pending requests count
-    const pendingRequests = await prisma.expenseRequest.count({
-      where: { ...dateFilter, status: 'PENDING' }
-    });
-
-    // Get approved requests count
-    const approvedRequests = await prisma.expenseRequest.count({
-      where: { ...dateFilter, status: 'APPROVED' }
-    });
-
-    // Get rejected requests count
-    const rejectedRequests = await prisma.expenseRequest.count({
-      where: { ...dateFilter, status: 'REJECTED' }
-    });
+    // Get pending / endorsed / approved / rejected counts
+    const [pendingRequests, endorsedRequests, approvedRequests, rejectedRequests] = await Promise.all([
+      prisma.expenseRequest.count({
+        where: { ...dateFilter, status: 'PENDING' }
+      }),
+      prisma.expenseRequest.count({
+        where: { ...dateFilter, status: 'ENDORSED' }
+      }),
+      prisma.expenseRequest.count({
+        where: { ...dateFilter, status: 'APPROVED' }
+      }),
+      prisma.expenseRequest.count({
+        where: { ...dateFilter, status: 'REJECTED' }
+      })
+    ]);
 
     // Get category breakdown
     const categoryBreakdown = await prisma.expenseRequest.groupBy({
@@ -975,6 +990,9 @@ router.get('/stats/summary', authenticateToken, requireExpenseQueueAccess, async
       totalAmount: totalExpenses._sum.amount || 0,
       totalCount: totalExpenses._count,
       pendingRequests,
+      endorsedRequests,
+      // Unapproved = still in the endorse/approve queue
+      unapprovedRequests: pendingRequests + endorsedRequests,
       approvedRequests,
       rejectedRequests,
       categoryBreakdown: categoryBreakdown.map(item => ({

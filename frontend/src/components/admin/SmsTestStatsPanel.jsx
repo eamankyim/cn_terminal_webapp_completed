@@ -7,6 +7,7 @@ import {
   Descriptions,
   Form,
   Input,
+  Modal,
   Row,
   Space,
   Statistic,
@@ -15,7 +16,12 @@ import {
   Typography,
   message
 } from 'antd';
-import { ReloadOutlined, SendOutlined } from '@ant-design/icons';
+import {
+  ExclamationCircleOutlined,
+  PoweroffOutlined,
+  ReloadOutlined,
+  SendOutlined
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import smsService from '../../services/smsService';
 
@@ -40,22 +46,59 @@ const SmsTestStatsPanel = () => {
   const [sending, setSending] = useState(false);
   const [stats, setStats] = useState(null);
   const [testResult, setTestResult] = useState(null);
+  const [safety, setSafety] = useState(null);
+  const [switching, setSwitching] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await smsService.getStats();
-      if (response?.success) {
-        setStats(response.data);
+      const [statsResponse, safetyResponse] = await Promise.all([
+        smsService.getStats(),
+        smsService.getSafety().catch(() => null)
+      ]);
+      if (statsResponse?.success) {
+        setStats(statsResponse.data);
       } else {
-        message.error(response?.message || 'Failed to load SMS statistics');
+        message.error(statsResponse?.message || 'Failed to load SMS statistics');
       }
+      if (safetyResponse?.success) setSafety(safetyResponse.data);
     } catch (err) {
       message.error(err.message || 'Failed to load SMS statistics');
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const applyKillSwitch = async (enabled) => {
+    setSwitching(true);
+    try {
+      const response = await smsService.setKillSwitch({ enabled });
+      if (response?.success) {
+        setSafety(response.data);
+        message.success(response.message);
+      } else {
+        message.error(response?.message || 'Failed to update the kill switch');
+      }
+      await load();
+    } catch (err) {
+      message.error(err.message || 'Failed to update the kill switch');
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  const confirmKillSwitch = (enabled) => {
+    Modal.confirm({
+      title: enabled ? 'Stop all SMS immediately?' : 'Re-enable SMS sending?',
+      icon: <ExclamationCircleOutlined />,
+      okText: enabled ? 'Stop all SMS' : 'Re-enable',
+      okButtonProps: { danger: enabled },
+      content: enabled
+        ? 'Every outbound SMS is blocked at once — scheduler alerts, job events, and admin test sends. The master switch is turned off too, so nothing resumes on its own.'
+        : 'The kill switch is released. SMS then follows the master switch and the per-event toggles, which stay as they are now.',
+      onOk: () => applyKillSwitch(enabled)
+    });
+  };
 
   useEffect(() => {
     load();
@@ -135,14 +178,97 @@ const SmsTestStatsPanel = () => {
     { title: 'Total', dataIndex: 'total', width: 90 }
   ];
 
+  const killSwitchOn = !!safety?.killSwitch?.on;
+  const rateLimit = safety?.rateLimit || {};
+
   return (
     <div>
+      <Card
+        title="Emergency controls"
+        style={{
+          marginBottom: 16,
+          borderColor: killSwitchOn ? '#ff4d4f' : undefined
+        }}
+        loading={loading && !safety}
+      >
+        {killSwitchOn ? (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="SMS kill switch is ON — nothing is being sent"
+            description={safety?.killSwitch?.reason}
+          />
+        ) : (
+          <Alert
+            type={safety?.canSend ? 'warning' : 'info'}
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={
+              safety?.canSend
+                ? 'SMS sending is live'
+                : 'SMS sending is currently blocked'
+            }
+            description={safety?.master?.reason}
+          />
+        )}
+
+        <Space wrap>
+          <Button
+            danger
+            type={killSwitchOn ? 'default' : 'primary'}
+            icon={<PoweroffOutlined />}
+            loading={switching}
+            onClick={() => confirmKillSwitch(!killSwitchOn)}
+          >
+            {killSwitchOn ? 'Release kill switch' : 'STOP ALL SMS NOW'}
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={load} disabled={loading}>
+            Refresh
+          </Button>
+        </Space>
+
+        <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }} style={{ marginTop: 16 }}>
+          <Descriptions.Item label="Kill switch">
+            {killSwitchOn ? <Tag color="error">ON (blocking)</Tag> : <Tag color="success">off</Tag>}
+            {safety?.killSwitch?.envForced && <Tag color="error">forced by env</Tag>}
+          </Descriptions.Item>
+          <Descriptions.Item label="Master switch">
+            {safety?.master?.enabled ? <Tag color="success">ON</Tag> : <Tag>OFF</Tag>}
+          </Descriptions.Item>
+          <Descriptions.Item label="Rate limit (per minute)">
+            {rateLimit.counts?.minute ?? 0} / {rateLimit.limits?.perMinute ?? '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="Rate limit (per hour)">
+            {rateLimit.counts?.hour ?? 0} / {rateLimit.limits?.perHour ?? '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="Circuit breaker">
+            {rateLimit.tripped ? (
+              <Text type="danger">OPEN — {rateLimit.tripReason}</Text>
+            ) : (
+              <Tag color="success">closed</Tag>
+            )}
+          </Descriptions.Item>
+          <Descriptions.Item label="Enabled event toggles">
+            {safety?.enabledEventKeys?.length ? (
+              <Space wrap size={4}>
+                {safety.enabledEventKeys.map((key) => (
+                  <Tag key={key}>{key}</Tag>
+                ))}
+              </Space>
+            ) : (
+              'None'
+            )}
+          </Descriptions.Item>
+        </Descriptions>
+      </Card>
+
       <Alert
         type="info"
         showIcon
         style={{ marginBottom: 16 }}
         message="Test send ignores event toggles and the master SMS switch"
-        description="A test still needs a valid MNotify API key. Results are written to the dispatch log as SMS_TEST. Phone numbers are stored normalized (233…) and shown masked here."
+        description="A test still needs a valid MNotify API key, and it is blocked while the kill switch is on. Results are written to the dispatch log as SMS_TEST. Phone numbers are stored normalized (233…) and shown masked here."
       />
 
       <Space style={{ marginBottom: 16 }}>

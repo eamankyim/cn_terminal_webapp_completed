@@ -54,6 +54,8 @@ const AccountingPage = () => {
   const endorseOnly = !!currentUser
     && currentUser.permissions?.includes(PERMISSIONS.EXPENSE_ENDORSE)
     && !['ADMIN', 'IT_CONSULTANT', 'ACCOUNTANT', 'INVOICE_OFFICER'].includes(currentUser.role);
+  // Accountants land on the request queue so PENDING / ENDORSED items are visible immediately
+  const preferExpenseQueue = endorseOnly || currentUser?.role === 'ACCOUNTANT';
   
   // Route guard: accounting staff, invoice officers, or users granted expense endorsement
   useEffect(() => {
@@ -64,10 +66,10 @@ const AccountingPage = () => {
   }, [currentUser, canAccessAccounting, navigate]);
 
   useEffect(() => {
-    if (endorseOnly) {
+    if (preferExpenseQueue) {
       setActiveTab('expenses');
     }
-  }, [endorseOnly]);
+  }, [preferExpenseQueue]);
 
   useEffect(() => {
     if (!endorseOnly) {
@@ -171,8 +173,9 @@ const AccountingPage = () => {
             <Col xs={12} sm={12} lg={6}>
               <Card>
                 <Statistic
-                  title="Pending Expenses"
-                  value={expenseStats.pendingRequests || 0}
+                  title="Unapproved Requests"
+                  value={expenseStats.unapprovedRequests
+                    ?? ((expenseStats.pendingRequests || 0) + (expenseStats.endorsedRequests || 0))}
                   valueStyle={{ color: '#faad14' }}
                 />
               </Card>

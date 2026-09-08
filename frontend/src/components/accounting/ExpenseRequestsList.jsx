@@ -84,8 +84,10 @@ const ExpenseRequestsList = () => {
       const params = {
         page: pagination.current,
         limit: pagination.pageSize,
-        ...filters
       };
+      if (filters.status) params.status = filters.status;
+      if (filters.category) params.category = filters.category;
+      if (filters.search) params.search = filters.search;
 
       // Add date range filter
       if (filters.dateRange && filters.dateRange.length === 2) {
@@ -332,17 +334,18 @@ const ExpenseRequestsList = () => {
         <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Approved Requests"
-              value={stats.approvedRequests || 0}
-              valueStyle={{ color: '#52c41a' }}
+              title="Endorsed (awaiting approval)"
+              value={stats.endorsedRequests || 0}
+              valueStyle={{ color: '#13c2c2' }}
             />
           </Card>
         </Col>
         <Col xs={12} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Total Requests"
-              value={stats.totalCount || 0}
+              title="Approved Requests"
+              value={stats.approvedRequests || 0}
+              valueStyle={{ color: '#52c41a' }}
             />
           </Card>
         </Col>

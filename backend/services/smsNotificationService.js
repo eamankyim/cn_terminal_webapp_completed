@@ -7,7 +7,7 @@ const smsService = require('./smsService');
 const {
   CUSTOMER_STATUS_EVENT_MAP,
   CONSIGNEE_COPY_STATUSES,
-  parseBoolean,
+  evaluateToggleRow,
   parseNumber
 } = require('./smsConfig');
 
@@ -345,7 +345,8 @@ class SmsNotificationService {
 
       const roles = ['SUPERVISOR'];
       const map = await smsService._loadConfigMap();
-      if (parseBoolean(smsService.getConfigValue(map, 'SMS_INCLUDE_ADMIN_ON_REVERT', 'true'), true)) {
+      // Recipient multiplier: only widen to ADMIN when the row explicitly says so.
+      if (evaluateToggleRow(map.SMS_INCLUDE_ADMIN_ON_REVERT, 'SMS_INCLUDE_ADMIN_ON_REVERT').enabled) {
         roles.push('ADMIN');
       }
       results.push(
