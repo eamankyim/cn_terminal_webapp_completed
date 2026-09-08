@@ -165,8 +165,16 @@ const configurationService = {
         return `${parseFloat(value).toFixed(2)}%`;
       case 'BOOLEAN':
         return value === true || value === 'true' ? 'Yes' : 'No';
-      case 'JSON':
-        return JSON.stringify(value, null, 2);
+      case 'JSON': {
+        // Stored values are strings. Stringifying them again produced an escaped
+        // blob ("{\n \"NEW\": 48…}") that looked like corrupted data.
+        if (typeof value !== 'string') return JSON.stringify(value, null, 2);
+        try {
+          return JSON.stringify(JSON.parse(value), null, 2);
+        } catch {
+          return value;
+        }
+      }
       default:
         return value.toString();
     }

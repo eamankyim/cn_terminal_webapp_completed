@@ -8,14 +8,87 @@
 const cron = require('node-cron');
 const { prisma } = require('../config/database');
 const smsService = require('../services/smsService');
+const smsRateLimiter = require('../services/smsRateLimiter');
 const SmsNotificationService = require('../services/smsNotificationService');
 const {
   TERMINAL_JOB_STATUSES,
-  parseNumber
+  parseSlaHours
 } = require('../services/smsConfig');
 
 const MS_HOUR = 60 * 60 * 1000;
 const MS_DAY = 24 * MS_HOUR;
+
+/**
+ * Per-run send budget. A single scan must never be able to blast the whole job
+ * list: when the cap is hit the run stops immediately and logs loudly.
+ */
+function createRunBudget(cap) {
+  return { cap, sent: 0, attempts: 0, stopped: false, blocked: 0 };
+}
+
+/**
+ * Threshold hours from config, clamped to a sane minimum.
+ * A stored 0 (or a blank / non-numeric value) would otherwise mean "no waiting
+ * period", i.e. re-alert every single job on every 20-minute scan.
+ */
+function thresholdHours(raw, fallback, min = 1) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    if (raw !== null && raw !== undefined && String(raw).trim() !== '') {
+      console.warn(
+        `📱 [SMS Scheduler] Invalid threshold "${raw}" — using ${fallback}h instead`
+      );
+    }
+    return fallback;
+  }
+  return Math.max(n, min);
+}
+
+function countSuccesses(result) {
+  if (!result) return 0;
+  if (Array.isArray(result)) return result.reduce((n, r) => n + countSuccesses(r), 0);
+  return result.success ? 1 : 0;
+}
+
+/**
+ * Anything that actually reached the provider — delivered or not. Gated results
+ * (toggle off, dedupe, rate limited) carry `skipped` and are not attempts.
+ */
+function countAttempts(result) {
+  if (!result) return 0;
+  if (Array.isArray(result)) return result.reduce((n, r) => n + countAttempts(r), 0);
+  return result.success || !result.skipped ? 1 : 0;
+}
+
+function recordResult(budget, result) {
+  budget.sent += countSuccesses(result);
+  budget.attempts += countAttempts(result);
+  return result;
+}
+
+function budgetExhausted(budget) {
+  if (!budget || budget.cap <= 0) return false;
+  if (budget.stopped) return true;
+  if (budget.attempts >= budget.cap) {
+    budget.stopped = true;
+    console.error(
+      `🛑 [SMS Scheduler] Per-run cap reached (${budget.attempts}/${budget.cap} messages attempted, ` +
+        `${budget.sent} delivered). Stopping this scan. Remaining alerts will be retried next run — ` +
+        'raise SMS_MAX_PER_SCHEDULER_RUN only after confirming this is expected.'
+    );
+    return true;
+  }
+  return false;
+}
+
+/** Send through the run budget so every scheduler message is counted. */
+async function budgetedSend(budget, opts) {
+  if (budgetExhausted(budget)) {
+    budget.blocked += 1;
+    return { success: false, skipped: true, reason: 'Scheduler per-run cap reached' };
+  }
+  return recordResult(budget, await smsService.sendSms(opts));
+}
 
 function hoursSince(date) {
   if (!date) return Infinity;
@@ -67,11 +140,11 @@ function assignedSince(job) {
   return job.lastAssignedAt || statusEnteredAt(job) || job.updatedAt;
 }
 
-async function sendStaff(job, message, eventKey, rolesExtra = [], dedupeKey) {
+async function sendStaff(budget, job, message, eventKey, rolesExtra = [], dedupeKey) {
   const results = [];
   if (job.assignedTo?.phone) {
     results.push(
-      await smsService.sendSms({
+      await budgetedSend(budget, {
         to: job.assignedTo.phone,
         message: truncSms(message),
         eventKey,
@@ -88,8 +161,9 @@ async function sendStaff(job, message, eventKey, rolesExtra = [], dedupeKey) {
     });
     for (const u of users) {
       if (u.id === job.assignedToId) continue;
+      if (budgetExhausted(budget)) break;
       results.push(
-        await smsService.sendSms({
+        await budgetedSend(budget, {
           to: u.phone,
           message: truncSms(message),
           eventKey,
@@ -103,7 +177,7 @@ async function sendStaff(job, message, eventKey, rolesExtra = [], dedupeKey) {
   return results;
 }
 
-async function processEtaApproaching(jobs, map) {
+async function processEtaApproaching(jobs, map, budget) {
   const staffOn = smsService.isEventEnabled(map, 'SMS_ETA_APPROACHING');
   const customerOn = smsService.isEventEnabled(map, 'SMS_CUSTOMER_ETA_APPROACHING');
   if (!staffOn && !customerOn) return;
@@ -116,6 +190,7 @@ async function processEtaApproaching(jobs, map) {
     .sort((a, b) => b - a); // 7 then 3
 
   for (const job of jobs) {
+    if (budgetExhausted(budget)) return;
     if (!job.eta) continue;
     const days = daysUntil(job.eta);
     if (days === null || days < 0) continue;
@@ -128,6 +203,7 @@ async function processEtaApproaching(jobs, map) {
           const msg = `CN Terminal: Job for ${ref} ETA in ~${Math.ceil(days)}d.`;
           const roles = threshold <= 3 ? ['SUPERVISOR'] : [];
           await sendStaff(
+            budget,
             job,
             msg,
             'SMS_ETA_APPROACHING',
@@ -138,7 +214,7 @@ async function processEtaApproaching(jobs, map) {
 
         // Customer ETA approaching (default OFF) — independent of staff toggle
         if (customerOn && job.customer?.phone) {
-          await smsService.sendSms({
+          await budgetedSend(budget, {
             to: job.customer.phone,
             message: truncSms(
               `CN Terminal: Your shipment for ${SmsNotificationService.formatJobSmsRef(job)} ETA is in ~${Math.ceil(days)} day(s).`
@@ -153,17 +229,18 @@ async function processEtaApproaching(jobs, map) {
   }
 }
 
-async function processEtaOverdue(jobs, map) {
+async function processEtaOverdue(jobs, map, budget) {
   const staffOn = smsService.isEventEnabled(map, 'SMS_ETA_OVERDUE');
   const customerOn = smsService.isEventEnabled(map, 'SMS_CUSTOMER_ETA_OVERDUE');
   if (!staffOn && !customerOn) return;
 
-  const repeatH = parseNumber(
+  const repeatH = thresholdHours(
     smsService.getConfigValue(map, 'SMS_ETA_OVERDUE_REPEAT_HOURS', '24'),
     24
   );
 
   for (const job of jobs) {
+    if (budgetExhausted(budget)) return;
     if (!job.eta) continue;
     if (daysUntil(job.eta) >= 0) continue;
 
@@ -174,6 +251,7 @@ async function processEtaOverdue(jobs, map) {
       if (!(last && hoursSince(last) < repeatH)) {
         const msg = `CN Terminal: Job for ${SmsNotificationService.formatJobSmsRef(job)} ETA overdue by ${overdueDays}d.`;
         await sendStaff(
+          budget,
           job,
           msg,
           'SMS_ETA_OVERDUE',
@@ -187,7 +265,7 @@ async function processEtaOverdue(jobs, map) {
     if (customerOn && job.customer?.phone) {
       const lastCustomer = await smsService.lastSentAt('SMS_CUSTOMER_ETA_OVERDUE', job.id);
       if (!(lastCustomer && hoursSince(lastCustomer) < repeatH)) {
-        await smsService.sendSms({
+        await budgetedSend(budget, {
           to: job.customer.phone,
           message: truncSms(
             `CN Terminal: Job for ${SmsNotificationService.formatJobSmsRef(job)} ETA has passed. We are following up.`
@@ -201,14 +279,15 @@ async function processEtaOverdue(jobs, map) {
   }
 }
 
-async function processStuckAssignee(jobs, map) {
+async function processStuckAssignee(jobs, map, budget) {
   if (!smsService.isEventEnabled(map, 'SMS_STUCK_ASSIGNEE')) return;
-  const stuckH = parseNumber(
+  const stuckH = thresholdHours(
     smsService.getConfigValue(map, 'SMS_STUCK_ASSIGNEE_HOURS', '24'),
     24
   );
 
   for (const job of jobs) {
+    if (budgetExhausted(budget)) return;
     if (TERMINAL_JOB_STATUSES.has(job.status)) continue;
     const since = assignedSince(job);
     if (hoursSince(since) < stuckH) continue;
@@ -218,6 +297,7 @@ async function processStuckAssignee(jobs, map) {
 
     const msg = `CN Terminal: Job for ${SmsNotificationService.formatJobSmsRef(job)} stuck with you >${stuckH}h. Please update.`;
     await sendStaff(
+      budget,
       job,
       msg,
       'SMS_STUCK_ASSIGNEE',
@@ -227,20 +307,23 @@ async function processStuckAssignee(jobs, map) {
   }
 }
 
-async function processStuckStatus(jobs, map) {
+async function processStuckStatus(jobs, map, budget) {
   if (!smsService.isEventEnabled(map, 'SMS_STUCK_STATUS')) return;
-  let sla = {};
-  try {
-    const raw = smsService.getConfigValue(map, 'SMS_STATUS_SLA_HOURS', '{}');
-    sla = typeof raw === 'string' ? JSON.parse(raw) : raw || {};
-  } catch {
-    sla = {};
+  // Defensive parse: a corrupt or double-encoded value yields {} (no SLA), not 0.
+  const raw = smsService.getConfigValue(map, 'SMS_STATUS_SLA_HOURS', null);
+  const sla = parseSlaHours(raw);
+  if (Object.keys(sla).length === 0) {
+    console.warn(
+      '📱 [SMS Scheduler] SMS_STATUS_SLA_HOURS is empty or unparseable — stuck-status SMS skipped'
+    );
+    return;
   }
 
   for (const job of jobs) {
+    if (budgetExhausted(budget)) return;
     if (TERMINAL_JOB_STATUSES.has(job.status)) continue;
-    const limit = parseNumber(sla[job.status], 0);
-    if (!limit) continue;
+    const limit = sla[job.status];
+    if (!limit || limit <= 0) continue;
     const entered = statusEnteredAt(job);
     if (hoursSince(entered) < limit) continue;
 
@@ -249,6 +332,7 @@ async function processStuckStatus(jobs, map) {
 
     const msg = `CN Terminal: Job for ${SmsNotificationService.formatJobSmsRef(job)} in ${job.status} >${limit}h (SLA).`;
     await sendStaff(
+      budget,
       job,
       msg,
       'SMS_STUCK_STATUS',
@@ -258,14 +342,15 @@ async function processStuckStatus(jobs, map) {
   }
 }
 
-async function processEscalation(jobs, map) {
+async function processEscalation(jobs, map, budget) {
   if (!smsService.isEventEnabled(map, 'SMS_ESCALATION')) return;
-  const escH = parseNumber(
+  const escH = thresholdHours(
     smsService.getConfigValue(map, 'SMS_ESCALATION_HOURS', '24'),
     24
   );
 
   for (const job of jobs) {
+    if (budgetExhausted(budget)) return;
     // Escalate if we already sent stuck or overdue SMS and enough time passed
     const stuckAt = await smsService.lastSentAt('SMS_STUCK_STATUS', job.id);
     const overdueAt = await smsService.lastSentAt('SMS_ETA_OVERDUE', job.id);
@@ -285,14 +370,22 @@ async function processEscalation(jobs, map) {
     });
     const roles = priorEscCount === 0 ? ['SUPERVISOR'] : ['ADMIN'];
     const msg = `CN Terminal: ESCALATION — Job for ${SmsNotificationService.formatJobSmsRef(job)} still stuck/overdue.`;
-    await sendStaff(job, msg, 'SMS_ESCALATION', roles, `SMS_ESCALATION:${job.id}:${dayBucket()}:wave${priorEscCount}`);
+    await sendStaff(
+      budget,
+      job,
+      msg,
+      'SMS_ESCALATION',
+      roles,
+      `SMS_ESCALATION:${job.id}:${dayBucket()}:wave${priorEscCount}`
+    );
   }
 }
 
-async function processDemurrage(jobs, map) {
+async function processDemurrage(jobs, map, budget) {
   if (!smsService.isEventEnabled(map, 'SMS_DEMURRAGE')) return;
 
   for (const job of jobs) {
+    if (budgetExhausted(budget)) return;
     const atRisk =
       job.demurrageType === 'PASSED_FREE_DAYS' ||
       job.demurrageType === 'DEMURRAGE' ||
@@ -307,6 +400,7 @@ async function processDemurrage(jobs, map) {
 
     const msg = `CN Terminal: Job for ${SmsNotificationService.formatJobSmsRef(job)} demurrage/free days at risk (${job.demurrageType || `${job.demurrageFreeDays}d`}).`;
     await sendStaff(
+      budget,
       job,
       msg,
       'SMS_DEMURRAGE',
@@ -316,10 +410,11 @@ async function processDemurrage(jobs, map) {
   }
 }
 
-async function processReleaseScheduleSlipped(jobs, map) {
+async function processReleaseScheduleSlipped(jobs, map, budget) {
   if (!smsService.isEventEnabled(map, 'SMS_RELEASE_SCHEDULE_SLIPPED')) return;
 
   for (const job of jobs) {
+    if (budgetExhausted(budget)) return;
     if (job.status !== 'RELEASED' || !job.scheduleTime) continue;
     if (new Date(job.scheduleTime).getTime() > Date.now()) continue;
 
@@ -328,6 +423,7 @@ async function processReleaseScheduleSlipped(jobs, map) {
 
     const msg = `CN Terminal: Job for ${SmsNotificationService.formatJobSmsRef(job)} release schedule slipped.`;
     await sendStaff(
+      budget,
       job,
       msg,
       'SMS_RELEASE_SCHEDULE_SLIPPED',
@@ -337,14 +433,15 @@ async function processReleaseScheduleSlipped(jobs, map) {
   }
 }
 
-async function processReleaseMoney(jobs, map) {
+async function processReleaseMoney(jobs, map, budget) {
   if (!smsService.isEventEnabled(map, 'SMS_RELEASE_MONEY')) return;
-  const delayH = parseNumber(
+  const delayH = thresholdHours(
     smsService.getConfigValue(map, 'SMS_RELEASE_MONEY_DELAY_HOURS', '2'),
     2
   );
 
   for (const job of jobs) {
+    if (budgetExhausted(budget)) return;
     if (!['READY_FOR_RELEASE', 'RELEASED'].includes(job.status)) continue;
     if (job.releaseMoneyReceived === true) continue;
     const entered = statusEnteredAt(job);
@@ -353,11 +450,11 @@ async function processReleaseMoney(jobs, map) {
     const last = await smsService.lastSentAt('SMS_RELEASE_MONEY', job.id);
     if (last && hoursSince(last) < 24) continue;
 
-    await SmsNotificationService._sendReleaseMoneyAlert(job.id);
+    recordResult(budget, await SmsNotificationService._sendReleaseMoneyAlert(job.id));
   }
 }
 
-async function processPaymentReminders(map) {
+async function processPaymentReminders(map, budget) {
   if (!smsService.isEventEnabled(map, 'SMS_PAYMENT_REMINDER')) return;
 
   const overdue = await prisma.invoice.findMany({
@@ -370,7 +467,8 @@ async function processPaymentReminders(map) {
   });
 
   for (const inv of overdue) {
-    await SmsNotificationService.notifyPaymentReminder(inv);
+    if (budgetExhausted(budget)) return;
+    recordResult(budget, await SmsNotificationService.notifyPaymentReminder(inv));
   }
 }
 
@@ -379,23 +477,38 @@ async function runSmsScans() {
   console.log('📱 [SMS Scheduler] Starting scan…');
   try {
     const map = await smsService._loadConfigMap(true);
-    if (!smsService.isMasterEnabled(map)) {
-      console.log('📱 [SMS Scheduler] Master SMS_NOTIFICATIONS off — skip');
+
+    // Hard gates before touching any job: kill switch, then explicit master ON.
+    const kill = smsService.killSwitchState(map);
+    if (kill.killed) {
+      console.warn(`📱 [SMS Scheduler] ${kill.reason} — scan aborted, nothing sent`);
       return;
     }
 
-    const jobs = await getActiveJobs();
-    await processEtaApproaching(jobs, map);
-    await processEtaOverdue(jobs, map);
-    await processStuckAssignee(jobs, map);
-    await processStuckStatus(jobs, map);
-    await processEscalation(jobs, map);
-    await processDemurrage(jobs, map);
-    await processReleaseScheduleSlipped(jobs, map);
-    await processReleaseMoney(jobs, map);
-    await processPaymentReminders(map);
+    const master = smsService.masterState(map);
+    if (!master.enabled) {
+      console.log(`📱 [SMS Scheduler] ${master.reason} — scan aborted, nothing sent`);
+      return;
+    }
 
-    console.log(`📱 [SMS Scheduler] Done in ${Date.now() - started}ms (${jobs.length} jobs)`);
+    const budget = createRunBudget(smsRateLimiter.resolveLimits(map).perSchedulerRun);
+
+    const jobs = await getActiveJobs();
+    await processEtaApproaching(jobs, map, budget);
+    await processEtaOverdue(jobs, map, budget);
+    await processStuckAssignee(jobs, map, budget);
+    await processStuckStatus(jobs, map, budget);
+    await processEscalation(jobs, map, budget);
+    await processDemurrage(jobs, map, budget);
+    await processReleaseScheduleSlipped(jobs, map, budget);
+    await processReleaseMoney(jobs, map, budget);
+    await processPaymentReminders(map, budget);
+
+    console.log(
+      `📱 [SMS Scheduler] Done in ${Date.now() - started}ms — ${jobs.length} jobs scanned, ` +
+        `${budget.sent} SMS sent, ${budget.attempts}/${budget.cap} of the per-run cap used` +
+        (budget.stopped ? `, ${budget.blocked} blocked by the cap` : '')
+    );
   } catch (err) {
     console.error('❌ [SMS Scheduler] Scan failed:', err.message);
   }

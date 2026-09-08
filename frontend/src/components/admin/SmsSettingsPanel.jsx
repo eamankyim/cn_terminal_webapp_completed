@@ -152,6 +152,7 @@ const SmsSettingsPanel = ({ initialTab = 'settings' }) => {
   const [saving, setSaving] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
+  const [loadErrors, setLoadErrors] = useState([]);
   const [dirty, setDirty] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -165,16 +166,27 @@ const SmsSettingsPanel = ({ initialTab = 'settings' }) => {
       const defaults = buildDefaults();
       const keys = Object.keys(defaults).filter((k) => k !== 'MNOTIFY_API_KEY');
       const loaded = { ...defaults, MNOTIFY_API_KEY: '' };
+      const failures = [];
       await Promise.all(
         keys.map(async (key) => {
           try {
-            const value = await configurationService.getConfigValue(key, defaults[key]);
-            loaded[key] = value;
-          } catch {
-            // keep default
+            const row = await configurationService.getConfigMeta(key);
+            if (!row) {
+              // Not stored yet. The backend treats an unset toggle as OFF, so
+              // show OFF here too — otherwise saving would silently switch it on.
+              loaded[key] = META[key]?.type === 'BOOLEAN' ? false : defaults[key];
+              return;
+            }
+            loaded[key] = configurationService.parseConfigValue(row.value, row.type);
+          } catch (err) {
+            // A failed read must not look like "default ON" — saving that back
+            // would re-enable every event. Block saving until the load works.
+            failures.push(key);
+            loaded[key] = META[key]?.type === 'BOOLEAN' ? false : defaults[key];
           }
         })
       );
+      setLoadErrors(failures);
 
       try {
         const apiMeta = await configurationService.getConfigMeta('MNOTIFY_API_KEY');
@@ -189,7 +201,13 @@ const SmsSettingsPanel = ({ initialTab = 'settings' }) => {
       }
       form.setFieldsValue(loaded);
       setDirty(false);
+      if (failures.length) {
+        message.error(
+          `Could not read ${failures.length} SMS setting(s). Saving is disabled until they load.`
+        );
+      }
     } catch (err) {
+      setLoadErrors(['*']);
       message.error('Failed to load SMS settings');
     } finally {
       setLoading(false);
@@ -214,6 +232,12 @@ const SmsSettingsPanel = ({ initialTab = 'settings' }) => {
   };
 
   const onSave = async (values) => {
+    if (loadErrors.length) {
+      message.error(
+        'Some settings could not be read. Reload before saving so existing toggles are not overwritten.'
+      );
+      return;
+    }
     setSaving(true);
     try {
       let slaValue = values.SMS_STATUS_SLA_HOURS;
@@ -353,6 +377,16 @@ const SmsSettingsPanel = ({ initialTab = 'settings' }) => {
                     </Button>
                   }
                 />
+
+                {loadErrors.length > 0 && (
+                  <Alert
+                    type="error"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                    message="Settings could not be read — saving is disabled"
+                    description="Saving now could overwrite your stored toggles with defaults. Use Reload, then try again."
+                  />
+                )}
 
                 <Alert
                   type="warning"
@@ -501,7 +535,7 @@ const SmsSettingsPanel = ({ initialTab = 'settings' }) => {
                       htmlType="submit"
                       icon={<SaveOutlined />}
                       loading={saving}
-                      disabled={!dirty || loading}
+                      disabled={!dirty || loading || loadErrors.length > 0}
                     >
                       {dirty ? 'Save SMS settings' : 'No unsaved changes'}
                     </Button>

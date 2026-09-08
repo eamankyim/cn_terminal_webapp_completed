@@ -1,18 +1,31 @@
 /**
  * SMS service via MNotify (Ghana).
  * Credentials: configurations table (Admin UI) with optional env fallback for local/dev.
- * Env: SMS_DEV_MODE; optional MNOTIFY_API_KEY / MNOTIFY_SENDER_ID / MNOTIFY_API_URL.
+ * Env: SMS_DEV_MODE, SMS_KILL_SWITCH; optional MNOTIFY_API_KEY / MNOTIFY_SENDER_ID / MNOTIFY_API_URL.
+ *
+ * Gate order for every send (all fail-closed):
+ *   1. kill switch (env or SMS_MASTER_KILL) — blocks everything, admin tests included
+ *   2. master SMS_NOTIFICATIONS must be explicitly "true"
+ *   3. per-event toggle must exist and be explicitly "true"
+ *   4. quiet hours
+ *   5. dedupe key
+ *   6. global rate limiter / circuit breaker
  */
 const fetch = require('node-fetch');
 const { prisma } = require('../config/database');
 const {
   QUIET_HOURS_EVENTS,
   MNOTIFY_CONFIG_KEYS,
+  SMS_MASTER_KEY,
+  SMS_KILL_SWITCH_KEY,
   parseBoolean,
+  parseBooleanStrict,
+  evaluateToggleRow,
   parseQuietHours,
   isWithinQuietHours,
   getSmsDefaultValue
 } = require('./smsConfig');
+const smsRateLimiter = require('./smsRateLimiter');
 
 const DEFAULT_MNOTIFY_URL = 'https://api.mnotify.com/api/sms/quick';
 
@@ -21,6 +34,8 @@ class SmsService {
     this.devMode = process.env.SMS_DEV_MODE === 'true';
     this._configCache = { at: 0, map: null };
     this._configTtlMs = 30_000;
+    // Set when the last config read failed — send paths deny while true.
+    this._configLoadFailed = false;
 
     if (process.env.CLICKATELL_API_KEY && !process.env.MNOTIFY_API_KEY) {
       console.warn(
@@ -77,9 +92,12 @@ class SmsService {
         map[row.key] = row;
       }
       this._configCache = { at: now, map };
+      this._configLoadFailed = false;
       return map;
     } catch (err) {
-      console.error('❌ [SMS] Failed to load SMS configs:', err.message);
+      // Fail closed: an unreadable config must never be treated as "enabled".
+      console.error('❌ [SMS] Failed to load SMS configs (sending blocked):', err.message);
+      this._configLoadFailed = true;
       return this._configCache.map || {};
     }
   }
@@ -96,7 +114,8 @@ class SmsService {
 
   /**
    * Config value with SMS_DEFAULT_CONFIGS fallback when the row is missing.
-   * Prevents Admin UI (defaults on 404) from disagreeing with runtime send checks.
+   * Only applies to non-gating keys (thresholds, quiet hours, URLs) — send
+   * toggles never fall back to a default, so a missing row cannot enable SMS.
    */
   getConfigValueOrDefault(map, key, fallback = null) {
     const row = map[key];
@@ -137,22 +156,66 @@ class SmsService {
     };
   }
 
+  /**
+   * Hard kill switch. Cannot be bypassed by any caller, including admin tests.
+   * Env SMS_KILL_SWITCH=true wins immediately; otherwise the SMS_MASTER_KILL row
+   * blocks unless it explicitly parses to false.
+   */
+  killSwitchState(map) {
+    if (String(process.env.SMS_KILL_SWITCH || '').toLowerCase().trim() === 'true') {
+      return { killed: true, reason: 'SMS kill switch active (env SMS_KILL_SWITCH=true)' };
+    }
+    const row = map?.[SMS_KILL_SWITCH_KEY];
+    if (!row) return { killed: false };
+    if (row.isActive === false) return { killed: false };
+    const parsed = parseBooleanStrict(row.value);
+    if (parsed === false) return { killed: false };
+    return {
+      killed: true,
+      reason:
+        parsed === true
+          ? `SMS kill switch active (${SMS_KILL_SWITCH_KEY}=true)`
+          : `SMS kill switch active (${SMS_KILL_SWITCH_KEY} has an unparseable value → deny)`
+    };
+  }
+
+  isKillSwitchOn(map) {
+    return this.killSwitchState(map).killed;
+  }
+
+  /**
+   * Master gate. Requires an explicit stored "true" — missing, blank, inactive,
+   * or unparseable all mean OFF, as does a failed config read.
+   */
+  masterState(map) {
+    if (this._configLoadFailed) {
+      return { enabled: false, reason: 'SMS config could not be read → sending blocked' };
+    }
+    return evaluateToggleRow(map?.[SMS_MASTER_KEY], SMS_MASTER_KEY);
+  }
+
   isMasterEnabled(map) {
-    // Master stays opt-in: missing/unset → false (matches SMS_DEFAULT_CONFIGS).
-    return parseBoolean(
-      this.getConfigValueOrDefault(map, 'SMS_NOTIFICATIONS', 'false'),
-      false
-    );
+    return this.masterState(map).enabled;
+  }
+
+  /**
+   * Per-event gate with an explicit reason for logging.
+   * A missing event row means "never configured" which means DO NOT SEND —
+   * product defaults are only used for thresholds, never for send gating.
+   */
+  eventState(map, eventKey) {
+    const kill = this.killSwitchState(map);
+    if (kill.killed) return { enabled: false, reason: kill.reason };
+
+    const master = this.masterState(map);
+    if (!master.enabled) return { enabled: false, reason: master.reason };
+
+    if (!eventKey) return { enabled: true, reason: 'master enabled (no event key)' };
+    return evaluateToggleRow(map?.[eventKey], eventKey);
   }
 
   isEventEnabled(map, eventKey) {
-    if (!eventKey) return this.isMasterEnabled(map);
-    if (!this.isMasterEnabled(map)) return false;
-    // Missing event key → product default (usually true for staff assign/reassign),
-    // matching Admin SMS Settings UI which shows defaults when the row is 404.
-    const raw = this.getConfigValueOrDefault(map, eventKey, null);
-    if (raw === null || raw === undefined) return false;
-    return parseBoolean(raw, false);
+    return this.eventState(map, eventKey).enabled;
   }
 
   /**
@@ -218,6 +281,49 @@ class SmsService {
   }
 
   /**
+   * Log (and optionally persist) a blocked send, then return the standard
+   * skip result. Every refusal goes through here so the reason is always visible
+   * in the server log and in Admin → SMS Statistics.
+   */
+  async _skip({
+    reason,
+    to,
+    eventKey,
+    jobId,
+    userId,
+    message,
+    dedupeKey,
+    metadata,
+    persist = false,
+    level = 'log'
+  }) {
+    const line = `📱 [SMS] skipped — ${reason} (event=${eventKey || 'n/a'}, to=${this.maskPhone(
+      to
+    )}, job=${jobId || 'n/a'})`;
+    if (level === 'error') console.error(line);
+    else console.log(line);
+
+    if (persist) {
+      await this._writeDispatchLog({
+        eventKey,
+        jobId,
+        userId,
+        phone: this.formatPhoneNumber(to) || String(to || '').slice(0, 32),
+        dedupeKey: dedupeKey || `skip:${eventKey || 'custom'}:${jobId || 'na'}:${Date.now()}`,
+        message: message ? String(message).slice(0, 160) : null,
+        status: 'skipped',
+        errorMessage: reason,
+        metadata: {
+          ...(metadata && typeof metadata === 'object' ? metadata : {}),
+          skipReason: reason
+        }
+      });
+    }
+
+    return { success: false, reason, skipped: true };
+  }
+
+  /**
    * Central send entry — checks master + event toggle, quiet hours, formats number.
    * Never throws to callers for business flows; returns { success, ... }.
    *
@@ -256,64 +362,69 @@ class SmsService {
 
       const map = await this._loadConfigMap();
 
+      // 1. Kill switch — applies to every caller, bypassToggles included.
+      const kill = this.killSwitchState(map);
+      if (kill.killed) {
+        return this._skip({
+          reason: kill.reason,
+          to,
+          eventKey,
+          jobId,
+          userId,
+          message,
+          dedupeKey,
+          metadata,
+          persist: true
+        });
+      }
+
       if (!bypassToggles) {
-        if (!skipEventCheck) {
-          if (eventKey) {
-            if (!this.isEventEnabled(map, eventKey)) {
-              const masterOn = this.isMasterEnabled(map);
-              const stored = this.getConfigValue(map, eventKey, null);
-              const reason = !masterOn
-                ? 'SMS_NOTIFICATIONS disabled'
-                : stored === null
-                  ? `Event unset (no default): ${eventKey}`
-                  : `Event disabled: ${eventKey}`;
-              console.log(
-                `📱 [SMS] skipped — ${reason} (to=${this.maskPhone(to)}, job=${jobId || 'n/a'})`
-              );
-              await this._writeDispatchLog({
-                eventKey,
-                jobId,
-                userId,
-                phone: this.formatPhoneNumber(to) || String(to).slice(0, 32),
-                dedupeKey: dedupeKey || `skip:${eventKey}:${jobId || 'na'}:${Date.now()}`,
-                message: String(message).slice(0, 160),
-                status: 'skipped',
-                errorMessage: reason,
-                metadata: {
-                  ...(metadata && typeof metadata === 'object' ? metadata : {}),
-                  skipReason: reason,
-                  masterEnabled: masterOn,
-                  storedValue: stored
-                }
-              });
-              return { success: false, reason, skipped: true };
-            }
-          } else if (!this.isMasterEnabled(map)) {
-            console.log(`📱 [SMS] skipped — SMS_NOTIFICATIONS disabled (to=${this.maskPhone(to)})`);
-            return { success: false, reason: 'SMS_NOTIFICATIONS disabled', skipped: true };
-          }
-        } else if (!this.isMasterEnabled(map)) {
-          console.log(`📱 [SMS] skipped — SMS_NOTIFICATIONS disabled (to=${this.maskPhone(to)})`);
-          return { success: false, reason: 'SMS_NOTIFICATIONS disabled', skipped: true };
+        // 2 & 3. Master switch and per-event toggle (both fail-closed).
+        const gate = skipEventCheck
+          ? this.masterState(map)
+          : this.eventState(map, eventKey);
+
+        if (!gate.enabled) {
+          return this._skip({
+            reason: gate.reason,
+            to,
+            eventKey,
+            jobId,
+            userId,
+            message,
+            dedupeKey,
+            metadata: {
+              ...(metadata && typeof metadata === 'object' ? metadata : {}),
+              masterEnabled: this.isMasterEnabled(map),
+              storedValue: eventKey ? this.getConfigValue(map, eventKey, null) : null
+            },
+            persist: !!eventKey
+          });
         }
 
+        // 4. Quiet hours (SLA / ETA nudges only).
         if (!skipQuietHours && eventKey && QUIET_HOURS_EVENTS.has(eventKey)) {
           const quietRaw = this.getConfigValueOrDefault(map, 'SMS_QUIET_HOURS', '21-7');
           const quietSpec = parseQuietHours(quietRaw);
           if (isWithinQuietHours(quietSpec)) {
+            const reason = `Quiet hours (${quietRaw})`;
             console.log(
-              `📱 [SMS] skipped — quiet hours (${quietRaw}) for ${eventKey} (to=${this.maskPhone(to)})`
+              `📱 [SMS] skipped — ${reason} for ${eventKey} (to=${this.maskPhone(to)}, job=${jobId || 'n/a'})`
             );
-            return { success: false, reason: 'Quiet hours', skipped: true, quietHours: true };
+            return { success: false, reason, skipped: true, quietHours: true };
           }
         }
       }
 
+      // 5. Dedupe — one successful send per dedupe key, ever.
       if (dedupeKey) {
         const existing = await prisma.smsDispatchLog.findUnique({
           where: { dedupeKey }
         });
         if (existing && existing.status === 'sent') {
+          console.log(
+            `📱 [SMS] skipped — already sent (dedupe=${dedupeKey}, event=${eventKey || 'n/a'})`
+          );
           return { success: false, reason: 'Already sent (dedupe)', skipped: true, deduped: true };
         }
       }
@@ -339,7 +450,38 @@ class SmsService {
       const truncatedMessage =
         message.length > maxLength ? `${message.substring(0, maxLength - 3)}...` : message;
 
+      // 6. Global circuit breaker — the last thing between us and MNotify.
+      const budget = await smsRateLimiter.check(map);
+      if (!budget.allowed) {
+        return this._skip({
+          reason: budget.reason,
+          to,
+          eventKey,
+          jobId,
+          userId,
+          message: truncatedMessage,
+          dedupeKey,
+          metadata: {
+            ...(metadata && typeof metadata === 'object' ? metadata : {}),
+            rateLimited: true,
+            counts: budget.counts,
+            limits: budget.limits
+          },
+          persist: true,
+          level: 'error'
+        });
+      }
+      smsRateLimiter.record();
+
       const { apiKey, senderId, apiUrl } = this.resolveMnotifyCredentials(map);
+
+      console.log(
+        `📱 [SMS] sending — event=${eventKey || 'n/a'} job=${jobId || 'n/a'} ` +
+          `to=${this.maskPhone(formattedPhone)} reason=${
+            bypassToggles ? 'admin test (toggles bypassed)' : 'all gates passed'
+          } budget=${budget.counts.minute}/${budget.limits.perMinute} per min, ` +
+          `${budget.counts.hour}/${budget.limits.perHour} per hr`
+      );
 
       let result;
       if (this.devMode) {
@@ -564,6 +706,9 @@ class SmsService {
       })
     ]);
 
+    const master = this.masterState(map);
+    const kill = this.killSwitchState(map);
+
     return {
       configured: !!apiKey,
       apiKeyConfigured: !!apiKey,
@@ -571,7 +716,11 @@ class SmsService {
       senderIdConfigured: !!senderId,
       senderId,
       apiUrl,
-      masterEnabled: this.isMasterEnabled(map),
+      masterEnabled: master.enabled,
+      masterReason: master.reason,
+      killSwitchOn: kill.killed,
+      killSwitchReason: kill.reason || null,
+      rateLimit: await smsRateLimiter.getState(map),
       devMode: this.devMode,
       lastSuccessAt: lastSuccess?.createdAt || null,
       lastSuccessEventKey: lastSuccess?.eventKey || null,
@@ -579,6 +728,92 @@ class SmsService {
       lastErrorEventKey: lastError?.eventKey || null,
       lastErrorMessage: lastError?.errorMessage || null
     };
+  }
+
+  /**
+   * Everything an admin needs to answer "can this system send right now?".
+   */
+  async getSafetyState() {
+    const map = await this._loadConfigMap(true);
+    const master = this.masterState(map);
+    const kill = this.killSwitchState(map);
+    const enabledEvents = [];
+    for (const [key, row] of Object.entries(map)) {
+      if (row.type === 'BOOLEAN' && parseBoolean(row.value, false) && key !== SMS_KILL_SWITCH_KEY) {
+        enabledEvents.push(key);
+      }
+    }
+
+    return {
+      canSend: !kill.killed && master.enabled,
+      killSwitch: {
+        on: kill.killed,
+        reason: kill.reason || null,
+        envForced: String(process.env.SMS_KILL_SWITCH || '').toLowerCase().trim() === 'true',
+        configKey: SMS_KILL_SWITCH_KEY
+      },
+      master: {
+        key: SMS_MASTER_KEY,
+        enabled: master.enabled,
+        reason: master.reason,
+        stored: map[SMS_MASTER_KEY] ? map[SMS_MASTER_KEY].value : null,
+        present: !!map[SMS_MASTER_KEY]
+      },
+      devMode: this.devMode,
+      rateLimit: await smsRateLimiter.getState(map),
+      enabledEventKeys: enabledEvents.sort()
+    };
+  }
+
+  /**
+   * Flip the kill switch from the admin UI / scripts. Creates the row if absent.
+   */
+  async setKillSwitch(on, userId = null) {
+    const value = on ? 'true' : 'false';
+    await prisma.configuration.upsert({
+      where: { key: SMS_KILL_SWITCH_KEY },
+      create: {
+        key: SMS_KILL_SWITCH_KEY,
+        value,
+        type: 'BOOLEAN',
+        category: 'NOTIFICATIONS',
+        description:
+          'Emergency kill switch — when ON, every SMS is blocked including admin tests',
+        isActive: true,
+        updatedBy: userId
+      },
+      update: { value, isActive: true, updatedBy: userId }
+    });
+    this.invalidateConfigCache();
+    console.warn(
+      `🛑 [SMS] Kill switch turned ${on ? 'ON — all SMS blocked' : 'OFF — normal gating resumes'} (by user ${userId || 'system'})`
+    );
+    return this.getSafetyState();
+  }
+
+  /**
+   * Turn the master switch off (used by the emergency stop path).
+   */
+  async setMasterEnabled(enabled, userId = null) {
+    const value = enabled ? 'true' : 'false';
+    await prisma.configuration.upsert({
+      where: { key: SMS_MASTER_KEY },
+      create: {
+        key: SMS_MASTER_KEY,
+        value,
+        type: 'BOOLEAN',
+        category: 'NOTIFICATIONS',
+        description: 'Master switch — enable outbound SMS via MNotify',
+        isActive: true,
+        updatedBy: userId
+      },
+      update: { value, isActive: true, updatedBy: userId }
+    });
+    this.invalidateConfigCache();
+    console.warn(
+      `📱 [SMS] Master switch set to ${value} (by user ${userId || 'system'})`
+    );
+    return this.getSafetyState();
   }
 
   async getAdminStats({ recentLimit = 50, failureLimit = 30 } = {}) {

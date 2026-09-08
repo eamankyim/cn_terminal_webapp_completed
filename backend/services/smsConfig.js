@@ -1,9 +1,32 @@
 /**
  * SMS event configuration keys, defaults, and helpers.
- * Master toggle SMS_NOTIFICATIONS must be ON for any SMS to send.
+ *
+ * Safety model (fail-closed): nothing sends unless the master switch
+ * SMS_NOTIFICATIONS is explicitly stored as "true" and the kill switch
+ * SMS_MASTER_KILL is off. Missing, blank, or unparseable values always mean
+ * DISABLED — never "fall back to the product default".
  */
 
 const SMS_CATEGORY = 'SMS';
+
+/** Master switch. Must be explicitly "true" in the DB for any event SMS to send. */
+const SMS_MASTER_KEY = 'SMS_NOTIFICATIONS';
+
+/** Hard kill switch. When on, every send path is denied — including admin tests. */
+const SMS_KILL_SWITCH_KEY = 'SMS_MASTER_KILL';
+
+/** Global throughput guards (circuit breaker). Conservative by design. */
+const SMS_RATE_LIMIT_KEYS = {
+  perMinute: 'SMS_MAX_PER_MINUTE',
+  perHour: 'SMS_MAX_PER_HOUR',
+  perSchedulerRun: 'SMS_MAX_PER_SCHEDULER_RUN'
+};
+
+const SMS_RATE_LIMIT_DEFAULTS = {
+  perMinute: 10,
+  perHour: 60,
+  perSchedulerRun: 50
+};
 
 /** Events that respect quiet hours (SLA / ETA nudges). Assignment & customer milestones do not. */
 const QUIET_HOURS_EVENTS = new Set([
@@ -43,6 +66,37 @@ const SMS_DEFAULT_CONFIGS = [
     category: 'NOTIFICATIONS',
     description: 'Master switch — enable outbound SMS via MNotify'
   },
+  {
+    key: SMS_KILL_SWITCH_KEY,
+    value: 'false',
+    type: 'BOOLEAN',
+    category: 'NOTIFICATIONS',
+    description:
+      'Emergency kill switch — when ON, every SMS is blocked including admin tests'
+  },
+
+  // Global throughput guards
+  {
+    key: SMS_RATE_LIMIT_KEYS.perMinute,
+    value: String(SMS_RATE_LIMIT_DEFAULTS.perMinute),
+    type: 'NUMBER',
+    category: SMS_CATEGORY,
+    description: 'Hard cap on SMS sent per rolling minute (circuit breaker)'
+  },
+  {
+    key: SMS_RATE_LIMIT_KEYS.perHour,
+    value: String(SMS_RATE_LIMIT_DEFAULTS.perHour),
+    type: 'NUMBER',
+    category: SMS_CATEGORY,
+    description: 'Hard cap on SMS sent per rolling hour (circuit breaker)'
+  },
+  {
+    key: SMS_RATE_LIMIT_KEYS.perSchedulerRun,
+    value: String(SMS_RATE_LIMIT_DEFAULTS.perSchedulerRun),
+    type: 'NUMBER',
+    category: SMS_CATEGORY,
+    description: 'Hard cap on SMS sent by a single scheduler scan'
+  },
 
   // MNotify provider credentials (Admin / IT Consultant only)
   {
@@ -73,12 +127,12 @@ const SMS_DEFAULT_CONFIGS = [
   { key: 'SMS_STAFF_STAGE_HANDOFF', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'SMS new assignee when status advances and assignee changes' },
   { key: 'SMS_STATUS_REVERTED', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'SMS assignee and supervisors when status is reverted' },
   { key: 'SMS_ETA_APPROACHING', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'SMS assignee (and supervisor at 3d) when ETA approaches' },
-  { key: 'SMS_ETA_OVERDUE', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'SMS assignee and supervisors when ETA is overdue (daily)' },
+  { key: 'SMS_ETA_OVERDUE', value: 'false', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'SMS assignee and supervisors when ETA is overdue (daily) (default OFF — high-volume cron event)' },
   { key: 'SMS_DEMURRAGE', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'SMS when demurrage / free days are at risk' },
   { key: 'SMS_RELEASE_SCHEDULE_SLIPPED', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'SMS when release schedule time has passed' },
-  { key: 'SMS_STUCK_ASSIGNEE', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'Nudge assignee when job stuck with them too long' },
-  { key: 'SMS_STUCK_STATUS', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'SMS when job stuck in a status beyond SLA' },
-  { key: 'SMS_ESCALATION', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'Escalate stuck/overdue jobs to SUPERVISOR then ADMIN' },
+  { key: 'SMS_STUCK_ASSIGNEE', value: 'false', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'Nudge assignee when job stuck with them too long (default OFF — high-volume cron event)' },
+  { key: 'SMS_STUCK_STATUS', value: 'false', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'SMS when job stuck in a status beyond SLA (default OFF — high-volume cron event)' },
+  { key: 'SMS_ESCALATION', value: 'false', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'Escalate stuck/overdue jobs to SUPERVISOR then ADMIN (default OFF — high-volume cron event)' },
   { key: 'SMS_REASSIGN_CHURN', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'Alert supervisors when a job is reassigned too often' },
   { key: 'SMS_RELEASE_MONEY', value: 'true', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'SMS when release money has not been marked received' },
   { key: 'SMS_COMMENT_ASSIGNEE', value: 'false', type: 'BOOLEAN', category: SMS_CATEGORY, description: 'SMS assignee when someone else comments (opt-in)' },
@@ -138,10 +192,24 @@ const SMS_DEFAULT_VALUE_MAP = Object.fromEntries(
 );
 
 /**
- * Default config value when a key is missing from the DB.
- * Keeps runtime toggles aligned with Admin UI defaults (UI already falls back on 404).
+ * Every BOOLEAN key that gates an outbound SMS. These are NEVER defaulted at
+ * runtime: a missing row means "not configured" which means "do not send".
+ * Only non-gating keys (thresholds, quiet hours, URLs) may fall back to defaults.
+ */
+const SMS_TOGGLE_KEYS = new Set(
+  SMS_DEFAULT_CONFIGS.filter((c) => c.type === 'BOOLEAN').map((c) => c.key)
+);
+
+function isSmsToggleKey(key) {
+  return SMS_TOGGLE_KEYS.has(key);
+}
+
+/**
+ * Default config value for NON-GATING keys only (thresholds, quiet hours, URLs).
+ * Returns the fallback for toggles so a missing toggle can never enable sending.
  */
 function getSmsDefaultValue(key, fallback = null) {
+  if (isSmsToggleKey(key)) return fallback;
   if (Object.prototype.hasOwnProperty.call(SMS_DEFAULT_VALUE_MAP, key)) {
     return SMS_DEFAULT_VALUE_MAP[key];
   }
@@ -153,15 +221,100 @@ const CONSIGNEE_COPY_STATUSES = new Set(['RELEASED', 'CLEARED', 'DELIVERED']);
 const TERMINAL_JOB_STATUSES = new Set(['DELIVERED']);
 
 function parseBoolean(value, defaultValue = false) {
-  if (value === undefined || value === null || value === '') return defaultValue;
+  const parsed = parseBooleanStrict(value);
+  return parsed === null ? defaultValue : parsed;
+}
+
+const TRUE_TOKENS = new Set(['true', '1', 'yes', 'y', 'on', 'enabled']);
+const FALSE_TOKENS = new Set(['false', '0', 'no', 'n', 'off', 'disabled']);
+
+/**
+ * Parse a stored config boolean.
+ * Returns true / false, or null when the value is missing or not recognisable.
+ * Callers decide what an unparseable value means — for send gating it means OFF.
+ */
+function parseBooleanStrict(value) {
+  if (value === undefined || value === null) return null;
   if (typeof value === 'boolean') return value;
-  const s = String(value).toLowerCase().trim();
-  return s === 'true' || s === '1' || s === 'yes';
+  if (typeof value === 'number') {
+    if (value === 1) return true;
+    if (value === 0) return false;
+    return null;
+  }
+  const s = String(value).toLowerCase().trim().replace(/^"+|"+$/g, '');
+  if (s === '') return null;
+  if (TRUE_TOKENS.has(s)) return true;
+  if (FALSE_TOKENS.has(s)) return false;
+  return null;
+}
+
+/**
+ * Fail-closed gate for an SMS toggle row.
+ * A row is enabled only when it exists, is active, and stores an explicit true.
+ * Returns { enabled, reason } so callers can log exactly why a send was blocked.
+ */
+function evaluateToggleRow(row, key) {
+  if (!row) {
+    return { enabled: false, reason: `${key} not configured (missing row → disabled)` };
+  }
+  if (row.isActive === false) {
+    return { enabled: false, reason: `${key} row is inactive` };
+  }
+  const parsed = parseBooleanStrict(row.value);
+  if (parsed === null) {
+    return {
+      enabled: false,
+      reason: `${key} has an unparseable value (${JSON.stringify(row.value)}) → disabled`
+    };
+  }
+  return parsed
+    ? { enabled: true, reason: `${key} enabled` }
+    : { enabled: false, reason: `${key} disabled` };
 }
 
 function parseNumber(value, defaultValue) {
   const n = Number(value);
   return Number.isFinite(n) ? n : defaultValue;
+}
+
+/**
+ * Positive integer config value (rate limits, caps). Invalid → default.
+ */
+function parsePositiveInt(value, defaultValue) {
+  const n = Number.parseInt(String(value ?? '').trim(), 10);
+  if (!Number.isFinite(n) || n < 0) return defaultValue;
+  return n;
+}
+
+/**
+ * Parse per-status SLA hours defensively.
+ *
+ * Tolerates values that were stored double-encoded (a JSON string containing a
+ * JSON string, e.g. "\"{\\n \\\"NEW\\\": 48}\"") by unwrapping repeatedly, and
+ * drops any entry that is not a positive number so a corrupt row can never make
+ * every job look like an SLA breach.
+ */
+function parseSlaHours(raw) {
+  let current = raw;
+  for (let i = 0; i < 5; i += 1) {
+    if (current === null || current === undefined || current === '') return {};
+    if (typeof current === 'object') break;
+    try {
+      current = JSON.parse(String(current));
+    } catch {
+      return {};
+    }
+  }
+  if (!current || typeof current !== 'object' || Array.isArray(current)) return {};
+
+  const out = {};
+  for (const [status, value] of Object.entries(current)) {
+    const hours = Number(value);
+    if (Number.isFinite(hours) && hours > 0) {
+      out[status] = hours;
+    }
+  }
+  return out;
 }
 
 /**
@@ -230,8 +383,13 @@ function sanitizeConfigForResponse(config, user) {
 
 module.exports = {
   SMS_CATEGORY,
+  SMS_MASTER_KEY,
+  SMS_KILL_SWITCH_KEY,
+  SMS_RATE_LIMIT_KEYS,
+  SMS_RATE_LIMIT_DEFAULTS,
   SMS_DEFAULT_CONFIGS,
   SMS_DEFAULT_VALUE_MAP,
+  SMS_TOGGLE_KEYS,
   QUIET_HOURS_EVENTS,
   MNOTIFY_CONFIG_KEYS,
   SENSITIVE_CONFIG_KEYS,
@@ -239,12 +397,17 @@ module.exports = {
   CONSIGNEE_COPY_STATUSES,
   TERMINAL_JOB_STATUSES,
   parseBoolean,
+  parseBooleanStrict,
+  evaluateToggleRow,
   parseNumber,
+  parsePositiveInt,
+  parseSlaHours,
   parseQuietHours,
   getAccraHour,
   isWithinQuietHours,
   isAdminOrIT,
   isMnotifyCredentialKey,
+  isSmsToggleKey,
   sanitizeConfigForResponse,
   getSmsDefaultValue
 };

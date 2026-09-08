@@ -82,7 +82,53 @@ Quiet hours apply to SLA/ETA nudges only — **not** assignment, reassignment, o
 
 Client ETA toggles are independent of staff ETA toggles: turning staff ETA off does not block customer ETA SMS (and vice versa). Both still require the master switch.
 
-Runtime note: if an event key was never seeded, the backend now uses the same product defaults as the Admin UI (previously UI could show ON while sends treated missing keys as OFF). Still prefer **Seed missing defaults** so values persist in the DB.
+## Safety model (fail-closed)
+
+Nothing is ever sent "by default". Every gate below must pass, in this order:
+
+1. **Kill switch** — `SMS_MASTER_KILL` config row, or `SMS_KILL_SWITCH=true` env. When on, *every* path is blocked, including admin test sends. A present-but-unparseable value counts as ON.
+2. **Master** `SMS_NOTIFICATIONS` must be explicitly `true`. Missing row, blank, `isActive=false`, an unrecognised value, or a failed config read all mean OFF.
+3. **Per-event toggle** must exist and be explicitly `true`. A missing event row is treated as *not configured → do not send*; product defaults are used only for thresholds, never for gating.
+4. **Quiet hours** (SLA / ETA nudges only).
+5. **Dedupe key** — one successful send per key, ever.
+6. **Global circuit breaker** — see below.
+
+Accepted boolean values: `true/1/yes/y/on/enabled` and `false/0/no/n/off/disabled` (case and surrounding quotes/space insensitive). Anything else is treated as OFF and logged.
+
+### Rate limits (circuit breaker)
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `SMS_MAX_PER_MINUTE` | `10` | Hard cap per rolling minute across all senders |
+| `SMS_MAX_PER_HOUR` | `60` | Hard cap per rolling hour |
+| `SMS_MAX_PER_SCHEDULER_RUN` | `50` | Hard cap for a single 20-minute scan |
+
+Counts come from `SmsDispatchLog` as well as in-process state, so a restart or a second instance cannot reset the budget. When a cap is hit the breaker opens, every further send is refused and logged with the reason, and the scheduler abandons the rest of its scan.
+
+Env vars of the same names override the config rows (useful for an emergency clamp without DB access).
+
+### Emergency stop
+
+```bash
+cd backend
+npm run sms:status     # show kill switch, master, limits, enabled toggles
+npm run sms:stop       # kill switch ON + master OFF — blocks everything
+npm run sms:release    # release the kill switch (master stays OFF)
+```
+
+Or in the app: **Admin → SMS Settings → Test SMS & Statistics → STOP ALL SMS NOW**.
+
+### Diagnostics
+
+```bash
+npm run sms:report                 # dispatch log breakdown, last 24h
+node scripts/sms-incident-report.js --hours 72 --peaks
+npm run sms:audit                  # find bad boolean / double-encoded JSON values
+npm run sms:audit:fix              # normalise them
+npm run sms:selftest               # verify the gates; sends nothing
+npm run sms:dryrun                 # what the next scan would send; sends nothing
+node scripts/sms-scheduler-dryrun.js --assume-all-on   # blast radius if everything were ON
+```
 
 ## Scheduler
 
@@ -91,6 +137,8 @@ Runtime note: if an event key was never seeded, the backend now uses the same pr
 Scans: ETA approaching/overdue (staff + optional customer), stuck assignee/status, escalation, demurrage, release schedule slipped, release money, overdue payment reminders.
 
 Dedupe: `SmsDispatchLog` table (`dedupeKey` unique).
+
+Each scan aborts immediately if the kill switch is on or the master switch is not explicitly `true`, and stops once `SMS_MAX_PER_SCHEDULER_RUN` messages have gone out. Threshold values of `0` (or blank / non-numeric) are rejected and replaced with the documented default — a `0` there would otherwise mean "re-alert every job on every scan".
 
 `Job.lastAssignedAt` is updated on assignment/reassign. Older jobs fall back to current status history date / `updatedAt`.
 
@@ -126,8 +174,10 @@ await smsService.sendSms({
 
 ## Troubleshooting
 
-- Master `SMS_NOTIFICATIONS` must be `true`.
-- Per-event toggle must be `true`.
+- Kill switch `SMS_MASTER_KILL` (and env `SMS_KILL_SWITCH`) must be off.
+- Master `SMS_NOTIFICATIONS` must be `true`. It lives in the **NOTIFICATIONS** category, so it does *not* appear on the Configuration page's **SMS Events** tab — check the **Notifications** tab or Admin → SMS Settings.
+- Per-event toggle must exist and be `true` (a missing row means OFF).
+- If sends stop suddenly, check whether the circuit breaker is open (Admin → Test SMS & Statistics, or `npm run sms:status`).
 - MNotify API key + sender ID must be set in Admin → SMS Settings (or env fallback).
 - User/customer must have a phone number.
 - Check MNotify balance and sender ID approval.

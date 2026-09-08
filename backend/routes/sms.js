@@ -66,6 +66,56 @@ router.post('/test', authenticateToken, requireAdminOrIT, async (req, res) => {
 });
 
 /**
+ * GET /api/sms/safety
+ * Admin / IT Consultant: kill switch, master switch, and rate-limit state.
+ */
+router.get('/safety', authenticateToken, requireAdminOrIT, async (req, res) => {
+  try {
+    const data = await smsService.getSafetyState();
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.error('❌ [SMS] Safety state failed:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to load SMS safety state',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/sms/kill-switch  { enabled: boolean, alsoDisableMaster?: boolean }
+ * Emergency stop. With enabled=true no SMS can be sent by any code path.
+ */
+router.post('/kill-switch', authenticateToken, requireAdminOrIT, async (req, res) => {
+  try {
+    const enabled = req.body?.enabled === true || String(req.body?.enabled) === 'true';
+    const alsoDisableMaster = req.body?.alsoDisableMaster !== false;
+
+    await smsService.setKillSwitch(enabled, req.user.id);
+    if (enabled && alsoDisableMaster) {
+      await smsService.setMasterEnabled(false, req.user.id);
+    }
+
+    const data = await smsService.getSafetyState();
+    return res.json({
+      success: true,
+      message: enabled
+        ? 'SMS kill switch ON — all outbound SMS blocked'
+        : 'SMS kill switch OFF — normal toggles apply',
+      data
+    });
+  } catch (error) {
+    console.error('❌ [SMS] Kill switch update failed:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update SMS kill switch',
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/sms/stats
  * Admin / IT Consultant: dispatch totals, event breakdown, recent failures, connection status.
  */
