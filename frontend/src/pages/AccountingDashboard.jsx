@@ -29,7 +29,8 @@ import {
   ClockCircleFilled,
   ExclamationCircleFilled,
   MoneyCollectOutlined,
-  FundOutlined
+  FundOutlined,
+  SyncOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../services/api';
@@ -47,6 +48,8 @@ const AccountingDashboard = () => {
       totalExpenses: 0,
       totalCashIn: 0,
       pendingExpenses: 0,
+      endorsedExpenses: 0,
+      unapprovedExpenses: 0,
       approvedExpenses: 0,
       netProfit: 0,
       cashflow: 0
@@ -61,13 +64,22 @@ const AccountingDashboard = () => {
       setLoading(true);
       setError(null);
 
-      // Load financial statistics
-      const [expensesResponse, payoutsResponse, cashflowResponse, recentExpensesResponse, recentPayoutsResponse] = await Promise.all([
+      // Stats + approved expenses + payouts, and the unapproved request queue
+      // (PENDING + ENDORSED). /expenses only returns already-approved Expense rows.
+      const [
+        expensesResponse,
+        payoutsResponse,
+        cashflowResponse,
+        recentExpensesResponse,
+        recentPayoutsResponse,
+        unapprovedRequestsResponse
+      ] = await Promise.all([
         apiService.get('/expenses/stats/summary'),
         apiService.get('/payouts/stats/summary'),
         apiService.get('/cashflow/summary'),
         apiService.get('/expenses?limit=5'),
-        apiService.get('/payouts?limit=5')
+        apiService.get('/payouts?limit=5'),
+        apiService.get('/expenses/requests?status=PENDING,ENDORSED&limit=10')
       ]);
 
       // Get pre-calculated stats from backend
@@ -78,6 +90,9 @@ const AccountingDashboard = () => {
       // Use pre-calculated backend stats
       const totalExpenses = cashflowStats.summary?.totalOutflows || 0; // Use cashflow data for consistency
       const pendingExpenses = expenseStats.pendingRequests || 0;
+      const endorsedExpenses = expenseStats.endorsedRequests || 0;
+      const unapprovedExpenses = expenseStats.unapprovedRequests
+        ?? (pendingExpenses + endorsedExpenses);
       const approvedExpenses = expenseStats.approvedRequests || 0;
       const netCashflow = cashflowStats.summary?.netCashflow || 0;
       const totalCashIn = cashflowStats.summary?.totalInflows || 0;
@@ -89,13 +104,15 @@ const AccountingDashboard = () => {
           totalExpenses,
           totalCashIn,
           pendingExpenses,
+          endorsedExpenses,
+          unapprovedExpenses,
           approvedExpenses,
           netProfit,
           cashflow: netCashflow
         },
-        recentExpenses: recentExpensesResponse.data || [],
-        recentPayouts: recentPayoutsResponse.data || [],
-        pendingApprovals: pendingExpenses
+        recentExpenses: recentExpensesResponse.expenses || recentExpensesResponse.data || [],
+        recentPayouts: recentPayoutsResponse.payouts || recentPayoutsResponse.data || [],
+        pendingApprovals: unapprovedRequestsResponse.requests || []
       });
 
     } catch (error) {
@@ -321,8 +338,8 @@ const AccountingDashboard = () => {
           <Col xs={12} sm={8}>
             <Card>
               <Statistic
-                title="Pending Approvals"
-                value={dashboardData.financialStats.pendingExpenses}
+                title="Unapproved Requests"
+                value={dashboardData.financialStats.unapprovedExpenses}
                 prefix={<ClockCircleFilled />}
                 valueStyle={{ color: '#fa8c16' }}
               />
@@ -433,14 +450,14 @@ const AccountingDashboard = () => {
           </Col>
         </Row>
 
-        {/* Pending Approvals Alert */}
+        {/* Unapproved expense requests (PENDING + ENDORSED) */}
         {dashboardData.pendingApprovals.length > 0 && (
           <Alert
-            message={`${dashboardData.pendingApprovals.length} expense(s) pending approval`}
-            description="Review and approve pending expense requests to maintain financial flow."
+            message={`${dashboardData.pendingApprovals.length} unapproved expense request(s)`}
+            description="These requests are pending endorsement or accountant approval. Open Accounting → Expense Requests to review them."
             type="warning"
             showIcon
-            style={{ marginTop: '16px' }}
+            style={{ marginTop: '16px', marginBottom: '16px' }}
             action={
               <Button 
                 size="small" 
@@ -450,6 +467,76 @@ const AccountingDashboard = () => {
               </Button>
             }
           />
+        )}
+
+        {dashboardData.pendingApprovals.length > 0 && (
+          <Card
+            title="Unapproved Expense Requests"
+            style={{ marginBottom: '16px' }}
+            extra={
+              <Button type="link" onClick={() => navigate('/accounting')}>
+                View all
+              </Button>
+            }
+          >
+            <ResponsiveTable
+              dataSource={dashboardData.pendingApprovals}
+              rowKey="id"
+              columns={[
+                {
+                  title: 'Description',
+                  dataIndex: 'description',
+                  key: 'description',
+                  render: (text) => <Text strong>{text}</Text>
+                },
+                {
+                  title: 'Amount',
+                  dataIndex: 'amount',
+                  key: 'amount',
+                  render: (amount) => (
+                    <Text style={{ color: '#cf1322', fontWeight: 'bold' }}>
+                      GHS {amount?.toLocaleString()}
+                    </Text>
+                  )
+                },
+                {
+                  title: 'Requested By',
+                  key: 'requestedBy',
+                  render: (_, record) => record.requestedBy?.name || '—'
+                },
+                {
+                  title: 'Status',
+                  dataIndex: 'status',
+                  key: 'status',
+                  render: (status) => {
+                    const statusConfig = {
+                      PENDING: { color: 'orange', icon: <ClockCircleFilled /> },
+                      ENDORSED: { color: 'cyan', icon: <SyncOutlined /> },
+                      APPROVED: { color: 'green', icon: <CheckCircleFilled /> },
+                      REJECTED: { color: 'red', icon: <ExclamationCircleFilled /> }
+                    };
+                    const config = statusConfig[status] || statusConfig.PENDING;
+                    return (
+                      <Tag color={config.color} icon={config.icon}>
+                        {status}
+                      </Tag>
+                    );
+                  }
+                },
+                {
+                  title: 'Date',
+                  dataIndex: 'createdAt',
+                  key: 'createdAt',
+                  render: (date) => new Date(date).toLocaleDateString()
+                }
+              ]}
+              pagination={false}
+              mobileConfig={{
+                primaryFields: ['description', 'amount'],
+                secondaryFields: ['requestedBy', 'status', 'createdAt']
+              }}
+            />
+          </Card>
         )}
     </div>
   );
