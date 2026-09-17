@@ -1,3 +1,5 @@
+import { fetchAllPages } from '../../api/pagination';
+import { Workflow } from '../../components/Workflow';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -39,19 +41,19 @@ export const CustomersListScreen: React.FC<Props> = ({ navigation }) => {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch, isRefetching, error } = useQuery({
     queryKey: ['customers', { search }],
-    queryFn: () => {
+    queryFn: async () => {
       const params = new URLSearchParams();
-      params.append('page', '1');
-      params.append('limit', '50');
       if (search) params.append('search', search);
-      return api.get<CustomersListResponse>(`/customers?${params.toString()}`);
+      return { customers: await fetchAllPages<Customer>(`/customers?${params.toString()}`, 'customers') };
     },
   });
 
   const customers = data?.customers ?? [];
   const closeCustomerSheet = () => setSelectedCustomerId(null);
+
+  if (error) return <Workflow title="Customers" error={error} retry={() => void refetch()} />;
 
   if (isLoading && !isRefetching && !data) {
     return (

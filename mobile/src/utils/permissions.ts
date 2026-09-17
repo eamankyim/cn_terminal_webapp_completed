@@ -151,6 +151,42 @@ export const UI_PERMISSIONS = {
 
 /** Bidirectional aliases so ui:* and resource:* checks both work. */
 const PERMISSION_ALIASES: Record<string, string[]> = {
+  [UI_PERMISSIONS.UPLOAD_FILE]: [PERMISSIONS.FILE_UPLOAD],
+  [PERMISSIONS.FILE_UPLOAD]: [UI_PERMISSIONS.UPLOAD_FILE],
+  [UI_PERMISSIONS.DOWNLOAD_FILE]: [PERMISSIONS.FILE_DOWNLOAD],
+  [PERMISSIONS.FILE_DOWNLOAD]: [UI_PERMISSIONS.DOWNLOAD_FILE],
+  [UI_PERMISSIONS.DELETE_FILE]: [PERMISSIONS.FILE_DELETE],
+  [PERMISSIONS.FILE_DELETE]: [UI_PERMISSIONS.DELETE_FILE],
+  [UI_PERMISSIONS.EXPORT_REPORTS]: [PERMISSIONS.REPORTS_EXPORT],
+  [PERMISSIONS.REPORTS_EXPORT]: [UI_PERMISSIONS.EXPORT_REPORTS],
+  [UI_PERMISSIONS.VIEW_ANALYTICS]: [PERMISSIONS.ANALYTICS_VIEW],
+  [PERMISSIONS.ANALYTICS_VIEW]: [UI_PERMISSIONS.VIEW_ANALYTICS],
+  [UI_PERMISSIONS.CREATE_CASHFLOW]: [PERMISSIONS.CASHFLOW_CREATE],
+  [PERMISSIONS.CASHFLOW_CREATE]: [UI_PERMISSIONS.CREATE_CASHFLOW],
+  [UI_PERMISSIONS.REQUESTS]: [PERMISSIONS.EXPENSE_REQUEST],
+  [PERMISSIONS.EXPENSE_REQUEST]: [UI_PERMISSIONS.REQUESTS],
+  [UI_PERMISSIONS.EDIT_EXPENSE]: [PERMISSIONS.EXPENSE_EDIT],
+  [PERMISSIONS.EXPENSE_EDIT]: [UI_PERMISSIONS.EDIT_EXPENSE],
+  [UI_PERMISSIONS.DELETE_EXPENSE]: [PERMISSIONS.EXPENSE_DELETE],
+  [PERMISSIONS.EXPENSE_DELETE]: [UI_PERMISSIONS.DELETE_EXPENSE],
+  [UI_PERMISSIONS.CREATE_PAYOUT]: [PERMISSIONS.PAYOUT_CREATE],
+  [PERMISSIONS.PAYOUT_CREATE]: [UI_PERMISSIONS.CREATE_PAYOUT],
+  [UI_PERMISSIONS.EDIT_PAYOUT]: [PERMISSIONS.PAYOUT_UPDATE],
+  [PERMISSIONS.PAYOUT_UPDATE]: [UI_PERMISSIONS.EDIT_PAYOUT],
+  [UI_PERMISSIONS.DELETE_PAYOUT]: [PERMISSIONS.PAYOUT_DELETE],
+  [PERMISSIONS.PAYOUT_DELETE]: [UI_PERMISSIONS.DELETE_PAYOUT],
+  [UI_PERMISSIONS.SETTINGS]: [PERMISSIONS.SETTINGS_VIEW],
+  [PERMISSIONS.SETTINGS_VIEW]: [UI_PERMISSIONS.SETTINGS],
+  [UI_PERMISSIONS.EDIT_SYSTEM_SETTINGS]: [PERMISSIONS.SETTINGS_EDIT],
+  [PERMISSIONS.SETTINGS_EDIT]: [UI_PERMISSIONS.EDIT_SYSTEM_SETTINGS],
+  [UI_PERMISSIONS.CREATE_USER]: [PERMISSIONS.USER_CREATE],
+  [PERMISSIONS.USER_CREATE]: [UI_PERMISSIONS.CREATE_USER],
+  [UI_PERMISSIONS.EDIT_USER]: [PERMISSIONS.USER_EDIT],
+  [PERMISSIONS.USER_EDIT]: [UI_PERMISSIONS.EDIT_USER],
+  [UI_PERMISSIONS.DELETE_USER]: [PERMISSIONS.USER_DELETE],
+  [PERMISSIONS.USER_DELETE]: [UI_PERMISSIONS.DELETE_USER],
+  [UI_PERMISSIONS.SEND_NOTIFICATION]: [PERMISSIONS.NOTIFICATION_SEND],
+  [PERMISSIONS.NOTIFICATION_SEND]: [UI_PERMISSIONS.SEND_NOTIFICATION],
   [UI_PERMISSIONS.CREATE_JOB]: [PERMISSIONS.JOB_CREATE],
   [PERMISSIONS.JOB_CREATE]: [UI_PERMISSIONS.CREATE_JOB],
   [UI_PERMISSIONS.EDIT_JOB]: [PERMISSIONS.JOB_EDIT],
@@ -325,6 +361,7 @@ export function hasAllPermissions(
 }
 
 export type MoreMenuLinkKey =
+  | 'team' | 'roles' | 'invitations' | 'configuration' | 'payouts' | 'cashflow'
   | 'notifications'
   | 'profile'
   | 'appearance'
@@ -347,6 +384,7 @@ export const MORE_MENU_ICONS: Record<
   MoreMenuLinkKey | 'sign-out',
   string
 > = {
+  team: 'people-outline', roles: 'shield-checkmark-outline', invitations: 'mail-outline', configuration: 'settings-outline', payouts: 'cash-outline', cashflow: 'swap-horizontal-outline',
   notifications: 'notifications-outline',
   profile: 'person-outline',
   appearance: 'color-palette-outline',
@@ -414,5 +452,17 @@ export function getMoreMenuLinks(user: User | null | undefined): MoreMenuLink[] 
     });
   }
 
+  if (hasPermission(user, UI_PERMISSIONS.SETTINGS)) {
+    links.push({ key: 'team', label: 'Team members', screen: 'Team' });
+    if (user?.role === 'ADMIN' || user?.role === 'IT_CONSULTANT') {
+      links.push({ key: 'roles', label: 'Roles and permissions', screen: 'Roles' });
+    }
+    if (user?.role === 'ADMIN') links.push({ key: 'invitations', label: 'Invitations', screen: 'Invitations' });
+  }
+  if (hasPermission(user, UI_PERMISSIONS.CONFIGURATION)) links.push({ key: 'configuration', label: 'Configuration', screen: 'Configuration' });
+  if (hasPermission(user, UI_PERMISSIONS.ACCOUNTING) && !isEmployeeRole(user?.role)) {
+    links.push({ key: 'payouts', label: 'Payouts', screen: 'Payouts' });
+    links.push({ key: 'cashflow', label: 'Cashflow', screen: 'Cashflow' });
+  }
   return links;
 }

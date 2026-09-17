@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { useEffect, useRef } from 'react';
+import { io } from 'socket.io-client';
 import { API_BASE_URL } from '../config/env';
 import { useAuth } from '../context/AuthContext';
 
@@ -11,50 +11,24 @@ type JobSocketCallbacks = {
   onJobCommentAdded?: (payload: any) => void;
 };
 
-let socket: Socket | null = null;
-
 export function useJobSocket(callbacks: JobSocketCallbacks) {
   const { user, token } = useAuth();
+  const latest = useRef(callbacks);
+  latest.current = callbacks;
+  const userId = user?.id;
 
   useEffect(() => {
-    if (!user || !token) return;
-
-    const base = API_BASE_URL.replace('/api', '');
-    socket =
-      socket ??
-      io(base, {
-        auth: { token },
-        transports: ['websocket', 'polling'],
-      });
-
-    socket.on('connect', () => {
-      socket?.emit('authenticate', user.id);
+    if (!userId || !token) return;
+    const socket = io(API_BASE_URL.replace(/\/api\/?$/, ''), {
+      auth: { token },
+      transports: ['websocket', 'polling'],
     });
-
-    if (callbacks.onJobCreated) {
-      socket.on('job:created', callbacks.onJobCreated);
-    }
-    if (callbacks.onJobUpdated) {
-      socket.on('job:updated', callbacks.onJobUpdated);
-    }
-    if (callbacks.onJobDeleted) {
-      socket.on('job:deleted', callbacks.onJobDeleted);
-    }
-    if (callbacks.onJobStatusUpdated) {
-      socket.on('job:status-updated', callbacks.onJobStatusUpdated);
-    }
-    if (callbacks.onJobCommentAdded) {
-      socket.on('job:comment-added', callbacks.onJobCommentAdded);
-    }
-
-    return () => {
-      if (!socket) return;
-      socket.off('job:created');
-      socket.off('job:updated');
-      socket.off('job:deleted');
-      socket.off('job:status-updated');
-      socket.off('job:comment-added');
-    };
-  }, [callbacks, token, user]);
+    socket.on('connect', () => socket.emit('authenticate', userId));
+    socket.on('job:created', payload => latest.current.onJobCreated?.(payload));
+    socket.on('job:updated', payload => latest.current.onJobUpdated?.(payload));
+    socket.on('job:deleted', payload => latest.current.onJobDeleted?.(payload));
+    socket.on('job:status-updated', payload => latest.current.onJobStatusUpdated?.(payload));
+    socket.on('job:comment-added', payload => latest.current.onJobCommentAdded?.(payload));
+    return () => { socket.disconnect(); };
+  }, [token, userId]);
 }
-

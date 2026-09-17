@@ -106,6 +106,7 @@ model Job {
   blNumber             String?
   containerNumber      String?
   documentsBrought     String[]              @default([])
+  datePosted           DateTime?
   jobDescription       String?
   line                 String?
   mediumOfEnquiry      String?

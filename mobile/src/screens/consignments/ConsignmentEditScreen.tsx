@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -40,8 +40,11 @@ export const ConsignmentEditScreen: React.FC = () => {
       api.get<ConsignmentDetailResponse>(`/consignments/${consignmentId}`),
   });
 
+  const initializedId = useRef<string | null>(null);
   useEffect(() => {
     if (data?.consignment) {
+      if (initializedId.current === data.consignment.id) return;
+      initializedId.current = data.consignment.id;
       const c = data.consignment;
       setConsigneeName(c.consigneeName ?? '');
       setConsigneePhone(c.consigneePhone ?? '');

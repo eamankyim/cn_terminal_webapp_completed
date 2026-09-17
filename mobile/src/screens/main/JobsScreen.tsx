@@ -132,6 +132,9 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
   const [statusFilter, setStatusFilter] = useState<string | undefined>(
     route.params?.status,
   );
+  const [assigneeFilter, setAssigneeFilter] = useState<string | undefined>(
+    undefined,
+  );
   const [etaFilter, setEtaFilter] = useState<EtaFilterValue>(ETA_FILTER.ALL);
   const [defaultEtaFilter, setDefaultEtaFilterState] =
     useState<EtaFilterValue>(ETA_FILTER.ALL);
@@ -179,6 +182,11 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
     queryFn: () => api.get<DashboardStats>('/dashboard/stats'),
   });
 
+  const assignableUsers = useQuery({
+    queryKey: ['assignable-users'],
+    queryFn: () => api.get<{ users: { id: string; name: string }[] }>('/auth/assignable-users'),
+  });
+
   const {
     data,
     isLoading,
@@ -188,7 +196,7 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['jobs', { statusFilter, etaFilter, search, limit: PAGE_SIZE }],
+    queryKey: ['jobs', { statusFilter, assigneeFilter, etaFilter, search, limit: PAGE_SIZE }],
     enabled: prefsReady,
     initialPageParam: 1,
     queryFn: async ({ pageParam }) => {
@@ -196,6 +204,7 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
       params.append('page', String(pageParam));
       params.append('limit', String(PAGE_SIZE));
       if (statusFilter) params.append('status', statusFilter);
+      if (assigneeFilter) params.append('assignedToId', assigneeFilter);
       if (etaFilter && etaFilter !== ETA_FILTER.ALL) {
         params.append('etaFilter', etaFilter);
       }
@@ -282,6 +291,11 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
 
   const applyStatusFilter = (status?: string) => {
     setStatusFilter(status);
+    setFilterOpen(false);
+  };
+
+  const applyAssigneeFilter = (assigneeId?: string) => {
+    setAssigneeFilter(assigneeId);
     setFilterOpen(false);
   };
 
@@ -393,7 +407,7 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
                 <TextInput
                   value={searchInput}
                   onChangeText={setSearchInput}
-                  placeholder="Search by Job ID, client, consignee, container, or BL"
+                  placeholder="Search by job ID, client, consignee, container, BL, vessel, or assignee"
                   placeholderTextColor="#999"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -420,7 +434,7 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
                 <Text className="text-base font-medium text-black ml-1.5">
                   Filter
                 </Text>
-                {statusFilter || etaFilter !== ETA_FILTER.ALL ? (
+                {statusFilter || assigneeFilter || etaFilter !== ETA_FILTER.ALL ? (
                   <View
                     className="w-1.5 h-1.5 rounded-full ml-1.5"
                     style={{ backgroundColor: accent }}
@@ -429,7 +443,7 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            {(statusFilter || etaFilter !== ETA_FILTER.ALL) ? (
+            {(statusFilter || assigneeFilter || etaFilter !== ETA_FILTER.ALL) ? (
               <View className="flex-row items-center mb-2 mt-1 flex-wrap" style={{ gap: 8 }}>
                 {statusFilter ? (
                   <StatusBadge
@@ -437,6 +451,18 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
                     variant="solid"
                     size="sm"
                     uppercase
+                  />
+                ) : null}
+                {assigneeFilter ? (
+                  <StatusBadge
+                    label={
+                      assigneeFilter === 'unassigned'
+                        ? 'Unassigned'
+                        : assignableUsers.data?.users.find((u) => u.id === assigneeFilter)
+                            ?.name ?? 'Assignee'
+                    }
+                    variant="solid"
+                    size="sm"
                   />
                 ) : null}
                 {etaFilter !== ETA_FILTER.ALL ? (
@@ -452,6 +478,7 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
                 <TouchableOpacity
                   onPress={() => {
                     setStatusFilter(undefined);
+                    setAssigneeFilter(undefined);
                     setEtaFilter(ETA_FILTER.ALL);
                   }}
                 >
@@ -610,6 +637,40 @@ export const JobsListScreen: React.FC<Props> = ({ navigation }) => {
                     {formatStatusLabel(status)}
                   </Text>
                   {statusFilter === status ? (
+                    <Ionicons name="checkmark" size={20} color="#000" />
+                  ) : null}
+                </TouchableOpacity>
+              ))}
+
+              <Text className="text-sm font-semibold text-gray-500 mb-1 mt-3">
+                Assignee
+              </Text>
+              <TouchableOpacity
+                onPress={() => applyAssigneeFilter(undefined)}
+                className="flex-row items-center justify-between py-4 border-b border-gray-100"
+              >
+                <Text className="text-base text-black">All assignees</Text>
+                {!assigneeFilter ? (
+                  <Ionicons name="checkmark" size={20} color="#000" />
+                ) : null}
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => applyAssigneeFilter('unassigned')}
+                className="flex-row items-center justify-between py-4 border-b border-gray-100"
+              >
+                <Text className="text-base text-black">Unassigned</Text>
+                {assigneeFilter === 'unassigned' ? (
+                  <Ionicons name="checkmark" size={20} color="#000" />
+                ) : null}
+              </TouchableOpacity>
+              {(assignableUsers.data?.users ?? []).map((person) => (
+                <TouchableOpacity
+                  key={person.id}
+                  onPress={() => applyAssigneeFilter(person.id)}
+                  className="flex-row items-center justify-between py-4 border-b border-gray-100"
+                >
+                  <Text className="text-base text-black">{person.name}</Text>
+                  {assigneeFilter === person.id ? (
                     <Ionicons name="checkmark" size={20} color="#000" />
                   ) : null}
                 </TouchableOpacity>

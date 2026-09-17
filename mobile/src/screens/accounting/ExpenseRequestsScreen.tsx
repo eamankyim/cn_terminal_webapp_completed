@@ -1,3 +1,5 @@
+import { Button } from '../../components/Button';
+import { Workflow, showError, confirmAction } from '../../components/Workflow';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -26,6 +28,15 @@ function expenseCategoryLabel(item: ExpenseRequest) {
   return item.category;
 }
 
+const CATEGORY_FILTERS = [
+  { key: undefined, label: 'All categories' },
+  { key: 'FUEL', label: 'Fuel' },
+  { key: 'MATERIALS', label: 'Materials' },
+  { key: 'OPERATIONS', label: 'Operations' },
+  { key: 'MISCELLANEOUS', label: 'Miscellaneous' },
+  { key: 'OTHER', label: 'Other' },
+] as const;
+
 interface ExpenseRequestsResponse {
   requests: ExpenseRequest[];
   pagination: { page: number; limit: number; total: number; pages: number };
@@ -38,8 +49,9 @@ export const ExpenseRequestsScreen: React.FC = () => {
     || (user?.permissions || []).includes('expense:endorse');
   const canApprove = user?.role === 'ACCOUNTANT';
   const queryClient = useQueryClient();
-  const [page] = useState(1);
+  const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [categoryFilter, setCategoryFilter] = useState<string | undefined>(undefined);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [actionModal, setActionModal] = useState<{
@@ -53,13 +65,14 @@ export const ExpenseRequestsScreen: React.FC = () => {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['expense-requests', page, statusFilter],
+  const { data, isLoading, refetch, isRefetching, error } = useQuery({
+    queryKey: ['expense-requests', page, statusFilter, categoryFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append('page', String(page));
       params.append('limit', '20');
       if (statusFilter) params.append('status', statusFilter);
+      if (categoryFilter) params.append('category', categoryFilter);
       return api.get<ExpenseRequestsResponse>(
         `/expenses/requests?${params.toString()}`
       );
@@ -110,6 +123,7 @@ export const ExpenseRequestsScreen: React.FC = () => {
     },
   });
 
+  const paidMutation = useMutation({ mutationFn: (id: string) => api.patch(`/expenses/requests/${id}/mark-paid`, {}), onSuccess: () => { void queryClient.invalidateQueries(); }, onError: showError });
   const requests = useMemo(() => {
     const all = data?.requests ?? [];
     if (!search) return all;
@@ -134,6 +148,8 @@ export const ExpenseRequestsScreen: React.FC = () => {
       rejectionReason: comment.trim() || undefined,
     });
   };
+
+  if (error) return <Workflow title="Expense requests" error={error} retry={() => void refetch()} />;
 
   if (isLoading && !isRefetching) {
     return (
@@ -163,6 +179,7 @@ export const ExpenseRequestsScreen: React.FC = () => {
             { key: 'PENDING', label: 'Pending' },
             { key: 'ENDORSED', label: 'Endorsed' },
             { key: 'APPROVED', label: 'Approved' },
+            { key: 'PAID', label: 'Paid' },
             { key: 'REJECTED', label: 'Rejected' },
           ] as const
         ).map((chip) => {
@@ -170,7 +187,29 @@ export const ExpenseRequestsScreen: React.FC = () => {
           return (
             <TouchableOpacity
               key={chip.label}
-              onPress={() => setStatusFilter(chip.key)}
+              onPress={() => { setStatusFilter(chip.key); setPage(1); }}
+              className={`rounded-full px-3 py-2 ${selected ? '' : 'bg-gray-200'}`}
+              style={selected ? { backgroundColor: accent } : undefined}
+            >
+              <Text
+                className={`text-sm font-medium ${
+                  selected ? 'text-white' : 'text-gray-800'
+                }`}
+              >
+                {chip.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <View className="px-4 pb-2 flex-row flex-wrap gap-2">
+        {CATEGORY_FILTERS.map((chip) => {
+          const selected = categoryFilter === chip.key;
+          return (
+            <TouchableOpacity
+              key={chip.label}
+              onPress={() => { setCategoryFilter(chip.key); setPage(1); }}
               className={`rounded-full px-3 py-2 ${selected ? '' : 'bg-gray-200'}`}
               style={selected ? { backgroundColor: accent } : undefined}
             >
@@ -211,6 +250,7 @@ export const ExpenseRequestsScreen: React.FC = () => {
                 {item.description}
               </Text>
             ) : null}
+            {item.status === 'APPROVED' && canApprove && <Button title="Mark paid" loading={paidMutation.isPending} onPress={() => confirmAction('Mark expense paid?', () => paidMutation.mutate(item.id))} />}
             {item.status === 'PENDING' && canEndorse && (
               <View className="flex-row mt-2 gap-2">
                 <TouchableOpacity
@@ -255,6 +295,7 @@ export const ExpenseRequestsScreen: React.FC = () => {
             )}
           </View>
         )}
+        ListFooterComponent={<View className="flex-row justify-between"><Button title="Previous" variant="secondary" disabled={page === 1} onPress={() => setPage(page - 1)} /><Text>Page {page}</Text><Button title="Next" variant="secondary" disabled={page >= (data?.pagination.pages ?? 1)} onPress={() => setPage(page + 1)} /></View>}
         ListEmptyComponent={
           <Text className="text-gray-500 text-center py-8">No expense requests.</Text>
         }

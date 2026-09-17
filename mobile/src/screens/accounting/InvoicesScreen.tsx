@@ -1,3 +1,5 @@
+import { fetchAllPages } from '../../api/pagination';
+import { Workflow } from '../../components/Workflow';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -33,18 +35,18 @@ export const InvoicesScreen: React.FC<Props> = ({ navigation }) => {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch, isRefetching, error } = useQuery({
     queryKey: ['invoices', { search }],
-    queryFn: () => {
+    queryFn: async () => {
       const params = new URLSearchParams();
-      params.append('page', '1');
-      params.append('limit', '50');
       if (search) params.append('search', search);
-      return api.get<InvoicesListResponse>(`/invoices?${params.toString()}`);
+      return { invoices: await fetchAllPages<Invoice>(`/invoices?${params.toString()}`, 'invoices') };
     },
   });
 
   const invoices = data?.invoices ?? [];
+
+  if (error) return <Workflow title="Invoices" error={error} retry={() => void refetch()} />;
 
   if (isLoading && !isRefetching && !data) {
     return (

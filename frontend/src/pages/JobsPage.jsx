@@ -1008,6 +1008,7 @@ const JobsPage = () => {
       eta: job.eta ? dayjs(job.eta) : null,
       mediumOfEnquiry: job.mediumOfEnquiry,
       documentsBrought: mappedDocumentsBrought,
+      datePosted: job.datePosted ? dayjs(job.datePosted) : null,
       containerNumber: job.containerNumber,
       blNumber: job.blNumber,
       vesselName: job.vesselName,
@@ -2369,13 +2370,13 @@ const JobsPage = () => {
           </Row>
 
           <Row gutter={16}>
-            <Col span={24}>
+            <Col span={16}>
               <Form.Item
                 name="documentsBrought"
                 label="Documents Brought"
                 rules={[{ required: false, message: 'Please select documents brought' }]}
               >
-                <Select 
+                <Select
                   mode="multiple"
                   placeholder="Select documents brought by client"
                   style={{ width: '100%' }}
@@ -2388,6 +2389,19 @@ const JobsPage = () => {
                   <Option value="Original BL">Original BL</Option>
                   <Option value="Draft BL">Draft BL</Option>
                 </Select>
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="datePosted"
+                label="Date Posted"
+                rules={[{ required: false, message: 'Please select date posted' }]}
+              >
+                <DatePicker
+                  format="YYYY-MM-DD"
+                  placeholder="Select date posted"
+                  style={{ width: '100%' }}
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -3493,6 +3507,14 @@ const JobsPage = () => {
                     ) : (
                       <Tag color="default">No documents specified</Tag>
                     )}
+                  </div>
+                </div>
+                <div style={{ marginBottom: '16px', display: 'flex' }}>
+                  <div style={{ width: '140px', fontWeight: 'bold' }}>Date Posted:</div>
+                  <div>
+                    {selectedJob.datePosted
+                      ? dayjs(selectedJob.datePosted).format('YYYY-MM-DD')
+                      : 'Not specified'}
                   </div>
                 </div>
                 <div style={{ marginBottom: '16px', display: 'flex' }}>

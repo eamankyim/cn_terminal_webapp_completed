@@ -12,6 +12,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { Input } from '../../components/Input';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { SelectField } from '../../components/SelectField';
@@ -26,6 +28,56 @@ import {
   TERMINAL_NAMES_CONFIG_KEY,
 } from '../../api/configLists';
 import { controlHeight } from '../../theme/inputs';
+
+interface PickedDoc {
+  uri: string;
+  name: string;
+  mimeType?: string | null;
+}
+
+const DEMURRAGE_TYPE_OPTIONS = [
+  { value: 'NO_DEMURRAGE', label: 'No Demurrage (Within Free Days)' },
+  { value: 'DEMURRAGE', label: 'Demurrage' },
+  { value: 'PASSED_FREE_DAYS', label: 'Passed Free Days' },
+];
+
+const DocumentPickerField: React.FC<{
+  label: string;
+  helpText?: string;
+  docs: PickedDoc[];
+  onPick: () => void;
+  onRemove: (uri: string) => void;
+  disabled?: boolean;
+}> = ({ label, helpText, docs, onPick, onRemove, disabled }) => (
+  <View className="mb-3">
+    <Text className="text-xs text-gray-600 mb-1">{label}</Text>
+    <TouchableOpacity
+      onPress={onPick}
+      disabled={disabled}
+      className="flex-row items-center justify-center border border-dashed border-gray-300 rounded-xl"
+      style={{ height: controlHeight }}
+    >
+      <Ionicons name="cloud-upload-outline" size={20} color="#666" />
+      <Text className="text-base text-gray-700 ml-2">Upload files</Text>
+    </TouchableOpacity>
+    {helpText ? (
+      <Text className="text-xs text-gray-500 mt-1">{helpText}</Text>
+    ) : null}
+    {docs.map((doc) => (
+      <View
+        key={`${doc.uri}-${doc.name}`}
+        className="flex-row items-center justify-between mt-2 py-2 border-b border-gray-100"
+      >
+        <Text className="text-sm text-black flex-1 mr-2" numberOfLines={1}>
+          {doc.name}
+        </Text>
+        <TouchableOpacity onPress={() => onRemove(doc.uri)}>
+          <Ionicons name="close-circle" size={20} color="#999" />
+        </TouchableOpacity>
+      </View>
+    ))}
+  </View>
+);
 
 const STATUS_HIERARCHY: Record<string, number> = {
   NEW: 1,
@@ -108,8 +160,66 @@ export const JobStatusUpdateScreen: React.FC = () => {
   const [scheduleTime, setScheduleTime] = useState('');
   const [driverName, setDriverName] = useState('');
   const [driverContact, setDriverContact] = useState('');
+  const [demurrageType, setDemurrageType] = useState<string | null>(null);
+  const [demurrageInvoices, setDemurrageInvoices] = useState<PickedDoc[]>([]);
+  const [paymentReceipts, setPaymentReceipts] = useState<PickedDoc[]>([]);
+  const [statusDocuments, setStatusDocuments] = useState<PickedDoc[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const pickDocsInto = async (
+    setter: React.Dispatch<React.SetStateAction<PickedDoc[]>>,
+  ) => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const picked = result.assets.map((asset) => ({
+        uri: asset.uri,
+        name: asset.name,
+        mimeType: asset.mimeType,
+      }));
+      setter((prev) => {
+        const next = [...prev];
+        for (const doc of picked) {
+          if (!next.some((d) => d.uri === doc.uri && d.name === doc.name)) {
+            next.push(doc);
+          }
+        }
+        return next.slice(0, 10);
+      });
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'Could not pick documents.');
+    }
+  };
+
+  const removeDocFrom = (
+    setter: React.Dispatch<React.SetStateAction<PickedDoc[]>>,
+    uri: string,
+  ) => setter((prev) => prev.filter((d) => d.uri !== uri));
+
+  const uploadStatusDocuments = (
+    id: string,
+    docs: PickedDoc[],
+    category: string,
+  ) =>
+    Promise.all(
+      docs.map((doc) => {
+        const formData = new FormData();
+        formData.append('folder', 'jobs');
+        formData.append('category', category);
+        formData.append('entityId', id);
+        formData.append('entityType', 'job');
+        formData.append('file', {
+          uri: doc.uri,
+          name: doc.name,
+          type: doc.mimeType || 'application/octet-stream',
+        } as any);
+        return api.post('/files/upload', formData);
+      }),
+    );
 
   useEffect(() => {
     let cancelled = false;
@@ -205,8 +315,12 @@ export const JobStatusUpdateScreen: React.FC = () => {
       return;
     }
 
-    if (reverting && !comment.trim()) {
-      setError('A comment is required when reverting job status.');
+    if (!comment.trim()) {
+      setError(
+        reverting
+          ? 'A comment is required when reverting job status.'
+          : 'A comment is required for this status update.',
+      );
       return;
     }
 
@@ -226,11 +340,23 @@ export const JobStatusUpdateScreen: React.FC = () => {
         !terminalName?.trim() ||
         !scheduleTime.trim() ||
         !driverName.trim() ||
-        !driverContact.trim()
+        !driverContact.trim() ||
+        !demurrageType
       ) {
         setError(
-          'Terminal, schedule time, driver name/contact, demurrage/free days, and release money status are required for RELEASED.',
+          'Terminal, schedule time, driver name/contact, demurrage/free days, release money status, and demurrage status are required for RELEASED.',
         );
+        return;
+      }
+      if (
+        (demurrageType === 'DEMURRAGE' || demurrageType === 'PASSED_FREE_DAYS') &&
+        demurrageInvoices.length === 0
+      ) {
+        setError('At least one demurrage invoice is required for this demurrage status.');
+        return;
+      }
+      if (paymentReceipts.length === 0) {
+        setError('At least one payment receipt is required for RELEASED.');
         return;
       }
     }
@@ -252,6 +378,7 @@ export const JobStatusUpdateScreen: React.FC = () => {
         payload.scheduleTime = scheduleTime.trim();
         payload.driverName = driverName.trim();
         payload.driverContact = driverContact.trim();
+        payload.demurrageType = demurrageType;
 
         // Ensure terminal stays in the shared list
         try {
@@ -268,10 +395,33 @@ export const JobStatusUpdateScreen: React.FC = () => {
       }
 
       await api.put(`/jobs/${jobId}/status`, payload);
+
+      try {
+        if (statusDocuments.length > 0) {
+          await uploadStatusDocuments(jobId, statusDocuments, 'status_update_document');
+        }
+        if (!reverting && status === 'RELEASED') {
+          if (demurrageInvoices.length > 0) {
+            await uploadStatusDocuments(jobId, demurrageInvoices, 'demurrage_invoice');
+          }
+          if (paymentReceipts.length > 0) {
+            await uploadStatusDocuments(jobId, paymentReceipts, 'payment_receipt');
+          }
+        }
+      } catch (uploadErr: any) {
+        Alert.alert(
+          'Status updated',
+          `The status was updated, but some documents failed to upload: ${
+            uploadErr?.message ?? 'unknown error'
+          }`,
+        );
+      }
+
       await queryClient.invalidateQueries({ queryKey: ['job', jobId] });
       await queryClient.invalidateQueries({ queryKey: ['jobs'] });
       await queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       await queryClient.invalidateQueries({ queryKey: ['dashboard-recent-jobs'] });
+      await queryClient.invalidateQueries({ queryKey: ['documents', 'job', jobId] });
       navigation.goBack();
     } catch (e: any) {
       setError(
@@ -416,11 +566,40 @@ export const JobStatusUpdateScreen: React.FC = () => {
                 </Text>
               </TouchableOpacity>
             </View>
+
+            <View className="mt-1">
+              <SelectField
+                label="Demurrage status *"
+                placeholder="Select demurrage status"
+                helpText="Indicate if there's demurrage or if free days were passed"
+                value={demurrageType}
+                options={DEMURRAGE_TYPE_OPTIONS}
+                onChange={setDemurrageType}
+              />
+            </View>
+
+            {(demurrageType === 'DEMURRAGE' || demurrageType === 'PASSED_FREE_DAYS') && (
+              <DocumentPickerField
+                label="Demurrage invoice(s) *"
+                helpText="Upload demurrage invoice documents (multiple files allowed)"
+                docs={demurrageInvoices}
+                onPick={() => void pickDocsInto(setDemurrageInvoices)}
+                onRemove={(uri) => removeDocFrom(setDemurrageInvoices, uri)}
+              />
+            )}
+
+            <DocumentPickerField
+              label="Payment receipt(s) * — compulsory"
+              helpText="Upload payment receipt documents (multiple files allowed)"
+              docs={paymentReceipts}
+              onPick={() => void pickDocsInto(setPaymentReceipts)}
+              onRemove={(uri) => removeDocFrom(setPaymentReceipts, uri)}
+            />
           </View>
         )}
 
         <Text className="text-xs text-gray-600 mb-1 mt-4">
-          {reverting ? 'Reason for revert *' : 'Comment (optional)'}
+          {reverting ? 'Reason for revert *' : 'Comment *'}
         </Text>
         <Input
           value={comment}
@@ -428,10 +607,18 @@ export const JobStatusUpdateScreen: React.FC = () => {
           placeholder={
             reverting
               ? 'Explain why this job is being moved back'
-              : 'Status comment'
+              : 'Describe why the status is being updated'
           }
           multiline
           className="mb-4"
+        />
+
+        <DocumentPickerField
+          label="Attach documents (optional)"
+          helpText="Upload supporting documents for this status update"
+          docs={statusDocuments}
+          onPick={() => void pickDocsInto(setStatusDocuments)}
+          onRemove={(uri) => removeDocFrom(setStatusDocuments, uri)}
         />
 
         {error ? (

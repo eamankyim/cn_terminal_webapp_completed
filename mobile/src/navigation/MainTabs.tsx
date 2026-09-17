@@ -45,7 +45,7 @@ function getDefaultTabForRole(
 
   const normalized = role.toUpperCase();
   if (normalized === 'ACCOUNTANT') {
-    return showDashboard ? 'Dashboard' : pickFallback();
+    return 'Account';
   }
   if (
     normalized === 'ENQUIRY_OFFICER' ||

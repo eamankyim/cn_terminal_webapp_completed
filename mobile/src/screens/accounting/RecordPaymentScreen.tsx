@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   Text,
   TouchableOpacity,
   View,
@@ -25,12 +26,14 @@ export const RecordPaymentScreen: React.FC = () => {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<(typeof PAYMENT_METHODS)[number]>('BANK_TRANSFER');
   const [payer, setPayer] = useState('');
+  const [accountName, setAccountName] = useState('');
+  const [gatewayRef, setGatewayRef] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const onSubmit = async () => {
     const numericAmount = Number(amount);
-    if (!numericAmount || numericAmount <= 0) {
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       setError('Enter a valid amount.');
       return;
     }
@@ -45,6 +48,8 @@ export const RecordPaymentScreen: React.FC = () => {
         amount: numericAmount,
         paymentMethod: method,
         payer: payer.trim(),
+        accountName: accountName.trim() || undefined,
+        gatewayRef: gatewayRef.trim() || undefined,
       });
       await queryClient.invalidateQueries({ queryKey: ['invoice', invoiceId] });
       await queryClient.invalidateQueries({ queryKey: ['invoices'] });
@@ -65,7 +70,7 @@ export const RecordPaymentScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScreenHeader title="Record payment" />
-      <View className="flex-1 px-4">
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: 16 }} keyboardShouldPersistTaps="handled">
         <Text className="text-gray-500 mb-4 text-sm">
           Add a payment for this invoice. Amounts are in Ghana cedis (GHS).
         </Text>
@@ -97,6 +102,8 @@ export const RecordPaymentScreen: React.FC = () => {
           />
         </View>
 
+        <View className="mb-3"><Text className="text-xs text-gray-600 mb-1">Account name</Text><Input value={accountName} onChangeText={setAccountName} /></View>
+        <View className="mb-3"><Text className="text-xs text-gray-600 mb-1">Transaction reference</Text><Input value={gatewayRef} onChangeText={setGatewayRef} /></View>
         <View className="mb-6">
           <Text className="text-xs font-medium text-gray-600 mb-2">
             Payment method *
@@ -133,7 +140,7 @@ export const RecordPaymentScreen: React.FC = () => {
             {submitting ? 'Saving…' : 'Save payment'}
           </Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 };

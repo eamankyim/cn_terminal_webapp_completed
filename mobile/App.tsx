@@ -5,19 +5,29 @@ import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts, BebasNeue_400Regular } from '@expo-google-fonts/bebas-neue';
-import { AuthProvider } from './src/context/AuthContext';
+import { DataSync } from './src/realtime/DataSync';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { RootNavigator } from './src/navigation/AuthNavigator';
 import { JobAssignmentAlertListener } from './src/components/JobAssignmentAlertListener';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 30_000,
-    },
-  },
-});
+function SessionQueries({ children }: { children: React.ReactNode }) {
+  const { user, status } = useAuth();
+  // A fresh cache per account prevents the previous user's data appearing after login.
+  const client = React.useMemo(
+    () => new QueryClient({
+      defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
+    }),
+    [user?.id, status],
+  );
+  React.useEffect(() => () => { client.clear(); }, [client]);
+  return (
+    <QueryClientProvider client={client}>
+      <DataSync />
+      {children}
+    </QueryClientProvider>
+  );
+}
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -33,13 +43,13 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <AuthProvider>
-          <QueryClientProvider client={queryClient}>
+          <SessionQueries>
             <StatusBar style="dark" />
             <JobAssignmentAlertListener />
             <NavigationContainer>
               <RootNavigator />
             </NavigationContainer>
-          </QueryClientProvider>
+          </SessionQueries>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>

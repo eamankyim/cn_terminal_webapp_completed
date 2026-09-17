@@ -1,4 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { fetchAllPages } from '../../api/pagination';
+import { Workflow } from '../../components/Workflow';
+import { useAuth } from '../../context/AuthContext';
+import { PERMISSIONS } from '../../utils/permissions';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -19,7 +23,7 @@ import { DateField } from '../../components/DateField';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { SearchBar } from '../../components/SearchBar';
 import { SelectField } from '../../components/SelectField';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
 import {
@@ -116,6 +120,10 @@ export const JobCreateScreen: React.FC = () => {
   const { accent } = useTheme();
   const navigation = useNavigation<any>();
   const queryClient = useQueryClient();
+  const route = useRoute<any>();
+  const editId: string | undefined = route.params?.jobId;
+  const { hasPermission } = useAuth();
+  const existing = useQuery({ queryKey: ['job', editId], queryFn: () => api.get<{ job: Job & { customerId?: string; assignedToId?: string; consignmentId?: string; goodsTypes?: string[]; mediumOfEnquiry?: string; documentsBrought?: string[]; containerNumber?: string; blNumber?: string; vesselName?: string; line?: string; jobDescription?: string } }>(`/jobs/${editId}`), enabled: !!editId });
 
   const [step, setStep] = useState<'customer' | 'form'>('customer');
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -127,6 +135,7 @@ export const JobCreateScreen: React.FC = () => {
   const [eta, setEta] = useState<string | null>(null);
   const [mediumOfEnquiry, setMediumOfEnquiry] = useState<string | null>(null);
   const [documentsBrought, setDocumentsBrought] = useState<string[]>([]);
+  const [datePosted, setDatePosted] = useState<string | null>(null);
   const [containerNumber, setContainerNumber] = useState('');
   const [containerImage, setContainerImage] = useState('');
   const [blNumber, setBlNumber] = useState('');
@@ -157,9 +166,8 @@ export const JobCreateScreen: React.FC = () => {
   const [newTin, setNewTin] = useState('');
 
   const { data: customersData } = useQuery({
-    queryKey: ['customers'],
-    queryFn: () =>
-      api.get<CustomersListResponse>('/customers?page=1&limit=100'),
+    queryKey: ['job-customers'],
+    queryFn: async () => ({ customers: await fetchAllPages<Customer>('/customers', 'customers') }),
   });
   const { data: usersData } = useQuery({
     queryKey: ['assignable-users'],
@@ -285,9 +293,32 @@ export const JobCreateScreen: React.FC = () => {
     [lineOptions],
   );
 
+  const initialized = useRef<string | null>(null);
+  useEffect(() => {
+    const job = existing.data?.job;
+    if (!job || initialized.current === job.id) return;
+    initialized.current = job.id;
+    setCustomerId(job.customerId ?? job.customer?.id ?? null);
+    setConsignmentId(job.consignmentId ?? job.consignment?.id ?? null);
+    setAssignedToId(job.assignedToId ?? job.assignedTo?.id ?? null);
+    setGoodsTypes(job.goodsTypes ?? []);
+    setEta(job.eta ?? null);
+    setMediumOfEnquiry(job.mediumOfEnquiry ?? null);
+    setDocumentsBrought(job.documentsBrought ?? []);
+    setDatePosted(job.datePosted ?? null);
+    setContainerNumber(job.containerNumber ?? '');
+    setBlNumber(job.blNumber ?? '');
+    setVesselName(job.vesselName ?? null);
+    setLine(job.line ?? null);
+    setJobDescription(job.jobDescription ?? '');
+    setStep('form');
+  }, [existing.data]);
+
   const createMutation = useMutation({
-    mutationFn: (payload: Record<string, unknown>) =>
-      api.post<CreateJobResponse>('/jobs', payload),
+    mutationFn: (payload: Record<string, unknown>) => {
+      if (!hasPermission(editId ? PERMISSIONS.JOB_EDIT : PERMISSIONS.JOB_CREATE)) throw new Error('Job editing access required.');
+      return editId ? api.put<CreateJobResponse>(`/jobs/${editId}`, payload) : api.post<CreateJobResponse>('/jobs', payload);
+    },
   });
 
   const selectCustomer = (id: string) => {
@@ -526,6 +557,7 @@ export const JobCreateScreen: React.FC = () => {
     setEta(null);
     setMediumOfEnquiry(null);
     setDocumentsBrought([]);
+    setDatePosted(null);
     setContainerNumber('');
     setContainerImage('');
     setBlNumber('');
@@ -553,6 +585,16 @@ export const JobCreateScreen: React.FC = () => {
       }
       if (!eta) {
         Alert.alert('Validation', 'Please select an ETA date.');
+        return null;
+      }
+      const selectedConsignment = consignments.find((c) => c.id === consignmentId);
+      const hasGhanaCard = selectedCustomer?.ghanaCard || selectedConsignment?.ghanaCard;
+      const hasTin = selectedCustomer?.tin || selectedConsignment?.tin;
+      if (!hasGhanaCard && !hasTin) {
+        Alert.alert(
+          'Validation',
+          'At least one of Ghana Card or TIN must be provided for the customer/consignee.',
+        );
         return null;
       }
     }
@@ -598,21 +640,18 @@ export const JobCreateScreen: React.FC = () => {
       customerId,
       assignedToId: assignedToId || undefined,
       consignmentId: consignmentId || null,
-      status: 'NEW',
+      ...(!editId ? { status: 'NEW' } : {}),
       isDraft,
       goodsTypes,
-      ...(eta ? { eta } : {}),
-      ...(mediumOfEnquiry ? { mediumOfEnquiry } : {}),
+      eta,
+      mediumOfEnquiry,
       documentsBrought: transformedDocumentsBrought,
-      ...(containerNumber.trim()
-        ? { containerNumber: containerNumber.trim() }
-        : {}),
-      ...(blNumber.trim() ? { blNumber: blNumber.trim() } : {}),
-      ...(vesselName ? { vesselName } : {}),
-      ...(line ? { line } : {}),
-      ...(jobDescription.trim()
-        ? { jobDescription: jobDescription.trim() }
-        : {}),
+      datePosted,
+      containerNumber: containerNumber.trim(),
+      blNumber: blNumber.trim(),
+      vesselName,
+      line,
+      jobDescription: jobDescription.trim(),
     };
   };
 
@@ -627,7 +666,7 @@ export const JobCreateScreen: React.FC = () => {
     try {
       const data = await createMutation.mutateAsync(payload);
       const jobId = data.job?.id;
-      void queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      void queryClient.invalidateQueries();
       resetForm();
       // Leave Create immediately so a second tap cannot double-submit.
       // replace removes Create from the stack (back won't return to a filled form).
@@ -641,6 +680,7 @@ export const JobCreateScreen: React.FC = () => {
         void uploadDocuments(jobId, docsToUpload)
           .then(() => {
             void queryClient.invalidateQueries({ queryKey: ['job', jobId] });
+            void queryClient.invalidateQueries({ queryKey: ['documents', 'job', jobId] });
           })
           .catch(() => {
             Alert.alert(
@@ -660,6 +700,8 @@ export const JobCreateScreen: React.FC = () => {
       setSubmitting(null);
     }
   };
+
+  if (editId && (existing.isLoading || existing.error)) return <Workflow title="Edit job" loading={existing.isLoading} error={existing.error} retry={() => void existing.refetch()} />;
 
   if (step === 'customer') {
     return (
@@ -705,13 +747,14 @@ export const JobCreateScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-white"
     >
-      <ScreenHeader title="New job" />
+      <ScreenHeader title={editId ? "Edit job" : "New job"} />
       <ScrollView
         className="flex-1"
         contentContainerClassName="px-4 py-4"
         keyboardShouldPersistTaps="handled"
       >
         <TouchableOpacity
+          disabled={!!editId}
           onPress={() => setStep('customer')}
           className="mb-4"
         >
@@ -830,6 +873,16 @@ export const JobCreateScreen: React.FC = () => {
         </View>
 
         <View className="mb-4">
+          <DateField
+            label="Date Posted"
+            value={datePosted}
+            onChange={setDatePosted}
+            placeholder="Select date posted"
+            disabled={isBusy}
+          />
+        </View>
+
+        <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Container Number</Text>
           <Input
             value={containerNumber}
@@ -925,7 +978,7 @@ export const JobCreateScreen: React.FC = () => {
         <View className="flex-row" style={{ gap: 10 }}>
           <TouchableOpacity
             onPress={() => void submitJob(true)}
-            disabled={isBusy}
+            disabled={isBusy || (!!editId && !existing.data?.job.isDraft)}
             className="flex-1 rounded-xl h-[52px] items-center justify-center border border-gray-300"
             style={isBusy && submitting !== 'draft' ? { opacity: 0.5 } : undefined}
           >
@@ -950,7 +1003,7 @@ export const JobCreateScreen: React.FC = () => {
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <Text className="text-white font-semibold text-[17px]">
-                Submit Job
+                {editId ? "Save job" : "Submit job"}
               </Text>
             )}
           </TouchableOpacity>

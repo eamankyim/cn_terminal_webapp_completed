@@ -1,4 +1,7 @@
 import React from 'react';
+import { Button } from '../../components/Button';
+import { Workflow, confirmAction, showError, options } from '../../components/Workflow';
+import { SelectField } from '../../components/SelectField';
 import {
   ActivityIndicator,
   ScrollView,
@@ -7,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useRoute } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../../api/http';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { StatusBadge } from '../../components/StatusBadge';
@@ -25,6 +28,7 @@ interface InvoiceDetailResponse {
 interface Props {
   navigation: {
     navigate: (screen: string, params?: unknown) => void;
+    goBack: () => void;
   };
 }
 
@@ -35,11 +39,22 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ navigation }) => {
   const { hasPermission } = useAuth();
   const canRecordPayment = hasPermission(PERMISSIONS.INVOICE_EDIT);
 
-  const { data, isLoading } = useQuery({
+  const client = useQueryClient();
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['invoice', invoiceId],
     queryFn: () =>
       api.get<InvoiceDetailResponse>(`/invoices/${invoiceId}`),
   });
+
+  const mutation = useMutation({ mutationFn: async (action: string) => {
+    if (action === 'delete') {
+      if (!hasPermission(PERMISSIONS.INVOICE_DELETE)) throw new Error('Delete access required.');
+      return api.delete(`/invoices/${invoiceId}`);
+    }
+    if (!canRecordPayment) throw new Error('Edit access required.');
+    return api.put(`/invoices/${invoiceId}/status`, { status: action });
+  }, onSuccess: (_, action) => { void client.invalidateQueries(); if (action === 'delete') navigation.goBack(); }, onError: showError });
+  if (error) return <Workflow title="Invoice" error={error} retry={() => void refetch()} />;
 
   if (isLoading || !data?.invoice) {
     return (
@@ -100,7 +115,12 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ navigation }) => {
           )}
         </View>
 
-        {canRecordPayment ? (
+        {canRecordPayment && <View style={{ gap: 12, marginBottom: 16 }}>
+          <Button title="Edit invoice" variant="secondary" onPress={() => navigation.navigate('InvoiceEdit', { invoiceId })} />
+          <SelectField label="Status" value={invoice.status} disabled={mutation.isPending} options={options(['PENDING', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'CANCELLED'])} onChange={status => confirmAction(`Change invoice status to ${status}?`, () => mutation.mutate(status))} />
+        </View>}
+        {hasPermission(PERMISSIONS.INVOICE_DELETE) && <Button title="Delete invoice" variant="ghost" disabled={mutation.isPending} onPress={() => confirmAction('Delete invoice?', () => mutation.mutate('delete'))} />}
+        {canRecordPayment && !['PAID', 'CANCELLED'].includes(invoice.status) ? (
           <TouchableOpacity
             onPress={() => navigation.navigate('RecordPayment', { invoiceId })}
             className="rounded-xl h-[52px] items-center justify-center"

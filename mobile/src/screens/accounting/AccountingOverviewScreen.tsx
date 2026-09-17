@@ -1,3 +1,6 @@
+import { useNavigation } from '@react-navigation/native';
+import { Button } from '../../components/Button';
+import { Workflow } from '../../components/Workflow';
 import React from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
@@ -18,18 +21,21 @@ interface CashflowSummaryResponse {
 
 export const AccountingOverviewScreen: React.FC = () => {
   const { accent } = useTheme();
+  const navigation = useNavigation<any>();
   const end = new Date();
   const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
   const startDate = start.toISOString().slice(0, 10);
   const endDate = end.toISOString().slice(0, 10);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['cashflow-summary', startDate, endDate],
     queryFn: () =>
       api.get<CashflowSummaryResponse>(
         `/cashflow/summary?startDate=${startDate}&endDate=${endDate}`,
       ),
   });
+
+  if (error) return <Workflow title="Accounting" error={error} retry={() => void refetch()} />;
 
   if (isLoading || !data?.summary) {
     return (
@@ -88,9 +94,15 @@ export const AccountingOverviewScreen: React.FC = () => {
         </StatsRow>
 
         <Text className="text-xs text-gray-500">
-          Last 30 days · {startDate} to {endDate}. Full expense/payout lists are
-          available via Account → Expense requests.
+          Last 30 days · {startDate} to {endDate}.
         </Text>
+        <View style={{ gap: 12, marginTop: 16 }}>
+          <Button title="Cashflow transactions" onPress={() => navigation.navigate('Cashflow')} />
+          <Button title="Payouts" onPress={() => navigation.navigate('Payouts')} />
+          <Button title="Expense requests" onPress={() => navigation.navigate('ExpenseRequests')} />
+          <Button title="Recorded expenses" onPress={() => navigation.navigate('Expenses')} />
+          <Button title="Invoices and payments" onPress={() => navigation.navigate('Invoices')} />
+        </View>
       </ScrollView>
     </View>
   );

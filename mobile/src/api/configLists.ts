@@ -34,6 +34,8 @@ export type ListMeta = {
 const listCache = new Map<string, { list: string[]; expiresAt: number }>();
 const CACHE_TTL_MS = 30_000;
 
+export function clearConfigListCache() { listCache.clear(); }
+
 function getCachedList(key: string): string[] | null {
   const entry = listCache.get(key);
   if (!entry) return null;

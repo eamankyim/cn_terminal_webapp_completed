@@ -66,3 +66,19 @@ npm run test:api   # smoke-tests auth + key endpoints (needs MOBILE_TEST_* in .e
 - `src/utils/permissions.ts` – `hasRole` / `hasPermission` helpers
 
 Auth mirrors the web app: `POST /api/auth/login`, `GET /api/auth/me`, Bearer token in `Authorization`.
+
+## Web parity and verification
+
+See [PARITY.md](PARITY.md) for the implemented workflows, deployment dependency,
+validation results, and remaining gaps before full functional parity can be claimed.
+
+```bash
+npm run typecheck
+npm run test:parity   # offline regression tests; no production writes
+npm run test:api      # requires a reachable backend and mobile test credentials
+```
+
+The More menu now includes accounting, team, role, invitation, and configuration
+workflows according to account access. Data refreshes on web socket events, when
+the app becomes active, and every 30 seconds while active. Query caches are scoped
+to the authenticated account.

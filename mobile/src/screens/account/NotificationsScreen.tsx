@@ -1,4 +1,6 @@
-import React, { useMemo } from 'react';
+import { Button } from '../../components/Button';
+import { Workflow, showError, confirmAction } from '../../components/Workflow';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -21,10 +23,11 @@ export const NotificationsScreen: React.FC = () => {
   const queryClient = useQueryClient();
   const { accent } = useTheme();
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['notifications'],
+  const [page, setPage] = useState(1);
+  const { data, isLoading, refetch, isRefetching, error } = useQuery({
+    queryKey: ['notifications', page],
     queryFn: () =>
-      api.get<NotificationsListResponse>('/notifications?page=1&limit=20'),
+      api.get<NotificationsListResponse>(`/notifications?page=${page}&limit=20`),
   });
 
   const notifications = data?.data.notifications ?? [];
@@ -81,6 +84,7 @@ export const NotificationsScreen: React.FC = () => {
     await queryClient.invalidateQueries({ queryKey: ['notifications'] });
   };
 
+  if (error) return <Workflow title="Notifications" error={error} retry={() => void refetch()} />;
   if (isLoading && !isRefetching) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
@@ -95,7 +99,7 @@ export const NotificationsScreen: React.FC = () => {
       <ScreenHeader
         title="Notifications"
         right={
-          <TouchableOpacity onPress={markAllRead}>
+          <TouchableOpacity onPress={() => { void markAllRead().catch(showError); }}>
             <Text className="text-xs font-semibold text-black">Mark all</Text>
           </TouchableOpacity>
         }
@@ -111,9 +115,10 @@ export const NotificationsScreen: React.FC = () => {
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+        ListFooterComponent={<View className="flex-row justify-between"><Button title="Previous" variant="secondary" disabled={page === 1} onPress={() => setPage(page - 1)} /><Text>Page {page}</Text><Button title="Next" variant="secondary" disabled={page >= (data?.data.pagination.pages ?? data?.data.pagination.totalPages ?? 1)} onPress={() => setPage(page + 1)} /></View>}
         renderItem={({ item }) => (
           <TouchableOpacity
-            onPress={() => markAsRead(item.id)}
+            onPress={() => { void markAsRead(item.id).catch(showError); }}
             className={`mb-3 rounded-2xl px-4 py-3 border ${
               item.isRead ? 'border-gray-200 bg-white' : 'border'
             }`}
@@ -137,6 +142,7 @@ export const NotificationsScreen: React.FC = () => {
             >
               {item.message}
             </Text>
+            <Button title="Delete notification" variant="ghost" onPress={() => confirmAction('Delete notification?', () => { void api.delete(`/notifications/${item.id}`).then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] })).catch(showError); })} />
           </TouchableOpacity>
         )}
       />
