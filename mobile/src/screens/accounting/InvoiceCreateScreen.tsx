@@ -1,3 +1,6 @@
+import { CHARGE_FIELDS, emptyCharges, calculateInvoiceCharges } from '../../utils/invoiceCharges';
+import { Field, Workflow } from '../../components/Workflow';
+import { fetchAllPages } from '../../api/pagination';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -34,7 +37,14 @@ export const InvoiceCreateScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const queryClient = useQueryClient();
   const [jobId, setJobId] = useState<string | null>(null);
-  const [amount, setAmount] = useState('');
+  const [charges, setCharges] = useState(emptyCharges);
+  const [comments, setComments] = useState('');
+  const [blAmendment, setBlAmendment] = useState('');
+  const configuration = useQuery({ queryKey: ['invoice-tax-config'], queryFn: () => api.get<{ data: Record<string, { key: string; value: string }[]> }>('/configurations') });
+  const taxRow = Object.values(configuration.data?.data ?? {}).flat().find(row => row.key === 'VAT_RATE');
+  const vatRate = Number(taxRow?.value ?? 15);
+  let calculation: ReturnType<typeof calculateInvoiceCharges> | null = null;
+  try { calculation = calculateInvoiceCharges(charges, vatRate); } catch { /* Display validation at submit. */ }
   const [issueDate, setIssueDate] = useState(toDateString(new Date()));
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date();
@@ -46,8 +56,7 @@ export const InvoiceCreateScreen: React.FC = () => {
 
   const { data: jobsData } = useQuery({
     queryKey: ['invoice-jobs'],
-    queryFn: () =>
-      api.get<{ jobs: Job[] }>('/invoices/jobs?limit=50'),
+    queryFn: async () => ({ jobs: await fetchAllPages<Job>('/invoices/jobs', 'jobs') }),
   });
 
   const jobs = jobsData?.jobs ?? [];
@@ -68,6 +77,9 @@ export const InvoiceCreateScreen: React.FC = () => {
       amount: number;
       issueDate: string;
       dueDate: string;
+      charges: Record<string, number>;
+      comments: string;
+      blAmendment: string;
     }) => api.post<CreateInvoiceResponse>('/invoices', payload),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ['invoices'] });
@@ -94,24 +106,28 @@ export const InvoiceCreateScreen: React.FC = () => {
       Alert.alert('Validation', 'Please select a job.');
       return;
     }
-    const num = parseFloat(amount);
-    if (Number.isNaN(num) || num <= 0) {
+    const num = calculation?.amount ?? 0;
+    if (!calculation || !Number.isFinite(num) || num <= 0) {
       Alert.alert('Validation', 'Enter a valid amount.');
       return;
     }
-    if (!issueDate || !dueDate) {
+    if (![issueDate, dueDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(d) && Number.isFinite(Date.parse(d))) || dueDate < issueDate) {
       Alert.alert('Validation', 'Issue date and due date are required.');
       return;
     }
     createMutation.mutate({
       jobId,
       amount: num,
+      charges: calculation.charges,
+      comments: comments.trim(),
+      blAmendment: blAmendment.trim(),
       issueDate,
       dueDate,
     });
   };
 
-  const loading = createMutation.isPending;
+  const loading = createMutation.isPending || configuration.isLoading;
+  if (configuration.error) return <Workflow title="Create invoice" error={configuration.error} retry={() => void configuration.refetch()} />;
 
   if (showJobPicker) {
     return (
@@ -180,15 +196,12 @@ export const InvoiceCreateScreen: React.FC = () => {
           </Text>
         </TouchableOpacity>
 
-        <View className="mb-4">
-          <Text className="text-sm text-gray-600 mb-1">Amount (GHS) *</Text>
-          <Input
-            value={amount}
-            onChangeText={setAmount}
-            placeholder="0.00"
-            keyboardType="decimal-pad"
-            editable={!loading}
-          />
+        <View style={{ gap: 12, marginBottom: 16 }}>
+          {CHARGE_FIELDS.map(([key, label]) => <Field key={key} label={`${label} (GHS)`} value={charges[key]} onChangeText={value => setCharges(current => ({ ...current, [key]: value }))} keyboardType="decimal-pad" editable={!loading} />)}
+          <Text>VAT ({vatRate}%): GHS {calculation?.charges.vat.toFixed(2) ?? '—'}</Text>
+          <Text className="text-lg font-semibold">Total: GHS {calculation?.amount.toFixed(2) ?? '—'}</Text>
+          <Field label="B/L amendment" value={blAmendment} onChangeText={setBlAmendment} />
+          <Field label="Comments" value={comments} onChangeText={setComments} multiline />
         </View>
         <View className="mb-4">
           <Text className="text-sm text-gray-600 mb-1">Issue date *</Text>

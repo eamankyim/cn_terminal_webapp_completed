@@ -76,6 +76,7 @@ const jobScalarSelect = {
   goodsTypes: true,
   mediumOfEnquiry: true,
   documentsBrought: true,
+  datePosted: true,
   containerNumber: true,
   blNumber: true,
   vesselName: true,

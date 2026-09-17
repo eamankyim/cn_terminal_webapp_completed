@@ -1,3 +1,5 @@
+import { fetchAllPages } from '../../api/pagination';
+import { Workflow } from '../../components/Workflow';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -33,9 +35,9 @@ export const EstimatesScreen: React.FC<Props> = ({ navigation }) => {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch, isRefetching, error } = useQuery({
     queryKey: ['estimates'],
-    queryFn: () => api.get<EstimatesListResponse>('/estimates'),
+    queryFn: async () => ({ estimates: await fetchAllPages<Estimate>('/estimates', 'estimates') }),
   });
 
   const estimates = useMemo(() => {
@@ -46,6 +48,8 @@ export const EstimatesScreen: React.FC<Props> = ({ navigation }) => {
       return hay.includes(search);
     });
   }, [data?.estimates, search]);
+
+  if (error) return <Workflow title="Estimates" error={error} retry={() => void refetch()} />;
 
   if (isLoading && !isRefetching && !data) {
     return (

@@ -1,3 +1,5 @@
+import { fetchAllPages } from '../../api/pagination';
+import { Workflow } from '../../components/Workflow';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -52,12 +54,13 @@ export const MyRequestsScreen: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch, isRefetching, error } = useQuery({
     queryKey: ['expenses-my-requests'],
-    queryFn: () => api.get<MyRequestsResponse>('/expenses/my-requests?page=1&limit=20'),
+    queryFn: async () => ({ requests: await fetchAllPages<Request>('/expenses/my-requests', 'requests') }),
   });
 
   const requests = data?.requests ?? [];
+  if (error) return <Workflow title="My expense requests" error={error} retry={() => void refetch()} />;
 
   return (
     <View className="flex-1 bg-white">

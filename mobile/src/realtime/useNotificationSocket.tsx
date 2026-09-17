@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Alert, Vibration } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { API_BASE_URL } from '../config/env';
@@ -14,7 +14,8 @@ type NotificationSocketCallbacks = {
 };
 
 let notificationSocket: Socket | null = null;
-let assignmentAlarmBound = false;
+let subscribers = 0;
+let socketIdentity = "";
 
 function isJobAssignmentNotification(payload: any) {
   return (
@@ -35,97 +36,50 @@ function playJobAssignmentAlarm(payload: any) {
 export function useNotificationSocket(callbacks: NotificationSocketCallbacks) {
   const { user, token } = useAuth();
 
+  const latest = useRef(callbacks);
+  latest.current = callbacks;
+  const userId = user?.id;
   useEffect(() => {
-    if (!user || !token) return;
-
-    const base = API_BASE_URL.replace('/api', '');
+    if (!userId || !token) return;
+    const identity = `${userId}:${token}`;
+    if (socketIdentity !== identity) {
+      notificationSocket?.disconnect();
+      notificationSocket = null;
+      socketIdentity = identity;
+      subscribers = 0;
+    }
     if (!notificationSocket) {
-      notificationSocket = io(base, {
-        auth: { token },
-        transports: ['websocket', 'polling'],
+      notificationSocket = io(API_BASE_URL.replace(/\/api\/?$/, ''), {
+        auth: { token }, transports: ['websocket', 'polling'],
       });
+      const connected = notificationSocket;
+      connected.on('connect', () => connected.emit('authenticate', userId));
+      connected.on('new_notification', playJobAssignmentAlarm);
     }
-
-    if (!assignmentAlarmBound) {
-      assignmentAlarmBound = true;
-      notificationSocket.on('new_notification', playJobAssignmentAlarm);
-    }
-
-    notificationSocket.on('connect', () => {
-      notificationSocket?.emit('authenticate', user.id);
+    const connected = notificationSocket;
+    subscribers += 1;
+    const events: Record<string, keyof NotificationSocketCallbacks> = {
+      new_notification: 'onNewNotification',
+      unread_count_update: 'onUnreadCountUpdate',
+      notification_read_update: 'onNotificationReadUpdate',
+      notification_deleted: 'onNotificationDeleted',
+      notifications_cleared: 'onNotificationsCleared',
+      system_notification: 'onSystemNotification',
+    };
+    const listeners = Object.entries(events).map(([event, key]) => {
+      const listener = (payload: unknown) => latest.current[key]?.(payload);
+      connected.on(event, listener);
+      return { event, listener };
     });
-
-    if (callbacks.onNewNotification) {
-      notificationSocket.on('new_notification', callbacks.onNewNotification);
-    }
-    if (callbacks.onUnreadCountUpdate) {
-      notificationSocket.on(
-        'unread_count_update',
-        callbacks.onUnreadCountUpdate,
-      );
-    }
-    if (callbacks.onNotificationReadUpdate) {
-      notificationSocket.on(
-        'notification_read_update',
-        callbacks.onNotificationReadUpdate,
-      );
-    }
-    if (callbacks.onNotificationDeleted) {
-      notificationSocket.on(
-        'notification_deleted',
-        callbacks.onNotificationDeleted,
-      );
-    }
-    if (callbacks.onNotificationsCleared) {
-      notificationSocket.on(
-        'notifications_cleared',
-        callbacks.onNotificationsCleared,
-      );
-    }
-    if (callbacks.onSystemNotification) {
-      notificationSocket.on(
-        'system_notification',
-        callbacks.onSystemNotification,
-      );
-    }
-
     return () => {
-      if (!notificationSocket) return;
-      if (callbacks.onNewNotification) {
-        notificationSocket.off('new_notification', callbacks.onNewNotification);
-      }
-      if (callbacks.onUnreadCountUpdate) {
-        notificationSocket.off(
-          'unread_count_update',
-          callbacks.onUnreadCountUpdate,
-        );
-      }
-      if (callbacks.onNotificationReadUpdate) {
-        notificationSocket.off(
-          'notification_read_update',
-          callbacks.onNotificationReadUpdate,
-        );
-      }
-      if (callbacks.onNotificationDeleted) {
-        notificationSocket.off(
-          'notification_deleted',
-          callbacks.onNotificationDeleted,
-        );
-      }
-      if (callbacks.onNotificationsCleared) {
-        notificationSocket.off(
-          'notifications_cleared',
-          callbacks.onNotificationsCleared,
-        );
-      }
-      if (callbacks.onSystemNotification) {
-        notificationSocket.off(
-          'system_notification',
-          callbacks.onSystemNotification,
-        );
+      listeners.forEach(({ event, listener }) => connected.off(event, listener));
+      if (connected !== notificationSocket) return;
+      subscribers -= 1;
+      if (subscribers === 0) {
+        connected.disconnect();
+        notificationSocket = null;
+        socketIdentity = '';
       }
     };
-  }, [callbacks, token, user]);
+  }, [token, userId]);
 }
-
-

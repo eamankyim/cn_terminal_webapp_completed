@@ -1,3 +1,5 @@
+import { Button } from '../../components/Button';
+import { Workflow, confirmAction, showError } from '../../components/Workflow';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -32,7 +34,7 @@ export const EstimateDetailScreen: React.FC = () => {
   const canEditEstimate = hasPermission(PERMISSIONS.ESTIMATE_EDIT);
   const canSendEstimate = hasPermission(PERMISSIONS.ESTIMATE_SEND);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['estimate', estimateId],
     queryFn: () =>
       api.get<EstimateDetailResponse>(`/estimates/${estimateId}`),
@@ -57,6 +59,11 @@ export const EstimateDetailScreen: React.FC = () => {
     sendMutation.mutate();
   };
 
+  const deleteMutation = useMutation({ mutationFn: () => {
+    if (!hasPermission(PERMISSIONS.ESTIMATE_DELETE)) throw new Error('Delete access required.');
+    return api.delete(`/estimates/${estimateId}`);
+  }, onSuccess: () => { void queryClient.invalidateQueries(); navigation.goBack(); }, onError: showError });
+  if (error) return <Workflow title="Estimate" error={error} retry={() => void refetch()} />;
   if (isLoading || !data?.estimate) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
@@ -118,6 +125,7 @@ export const EstimateDetailScreen: React.FC = () => {
             </TouchableOpacity>
           ) : null}
         </View>
+        {hasPermission(PERMISSIONS.ESTIMATE_DELETE) && <Button title="Delete estimate" variant="ghost" loading={deleteMutation.isPending} onPress={() => confirmAction('Delete estimate?', () => deleteMutation.mutate())} />}
       </ScrollView>
     </View>
   );

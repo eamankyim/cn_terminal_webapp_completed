@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -39,8 +39,11 @@ export const EstimateEditScreen: React.FC = () => {
       api.get<EstimateDetailResponse>(`/estimates/${estimateId}`),
   });
 
+  const initializedId = useRef<string | null>(null);
   useEffect(() => {
     if (data?.estimate) {
+      if (initializedId.current === data.estimate.id) return;
+      initializedId.current = data.estimate.id;
       const e = data.estimate;
       setAmount(String(e.amount ?? ''));
       setDescription((e as any).description ?? '');

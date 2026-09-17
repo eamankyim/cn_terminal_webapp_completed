@@ -1,3 +1,8 @@
+import { Button } from '../../components/Button';
+import { Workflow, showError, confirmAction } from '../../components/Workflow';
+import { useAuth } from '../../context/AuthContext';
+import { PERMISSIONS } from '../../utils/permissions';
+import { EntityDocuments } from '../../components/EntityDocuments';
 import React from 'react';
 import {
   ActivityIndicator,
@@ -7,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { StatusBadge } from '../../components/StatusBadge';
@@ -24,12 +29,19 @@ export const ConsignmentDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const consignmentId: string = route.params?.consignmentId;
 
-  const { data, isLoading } = useQuery({
+  const { hasPermission } = useAuth();
+  const client = useQueryClient();
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['consignment', consignmentId],
     queryFn: () =>
       api.get<ConsignmentDetailResponse>(`/consignments/${consignmentId}`),
   });
 
+  const remove = useMutation({ mutationFn: () => {
+    if (!hasPermission(PERMISSIONS.CUSTOMER_DELETE)) throw new Error('Delete access required.');
+    return api.delete(`/consignments/${consignmentId}`);
+  }, onSuccess: () => { void client.invalidateQueries(); navigation.goBack(); }, onError: showError });
+  if (error) return <Workflow title="Consignment" error={error} retry={() => void refetch()} />;
   if (isLoading || !data?.consignment) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
@@ -68,6 +80,18 @@ export const ConsignmentDetailScreen: React.FC = () => {
             <Text className="text-sm text-gray-800">{c.consigneeAddress}</Text>
           </View>
         ) : null}
+        {c.ghanaCard ? (
+          <View className="mb-4">
+            <Text className="text-xs text-gray-500 mb-1">Ghana Card</Text>
+            <Text className="text-sm text-gray-800">{c.ghanaCard}</Text>
+          </View>
+        ) : null}
+        {c.tin ? (
+          <View className="mb-4">
+            <Text className="text-xs text-gray-500 mb-1">TIN</Text>
+            <Text className="text-sm text-gray-800">{c.tin}</Text>
+          </View>
+        ) : null}
         {c.customer ? (
           <View className="mb-4">
             <Text className="text-xs text-gray-500 mb-1">Customer</Text>
@@ -75,7 +99,7 @@ export const ConsignmentDetailScreen: React.FC = () => {
           </View>
         ) : null}
 
-        <TouchableOpacity
+        {hasPermission(PERMISSIONS.CUSTOMER_EDIT) && <TouchableOpacity
           onPress={() =>
             navigation.navigate('ConsignmentEdit', { consignmentId: c.id })
           }
@@ -83,7 +107,9 @@ export const ConsignmentDetailScreen: React.FC = () => {
           style={{ backgroundColor: accent }}
         >
           <Text className="text-white font-semibold text-[17px]">Edit consignment</Text>
-        </TouchableOpacity>
+        </TouchableOpacity>}
+        <EntityDocuments entityType="consignment" entityId={consignmentId} />
+        {hasPermission(PERMISSIONS.CUSTOMER_DELETE) && <Button title="Delete consignment" variant="ghost" loading={remove.isPending} onPress={() => confirmAction('Delete consignment?', () => remove.mutate())} />}
       </ScrollView>
     </View>
   );

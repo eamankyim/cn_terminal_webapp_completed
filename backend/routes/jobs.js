@@ -439,6 +439,7 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
       eta,
       mediumOfEnquiry,
       documentsBrought = [],
+      datePosted,
       containerNumber,
       blNumber,
       vesselName,
@@ -549,6 +550,7 @@ router.post('/', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), asyn
       eta: eta ? new Date(eta) : null,
       mediumOfEnquiry: mediumOfEnquiry || null,
       documentsBrought: Array.isArray(documentsBrought) ? documentsBrought : [],
+      datePosted: datePosted ? new Date(datePosted) : null,
       containerNumber: containerNumber || null,
       blNumber: blNumber && blNumber.trim() !== '' ? blNumber.trim() : null, // Trim and store BL number
       vesselName: vesselName || null,
@@ -661,6 +663,7 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
       releaseMoneyReceived,
       mediumOfEnquiry,
       documentsBrought,
+      datePosted,
       containerNumber,
       blNumber,
       vesselName,
@@ -791,6 +794,11 @@ router.put('/:id', authenticateToken, requirePermission(UI_PERMISSIONS.JOBS), as
     // Add documents brought if provided
     if (documentsBrought !== undefined) {
       updateData.documentsBrought = documentsBrought;
+    }
+
+    // Add date posted if provided
+    if (datePosted !== undefined) {
+      updateData.datePosted = datePosted ? new Date(datePosted) : null;
     }
 
     // Add container number if provided

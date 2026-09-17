@@ -1,3 +1,6 @@
+import { Button } from '../../components/Button';
+import { Workflow, showError, confirmAction } from '../../components/Workflow';
+import { Linking } from 'react-native';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -10,7 +13,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../api/http';
 import { StatusBadge } from '../../components/StatusBadge';
@@ -106,15 +109,20 @@ export const CustomerDetailContent: React.FC<CustomerDetailContentProps> = ({
   const { hasPermission } = useAuth();
   const { accent } = useTheme();
   const canEditCustomer = hasPermission(PERMISSIONS.CUSTOMER_EDIT);
-  const canCreateCustomer = hasPermission(PERMISSIONS.CUSTOMER_CREATE);
 
-  const { data, isLoading } = useQuery({
+  const client = useQueryClient();
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['customer', customerId],
     queryFn: () =>
       api.get<CustomerDetailResponse>(`/customers/${customerId}`),
     enabled: Boolean(customerId),
   });
 
+  const remove = useMutation({ mutationFn: () => {
+    if (!hasPermission(PERMISSIONS.CUSTOMER_DELETE)) throw new Error('Delete access required.');
+    return api.delete(`/customers/${customerId}`);
+  }, onSuccess: () => { void client.invalidateQueries(); onClose(); }, onError: showError });
+  if (error) return <Workflow title="Client" error={error} retry={() => void refetch()} />;
   if (isLoading || !data?.customer) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
@@ -351,6 +359,8 @@ export const CustomerDetailContent: React.FC<CustomerDetailContentProps> = ({
             )}
           </View>
         )}
+        {data.customer.phone && <Button title="WhatsApp client" variant="secondary" onPress={() => { const phone = (data.customer.phone ?? '').replace(/[^0-9]/g, ''); void Linking.openURL(`https://wa.me/${phone.startsWith('0') ? '233' + phone.slice(1) : phone}`).catch(showError); }} />}
+        {hasPermission(PERMISSIONS.CUSTOMER_DELETE) && <Button title="Delete client" variant="ghost" loading={remove.isPending} onPress={() => confirmAction('Delete client?', () => remove.mutate())} />}
       </ScrollView>
 
       {/* Overflow menu */}
@@ -401,7 +411,7 @@ export const CustomerDetailContent: React.FC<CustomerDetailContentProps> = ({
             >
               <Text className="text-base text-black">Manage consignments</Text>
             </TouchableOpacity>
-            {canCreateCustomer ? (
+            {canEditCustomer ? (
               <TouchableOpacity
                 onPress={() => {
                   setMenuOpen(false);

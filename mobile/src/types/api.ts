@@ -77,6 +77,14 @@ export interface Job {
   demurrageFreeDays?: number | null;
   releaseMoneyReceived?: boolean | null;
   demurrageType?: string | null;
+  datePosted?: string | null;
+  statusHistory?: {
+    id: string;
+    status: string;
+    comment?: string | null;
+    date: string;
+    updatedByUser?: { id: string; name: string; email?: string };
+  }[];
   customer?: {
     id: string;
     name: string;
@@ -130,6 +138,7 @@ export interface Customer {
   ghanaCard?: string | null;
   tin?: string | null;
   customerType?: string | null;
+  city?: string | null;
   status?: string | null;
   createdAt?: string;
   updatedAt?: string;

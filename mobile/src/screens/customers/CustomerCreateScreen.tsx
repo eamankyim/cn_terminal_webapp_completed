@@ -11,11 +11,17 @@ import {
 } from 'react-native';
 import { Input } from '../../components/Input';
 import { ScreenHeader } from '../../components/ScreenHeader';
+import { SelectField } from '../../components/SelectField';
 import { useNavigation } from '@react-navigation/native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/http';
 import type { Customer } from '../../types/api';
 import { useTheme } from '../../context/ThemeContext';
+
+const CUSTOMER_TYPE_OPTIONS = [
+  { value: 'COMPANY', label: 'Company' },
+  { value: 'INDIVIDUAL', label: 'Individual' },
+];
 
 interface CreateCustomerResponse {
   customer: Customer;
@@ -32,6 +38,8 @@ export const CustomerCreateScreen: React.FC = () => {
   const [contactPerson, setContactPerson] = useState('');
   const [ghanaCard, setGhanaCard] = useState('');
   const [tin, setTin] = useState('');
+  const [customerType, setCustomerType] = useState('COMPANY');
+  const [city, setCity] = useState('');
 
   const createMutation = useMutation({
     mutationFn: (payload: {
@@ -42,6 +50,8 @@ export const CustomerCreateScreen: React.FC = () => {
       contactPerson?: string;
       ghanaCard?: string;
       tin?: string;
+      customerType?: string;
+      city?: string;
     }) =>
       api.post<CreateCustomerResponse>('/customers', payload),
     onSuccess: (data) => {
@@ -92,6 +102,8 @@ export const CustomerCreateScreen: React.FC = () => {
       ...(contactPerson.trim() ? { contactPerson: contactPerson.trim() } : {}),
       ...(ghanaCard.trim() ? { ghanaCard: ghanaCard.trim() } : {}),
       ...(tin.trim() ? { tin: tin.trim() } : {}),
+      customerType,
+      ...(city.trim() ? { city: city.trim() } : {}),
     });
   };
 
@@ -153,6 +165,24 @@ export const CustomerCreateScreen: React.FC = () => {
           <Input
             value={contactPerson}
             onChangeText={setContactPerson}
+            placeholder="Optional"
+            editable={!loading}
+          />
+        </View>
+        <View className="mb-4">
+          <SelectField
+            label="Client type *"
+            value={customerType}
+            onChange={setCustomerType}
+            options={CUSTOMER_TYPE_OPTIONS}
+            disabled={loading}
+          />
+        </View>
+        <View className="mb-4">
+          <Text className="text-sm text-gray-600 mb-1">City</Text>
+          <Input
+            value={city}
+            onChangeText={setCity}
             placeholder="Optional"
             editable={!loading}
           />

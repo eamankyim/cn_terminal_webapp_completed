@@ -1,3 +1,4 @@
+import { fetchAllPages } from '../../api/pagination';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -47,9 +48,8 @@ export const EstimateCreateScreen: React.FC = () => {
   const [customerSearch, setCustomerSearch] = useState('');
 
   const { data: customersData } = useQuery({
-    queryKey: ['customers'],
-    queryFn: () =>
-      api.get<CustomersListResponse>('/customers?page=1&limit=100'),
+    queryKey: ['estimate-customers'],
+    queryFn: async () => ({ customers: await fetchAllPages<Customer>('/customers', 'customers') }),
   });
 
   const customers = customersData?.customers ?? [];

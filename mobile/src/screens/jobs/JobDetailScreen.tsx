@@ -1,3 +1,6 @@
+import { EntityDocuments } from '../../components/EntityDocuments';
+import { Button } from '../../components/Button';
+import { Workflow, confirmAction, showError } from '../../components/Workflow';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -10,7 +13,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../api/http';
 import { StatusBadge } from '../../components/StatusBadge';
@@ -60,6 +63,21 @@ function formatStatusLabel(status?: string): string {
   return status.replace(/_/g, ' ');
 }
 
+const RELEASED_OR_LATER = new Set(['RELEASED', 'CLEARED', 'DELIVERED']);
+
+const DEMURRAGE_TYPE_LABELS: Record<string, string> = {
+  NO_DEMURRAGE: 'No Demurrage (Within Free Days)',
+  DEMURRAGE: 'Demurrage',
+  PASSED_FREE_DAYS: 'Passed Free Days',
+};
+
+function formatHistoryDate(value?: string | null): string {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
 type OverviewRow = {
   key: string;
   icon: keyof typeof Ionicons.glyphMap;
@@ -95,12 +113,18 @@ export const JobDetailContent: React.FC<JobDetailContentProps> = ({
   const canEditJob = hasPermission(PERMISSIONS.JOB_EDIT);
   const canUpdateStatus = hasPermission(PERMISSIONS.JOB_UPDATE_STATUS);
 
-  const { data, isLoading } = useQuery({
+  const client = useQueryClient();
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['job', jobId],
     queryFn: () => api.get<JobDetailResponse>(`/jobs/${jobId}`),
     enabled: Boolean(jobId),
   });
 
+  const remove = useMutation({ mutationFn: () => {
+    if (!hasPermission(PERMISSIONS.JOB_DELETE)) throw new Error('Delete access required.');
+    return api.delete(`/jobs/${jobId}`);
+  }, onSuccess: () => { void client.invalidateQueries(); onClose(); }, onError: showError });
+  if (error) return <Workflow title="Job" error={error} retry={() => void refetch()} />;
   if (isLoading || !data?.job) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
@@ -133,6 +157,12 @@ export const JobDetailContent: React.FC<JobDetailContentProps> = ({
       icon: 'calendar-outline',
       label: 'Submitted Date',
       value: formatSubmittedDate(job.submittedDate ?? job.createdAt),
+    },
+    {
+      key: 'datePosted',
+      icon: 'calendar-outline',
+      label: 'Date Posted',
+      value: formatEtaDate(job.datePosted) || '—',
     },
     {
       key: 'eta',
@@ -208,7 +238,40 @@ export const JobDetailContent: React.FC<JobDetailContentProps> = ({
       label: 'Driver Contact',
       value: job.driverContact ?? '—',
     },
+    ...(RELEASED_OR_LATER.has(job.status)
+      ? ([
+          {
+            key: 'scheduleTime',
+            label: 'Schedule Time',
+            value: formatHistoryDate(job.scheduleTime),
+          },
+          {
+            key: 'demurrageFreeDays',
+            label: 'Demurrage / Free Days',
+            value: job.demurrageFreeDays != null ? String(job.demurrageFreeDays) : '—',
+          },
+          {
+            key: 'releaseMoneyReceived',
+            label: 'Release Money Received',
+            value:
+              job.releaseMoneyReceived == null
+                ? '—'
+                : job.releaseMoneyReceived
+                ? 'Yes'
+                : 'No',
+          },
+          {
+            key: 'demurrageType',
+            label: 'Demurrage Status',
+            value: job.demurrageType
+              ? DEMURRAGE_TYPE_LABELS[job.demurrageType] ?? job.demurrageType
+              : '—',
+          },
+        ] as InfoRow[])
+      : []),
   ];
+
+  const statusHistory = job.statusHistory ?? [];
 
   const openAction = (screen: string) => {
     setMenuOpen(false);
@@ -348,6 +411,48 @@ export const JobDetailContent: React.FC<JobDetailContentProps> = ({
             </View>
           </View>
         </View>
+
+        {statusHistory.length > 0 ? (
+          <>
+            <View className="h-px bg-gray-200 my-5" />
+            <Text className="text-lg font-bold text-black mb-3">Timeline</Text>
+            <View style={{ gap: 4 }}>
+              {statusHistory.map((entry, index) => (
+                <View key={entry.id} className="flex-row" style={{ gap: 10 }}>
+                  <View className="items-center" style={{ width: 12 }}>
+                    <View
+                      className="rounded-full"
+                      style={{
+                        width: 10,
+                        height: 10,
+                        backgroundColor: '#000',
+                        marginTop: 6,
+                      }}
+                    />
+                    {index < statusHistory.length - 1 ? (
+                      <View className="flex-1 bg-gray-200" style={{ width: 2 }} />
+                    ) : null}
+                  </View>
+                  <View className="flex-1 pb-4">
+                    <Text className="text-base font-semibold text-black">
+                      {formatStatusLabel(entry.status)}
+                    </Text>
+                    <Text className="text-xs text-gray-500 mt-0.5">
+                      {formatHistoryDate(entry.date)}
+                      {entry.updatedByUser?.name ? ` · ${entry.updatedByUser.name}` : ''}
+                    </Text>
+                    {entry.comment ? (
+                      <Text className="text-sm text-gray-700 mt-1">{entry.comment}</Text>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </View>
+          </>
+        ) : null}
+
+        <EntityDocuments entityType="job" entityId={jobId} />
+        {hasPermission(PERMISSIONS.JOB_DELETE) && <Button title="Delete job" variant="ghost" loading={remove.isPending} onPress={() => confirmAction('Delete job?', () => remove.mutate())} />}
       </ScrollView>
 
       {/* Overflow menu */}
